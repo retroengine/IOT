@@ -6,11 +6,12 @@
 <title>SGS — Mission Control</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════
-   DESIGN: Deep Space Power Station
-   Void black · cyan signal · amber voltage · blue current
-   Orbitron display + JetBrains Mono data
+   DESIGN: Deep Space Power Station  v2.2 — Phase 10 Hardened
+   FIX #2:  dominant-baseline removed from CSS (moved to SVG attr)
+   FIX #4:  #loading.ld-hidden replaces inline style toggling
 ═══════════════════════════════════════════════════════════ */
 :root {
   --void:  #020407;
@@ -48,7 +49,6 @@
 }
 
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -74,7 +74,7 @@ header {
   gap: 12px;
 }
 .hl { display:flex; align-items:center; gap:14px; }
-.hc { display:flex; align-items:center; gap:10px; flex:1; justify-content:center; }
+.hc { display:flex; align-items:center; gap:10px; flex:1; justify-content:center; flex-wrap:wrap; }
 .hr { display:flex; align-items:center; gap:12px; }
 
 .logo     { font-family:var(--DF); font-weight:900; font-size:15px; letter-spacing:6px; color:var(--cyan); text-shadow:var(--cglow); }
@@ -83,12 +83,24 @@ header {
 
 .cdot { width:7px; height:7px; border-radius:50%; background:var(--red); box-shadow:0 0 8px var(--red); flex-shrink:0; transition:all .4s; }
 .cdot.live { background:var(--pwr); box-shadow:0 0 10px var(--pwr); animation:pulse 2s ease-in-out infinite; }
+#cloud-dot { width:7px; height:7px; border-radius:50%; background:var(--tdim); flex-shrink:0; transition:all .4s; }
+#cloud-dot.connecting { background:var(--warn); box-shadow:0 0 8px var(--warn); animation:pulse 1s ease-in-out infinite; }
+#cloud-dot.connected  { background:var(--cyan); box-shadow:0 0 10px var(--cyan); animation:pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
 
 .ip-wrap { display:flex; align-items:center; gap:7px; background:var(--p); border:1px solid var(--bdr); padding:0 10px; }
 .ip-lbl  { font-size:8px; letter-spacing:2px; color:var(--tdim); white-space:nowrap; }
 .ip-inp  { background:none; border:none; color:var(--cyan); font-family:var(--MF); font-size:12px; padding:7px 0; outline:none; width:160px; letter-spacing:1px; }
 .ip-inp::placeholder { color:var(--tdim); }
+
+#cloud-badge {
+  display:flex; align-items:center; gap:6px;
+  background:var(--p); border:1px solid var(--bdr); padding:0 10px; height:33px;
+}
+#cloud-badge-lbl { font-size:8px; letter-spacing:2px; color:var(--tdim); white-space:nowrap; }
+#cloud-badge-val { font-size:9px; color:var(--tdim); letter-spacing:1px; transition:color .3s; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#cloud-badge-val.ok  { color:var(--cyan); }
+#cloud-badge-val.err { color:var(--red);  }
 
 .btn { cursor:pointer; font-family:var(--MF); font-size:9px; letter-spacing:2px; text-transform:uppercase; transition:all .2s; padding:6px 13px; border-radius:0; }
 .btn-c { background:none; border:1px solid var(--cyan); color:var(--cyan); }
@@ -104,6 +116,22 @@ header {
   padding:7px 18px; font-size:10px; color:var(--warn); letter-spacing:1px;
   display:none; text-align:center;
 }
+
+/* ── MQTT INFO BAR ────────────────────────────────────────── */
+#mqtt-bar {
+  display:none;
+  align-items:center; gap:16px;
+  padding:5px 18px;
+  background:rgba(0,245,212,.03);
+  border-bottom:1px solid rgba(0,245,212,.10);
+  font-size:9px; color:var(--tmid); letter-spacing:1px;
+}
+#mqtt-bar.show { display:flex; }
+.mb-item { display:flex; align-items:center; gap:6px; }
+.mb-lbl  { color:var(--tdim); }
+.mb-val  { color:var(--cyan); }
+.mb-val.err  { color:var(--red); }
+.mb-val.warn { color:var(--warn); }
 
 /* ── STATUS BANNER ────────────────────────────────────────── */
 #status-banner {
@@ -148,7 +176,8 @@ header {
 .g-svg { width:110px; height:110px; }
 .g-trk { fill:none; stroke:var(--bdr2); stroke-width:5; stroke-linecap:round; }
 .g-arc { fill:none; stroke-width:5; stroke-linecap:round; transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1), stroke .4s; }
-.g-val { font-family:var(--DF); font-weight:700; font-size:18px; text-anchor:middle; dominant-baseline:central; transition:fill .4s; }
+/* FIX #2: dominant-baseline removed — using dy="0.35em" attribute on each <text> instead */
+.g-val { font-family:var(--DF); font-weight:700; font-size:18px; text-anchor:middle; transition:fill .4s; }
 .g-unt { font-family:var(--MF); font-size:8px; text-anchor:middle; fill:var(--tdim); letter-spacing:1px; }
 .gp-sub  { font-size:9px; color:var(--tdim); letter-spacing:1px; }
 .gp-conf { width:90%; height:2px; background:var(--bdr2); border-radius:1px; overflow:hidden; }
@@ -214,10 +243,8 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 .phdr-r { font-size:9px; color:var(--tdim); letter-spacing:1px; }
 .pbody  { padding:14px; }
 
-/* Power flow */
 #pf-canvas { display:block; width:100%; }
 
-/* Thermal */
 .tz { display:flex; align-items:center; gap:10px; margin-bottom:11px; }
 .tz:last-child { margin-bottom:0; }
 .tz-l { font-size:9px; color:var(--tmid); letter-spacing:1px; width:80px; flex-shrink:0; }
@@ -234,7 +261,6 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 .sv.w     { color:var(--warn); }
 .sv.e     { color:var(--red);  }
 
-/* Radar */
 #radar-canvas { display:block; margin:0 auto; }
 
 /* ── BOTTOM ROW ───────────────────────────────────────────── */
@@ -259,7 +285,7 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 .ff.ai { background:var(--cdim); border-color:var(--cyan); color:var(--cyan); }
 @keyframes ff-pulse { 0%,100%{opacity:1}60%{opacity:.6} }
 
-.net-strip { display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--bdr); }
+.net-strip { display:grid; grid-template-columns:repeat(5,1fr); border-top:1px solid var(--bdr); }
 .nc { padding:9px 7px; text-align:center; border-right:1px solid var(--bdr); }
 .nc:last-child { border-right:none; }
 .ncl { font-size:8px; letter-spacing:2px; color:var(--tdim); margin-bottom:4px; }
@@ -267,7 +293,7 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 
 /* ── CONTROL WINDOW ───────────────────────────────────────── */
 #ctrl-win {
-  position:fixed; top:85px; right:18px; width:300px; z-index:500;
+  position:fixed; top:85px; right:18px; width:320px; z-index:9500;
   background:var(--p); border:1px solid var(--bdr2);
   box-shadow:0 14px 52px rgba(0,0,0,.7), 0 0 0 1px rgba(0,245,212,.03);
   display:none;
@@ -277,7 +303,7 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 .cw-hdr {
   display:flex; align-items:center; justify-content:space-between;
   padding:10px 13px; background:var(--p2); border-bottom:1px solid var(--bdr2);
-  cursor:grab;
+  cursor:grab; user-select:none;
 }
 .cw-hdr:active { cursor:grabbing; }
 .cw-title { font-family:var(--DF); font-size:9px; letter-spacing:4px; color:var(--cyan); }
@@ -290,9 +316,41 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 
 .cw-btn { width:100%; padding:10px; background:none; font-family:var(--MF); font-size:9px; letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all .2s; border:1px solid; }
 .cw-btn:disabled { opacity:.3; cursor:not-allowed; }
-.btn-rst { border-color:var(--red); color:var(--red); }
+.btn-rst  { border-color:var(--red);  color:var(--red);  }
+.btn-cyn  { border-color:var(--cyan); color:var(--cyan); }
+.btn-warn { border-color:var(--warn); color:var(--warn); }
 .btn-rst:not(:disabled):hover   { background:var(--rdim); }
-.btn-rst:not(:disabled):active  { background:var(--red); color:var(--void); }
+.btn-rst:not(:disabled):active  { background:var(--red);  color:var(--void); }
+.btn-cyn:not(:disabled):hover   { background:var(--cdim); }
+.btn-warn:not(:disabled):hover  { background:var(--wdim); }
+
+/* MQTT credential fields */
+.mqtt-field { display:flex; align-items:center; gap:7px; margin-bottom:7px; }
+.mqtt-field:last-of-type { margin-bottom:10px; }
+.mfl  { font-size:8px; color:var(--tdim); letter-spacing:1px; width:52px; flex-shrink:0; }
+.mfi  { flex:1; background:var(--bg); border:1px solid var(--bdr); color:var(--cyan); font-family:var(--MF); font-size:10px; padding:5px 8px; outline:none; letter-spacing:1px; }
+.mfi:focus { border-color:var(--cyan); }
+.mfi.topic { color:var(--volt); }
+.mfi.topic:focus { border-color:var(--volt); }
+
+/* FIX #15: save-creds button */
+.creds-row { display:flex; gap:7px; margin-bottom:10px; }
+.btn-sv-creds {
+  flex:1; background:none; border:1px solid var(--tdim); color:var(--tdim);
+  font-family:var(--MF); font-size:8px; padding:6px; cursor:pointer;
+  letter-spacing:1px; transition:all .2s; text-transform:uppercase;
+}
+.btn-sv-creds:hover { border-color:var(--pwr); color:var(--pwr); }
+
+.mqtt-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:8px; letter-spacing:2px; padding:3px 8px;
+  border:1px solid var(--bdr); color:var(--tdim); margin-bottom:8px;
+}
+.mqtt-pill.connected  { border-color:var(--cyan); color:var(--cyan); }
+.mqtt-pill.connecting { border-color:var(--warn); color:var(--warn); }
+.mqtt-pill.error      { border-color:var(--red);  color:var(--red);  }
+.mqtt-pill-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
 
 .relay-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .rcard {
@@ -320,17 +378,23 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 .btn-sv:hover { background:var(--vdim); }
 .cw-msg   { font-size:8px; letter-spacing:1px; margin-top:6px; min-height:13px; transition:color .3s; }
 
-/* ── LOADING OVERLAY ──────────────────────────────────────── */
+/* ── FIX #4: Loading overlay controlled by CSS class only ─── */
 #loading {
   position:fixed; inset:0; background:rgba(2,4,7,.95); z-index:9000;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px;
   transition:opacity .45s;
+}
+/* FIX #17: consistent class-based state, not inline style.display check */
+#loading.ld-hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 .ld-logo { font-family:var(--DF); font-size:32px; font-weight:900; letter-spacing:10px; color:var(--cyan); text-shadow:var(--cglow); }
 .ld-bar  { width:240px; height:2px; background:var(--bdr); overflow:hidden; }
 .ld-anim { height:100%; background:var(--cyan); box-shadow:0 0 10px var(--cyan); animation:ldbar 1.8s ease-in-out infinite; }
 @keyframes ldbar { 0%{width:0;margin-left:0}50%{width:100%;margin-left:0}100%{width:0;margin-left:100%} }
 .ld-msg  { font-size:10px; letter-spacing:3px; color:var(--tdim); }
+.ld-hint { font-size:9px; letter-spacing:2px; color:var(--tmid); margin-top:-10px; }
 </style>
 </head>
 <body>
@@ -339,7 +403,24 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 <div id="loading">
   <div class="ld-logo">SGS</div>
   <div class="ld-bar"><div class="ld-anim"></div></div>
-  <div class="ld-msg" id="ld-msg">Connecting to device...</div>
+  <div class="ld-msg" id="ld-msg">Waiting for connection...</div>
+  <div class="ld-hint">No device connected yet</div>
+  <button id="ld-ctrl-btn" style="
+    margin-top:18px;
+    background:none;
+    border:1px solid var(--cyan);
+    color:var(--cyan);
+    font-family:var(--MF);
+    font-size:10px;
+    letter-spacing:3px;
+    padding:10px 28px;
+    cursor:pointer;
+    text-transform:uppercase;
+    transition:background .2s;
+  ">⊞ OPEN CONTROL PANEL</button>
+  <div style="font-size:8px;color:var(--tdim);letter-spacing:2px;margin-top:10px;">
+    Configure LAN IP or Cloud MQTT credentials
+  </div>
 </div>
 
 <!-- Header -->
@@ -347,17 +428,22 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
   <div class="hl">
     <div>
       <div class="logo">SMART GRID SENTINEL</div>
-      <div class="logo-sub">Mission Control · v2.0</div>
+      <div class="logo-sub">Mission Control · v2.2</div>
     </div>
     <div class="hbadge" id="dev-badge">DEVICE: ---</div>
   </div>
   <div class="hc">
-    <div id="cdot" class="cdot"></div>
+    <div id="cdot" class="cdot" title="LAN connection"></div>
     <div class="ip-wrap">
-      <span class="ip-lbl">DEVICE IP</span>
+      <span class="ip-lbl">LAN IP</span>
       <input class="ip-inp" id="ip" type="text" placeholder="192.168.1.105" spellcheck="false">
     </div>
     <button class="btn btn-c" id="btn-connect">CONNECT</button>
+    <div id="cloud-badge">
+      <div id="cloud-dot" title="HiveMQ Cloud MQTT"></div>
+      <span class="ip-lbl">CLOUD</span>
+      <span id="cloud-badge-val">OFFLINE</span>
+    </div>
   </div>
   <div class="hr">
     <div class="clock" id="clock">--:--:--</div>
@@ -365,11 +451,20 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
   </div>
 </header>
 
-<!-- Mixed-content notice (HTTPS hosting + HTTP device) -->
+<!-- Mixed-content notice -->
 <div id="https-warn">
-  ⚠ MIXED CONTENT DETECTED — This dashboard is on HTTPS but the ESP32 uses HTTP.
-  Browsers will block the request. Open the ESP32 IP directly in HTTP, or
-  use <code>?ip=</code> URL param on the local network.
+  ⚠ MIXED CONTENT — Dashboard is on HTTPS but ESP32 uses HTTP. LAN polling will be blocked.
+  Use Cloud Connect (MQTT) for remote access instead, or open the file locally.
+</div>
+
+<!-- MQTT info bar -->
+<!-- FIX #12: renamed "LATENCY" → "MSG INTVL" — correctly represents time between messages -->
+<div id="mqtt-bar">
+  <div class="mb-item"><span class="mb-lbl">BROKER</span><span class="mb-val" id="mb-broker">---</span></div>
+  <div class="mb-item"><span class="mb-lbl">TOPIC</span><span class="mb-val" id="mb-topic">---</span></div>
+  <div class="mb-item"><span class="mb-lbl">MSG RX</span><span class="mb-val" id="mb-rx">0</span></div>
+  <div class="mb-item"><span class="mb-lbl">LAST RX</span><span class="mb-val" id="mb-last">---</span></div>
+  <div class="mb-item"><span class="mb-lbl">MSG INTVL</span><span class="mb-val" id="mb-intvl">---</span></div>
 </div>
 
 <!-- FSM state banner -->
@@ -379,69 +474,64 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
 <div class="main">
 
   <!-- ── GAUGE ROW ── -->
+  <!-- FIX #2: all g-val <text> elements use dy="0.35em" instead of CSS dominant-baseline -->
   <div class="gauge-row">
-
     <div class="gp">
       <div class="gp-lbl">Voltage</div>
       <svg class="g-svg" viewBox="0 0 110 110">
         <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
         <circle class="g-arc" id="garc-v" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--volt)" transform="rotate(-135 55 55)"/>
-        <text class="g-val" id="gval-v" x="55" y="51" fill="var(--volt)">---</text>
+        <text class="g-val" id="gval-v" x="55" y="55" dy="0.35em" fill="var(--volt)">---</text>
         <text class="g-unt" x="55" y="66">V RMS</text>
       </svg>
       <div class="gp-sub" id="gsub-v">GPIO 34 · ADC1</div>
       <div class="gp-conf"><div class="gp-cf" id="gcf-v" style="width:0%;background:var(--volt)"></div></div>
     </div>
-
     <div class="gp">
       <div class="gp-lbl">Current</div>
       <svg class="g-svg" viewBox="0 0 110 110">
         <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
         <circle class="g-arc" id="garc-i" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--curr)" transform="rotate(-135 55 55)"/>
-        <text class="g-val" id="gval-i" x="55" y="51" fill="var(--curr)">---</text>
+        <text class="g-val" id="gval-i" x="55" y="55" dy="0.35em" fill="var(--curr)">---</text>
         <text class="g-unt" x="55" y="66">A RMS</text>
       </svg>
       <div class="gp-sub">GPIO 35 · ADC1</div>
       <div class="gp-conf"><div class="gp-cf" id="gcf-i" style="width:0%;background:var(--curr)"></div></div>
     </div>
-
     <div class="gp">
       <div class="gp-lbl">Temperature</div>
       <svg class="g-svg" viewBox="0 0 110 110">
         <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
         <circle class="g-arc" id="garc-t" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="#f8961e" transform="rotate(-135 55 55)"/>
-        <text class="g-val" id="gval-t" x="55" y="51" fill="#f8961e">---</text>
+        <text class="g-val" id="gval-t" x="55" y="55" dy="0.35em" fill="#f8961e">---</text>
         <text class="g-unt" x="55" y="66">°C</text>
       </svg>
       <div class="gp-sub">DS18B20 · GPIO 4</div>
       <div class="gp-conf"><div class="gp-cf" id="gcf-t" style="width:0%;background:#f8961e"></div></div>
     </div>
-
     <div class="gp">
       <div class="gp-lbl">System Risk</div>
       <svg class="g-svg" viewBox="0 0 110 110">
         <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
         <circle class="g-arc" id="garc-r" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--pwr)" transform="rotate(-135 55 55)"/>
-        <text class="g-val" id="gval-r" x="55" y="51" fill="var(--pwr)" font-size="13">LOW</text>
+        <text class="g-val" id="gval-r" x="55" y="55" dy="0.35em" fill="var(--pwr)" font-size="13">LOW</text>
         <text class="g-unt" x="55" y="66">RISK LEVEL</text>
       </svg>
       <div class="gp-sub" id="gsub-r">FAULT PROB: 0%</div>
       <div class="gp-conf"><div class="gp-cf" id="gcf-r" style="width:0%;background:var(--pwr)"></div></div>
     </div>
-
     <div class="gp">
       <div class="gp-lbl">Signal Quality</div>
       <svg class="g-svg" viewBox="0 0 110 110">
         <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
         <circle class="g-arc" id="garc-s" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--cyan)" transform="rotate(-135 55 55)"/>
-        <text class="g-val" id="gval-s" x="55" y="51" fill="var(--cyan)" font-size="13">---</text>
+        <text class="g-val" id="gval-s" x="55" y="55" dy="0.35em" fill="var(--cyan)" font-size="13">---</text>
         <text class="g-unt" x="55" y="66">dBm</text>
       </svg>
       <div class="gp-sub">Wi-Fi RSSI</div>
       <div class="gp-conf"><div class="gp-cf" id="gcf-s" style="width:0%;background:var(--cyan)"></div></div>
     </div>
-
-  </div><!-- /gauge-row -->
+  </div>
 
   <!-- ── OSCILLOSCOPE ── -->
   <div class="osc-panel">
@@ -483,12 +573,10 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
         <span>RAW OVERLAY</span>
       </label>
     </div>
-  </div><!-- /oscilloscope -->
+  </div>
 
   <!-- ── MID ROW ── -->
   <div class="mid-row">
-
-    <!-- Power Flow -->
     <div class="panel">
       <div class="phdr">
         <span class="panel-title">ENERGY FLOW VISUALIZATION</span>
@@ -496,8 +584,6 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
       </div>
       <canvas id="pf-canvas" height="214" style="display:block;width:100%"></canvas>
     </div>
-
-    <!-- Thermal + System -->
     <div class="panel">
       <div class="phdr"><span class="panel-title">THERMAL · SYSTEM STATE</span></div>
       <div class="pbody">
@@ -526,8 +612,6 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
         </div>
       </div>
     </div>
-
-    <!-- Fault Radar -->
     <div class="panel">
       <div class="phdr">
         <span class="panel-title">FAULT THREAT RADAR</span>
@@ -537,21 +621,16 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
         <canvas id="radar-canvas" width="224" height="205"></canvas>
       </div>
     </div>
-
-  </div><!-- /mid-row -->
+  </div>
 
   <!-- ── BOTTOM ROW ── -->
   <div class="bot-row">
-
-    <!-- 2×2 Sparklines -->
     <div class="sparks-grid">
       <div class="sc"><div class="sch"><span class="scn">VOLTAGE</span><span class="scv" id="spv-v" style="color:var(--volt)">---</span></div><svg class="sp-svg" height="58" id="sp-v"></svg></div>
       <div class="sc"><div class="sch"><span class="scn">CURRENT</span><span class="scv" id="spv-i" style="color:var(--curr)">---</span></div><svg class="sp-svg" height="58" id="sp-i"></svg></div>
       <div class="sc"><div class="sch"><span class="scn">TEMPERATURE</span><span class="scv" id="spv-t" style="color:#f8961e">---</span></div><svg class="sp-svg" height="58" id="sp-t"></svg></div>
       <div class="sc"><div class="sch"><span class="scn">REAL POWER</span><span class="scv" id="spv-p" style="color:var(--pwr)">---</span></div><svg class="sp-svg" height="58" id="sp-p"></svg></div>
     </div>
-
-    <!-- Fault flags + network -->
     <div class="flags-panel">
       <div class="phdr"><span class="panel-title">FAULT ENGINE — ACTIVE CONDITIONS</span></div>
       <div class="flags-grid">
@@ -576,11 +655,11 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
         <div class="nc"><div class="ncl">WIFI RSSI</div><div class="ncv" id="nv-rssi" style="color:var(--cyan)">---</div></div>
         <div class="nc"><div class="ncl">IP ADDRESS</div><div class="ncv" id="nv-ip" style="color:var(--txt)">---</div></div>
         <div class="nc"><div class="ncl">MQTT</div><div class="ncv" id="nv-mqtt">---</div></div>
+        <div class="nc"><div class="ncl">CLOUD</div><div class="ncv" id="nv-cloud">OFFLINE</div></div>
         <div class="nc"><div class="ncl">ADC SAMPLES</div><div class="ncv" id="nv-samp" style="color:var(--txt)">---</div></div>
       </div>
     </div>
-
-  </div><!-- /bot-row -->
+  </div>
 
 </div><!-- /main -->
 
@@ -591,9 +670,48 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
     <button class="cw-x" id="cw-close">✕</button>
   </div>
 
-  <!-- API Key -->
+  <!-- ① Cloud Connect -->
+  <!-- FIX #15: fields are blank on load — populated from localStorage by JS -->
   <div class="cw-s">
-    <div class="cw-st">API Authentication</div>
+    <div class="cw-st">☁ Cloud Connect — HiveMQ</div>
+    <div id="mqtt-pill-wrap">
+      <div class="mqtt-pill" id="mqtt-pill"><div class="mqtt-pill-dot"></div><span id="mqtt-pill-txt">DISCONNECTED</span></div>
+    </div>
+    <div class="mqtt-field">
+      <span class="mfl">BROKER</span>
+      <input class="mfi" id="mq-host" type="text" placeholder="xxxx.s1.eu.hivemq.cloud" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="mqtt-field">
+      <span class="mfl">PORT</span>
+      <input class="mfi" id="mq-port" type="number" placeholder="8884" style="width:70px;flex:none">
+    </div>
+    <div class="mqtt-field">
+      <span class="mfl">USER</span>
+      <input class="mfi" id="mq-user" type="text" placeholder="username" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="mqtt-field">
+      <span class="mfl">PASS</span>
+      <input class="mfi" id="mq-pass" type="password" placeholder="password" autocomplete="off">
+    </div>
+    <div class="mqtt-field">
+      <span class="mfl">TOPIC</span>
+      <input class="mfi topic" id="mq-topic" type="text" placeholder="sgs/telemetry" spellcheck="false">
+    </div>
+    <div class="mqtt-field">
+      <span class="mfl">CMD</span>
+      <input class="mfi topic" id="mq-cmd" type="text" placeholder="sgs/cmd" spellcheck="false">
+    </div>
+    <!-- FIX #15: Save credentials button — stores to localStorage -->
+    <div class="creds-row">
+      <button class="btn-sv-creds" id="btn-save-creds">💾 SAVE CREDENTIALS</button>
+    </div>
+    <button class="cw-btn btn-cyn" id="btn-mqtt-connect">☁ CONNECT CLOUD</button>
+    <div class="cw-msg" id="msg-mqtt"></div>
+  </div>
+
+  <!-- ② API Key -->
+  <div class="cw-s">
+    <div class="cw-st">LAN — API Authentication</div>
     <div class="key-row">
       <input class="key-inp" id="api-key" type="password" placeholder="Enter API key...">
       <button class="btn-sv" id="btn-save-key">SAVE</button>
@@ -601,14 +719,14 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
     <div class="cw-msg" id="msg-key"></div>
   </div>
 
-  <!-- FSM Reset -->
+  <!-- ③ FSM Reset -->
   <div class="cw-s">
     <div class="cw-st">FSM Reset</div>
     <button class="cw-btn btn-rst" id="btn-reset">⚡ REQUEST FSM RESET</button>
     <div class="cw-msg" id="msg-reset"></div>
   </div>
 
-  <!-- Relay Control -->
+  <!-- ④ Relay Control -->
   <div class="cw-s">
     <div class="cw-st">Load Control</div>
     <div class="relay-grid">
@@ -621,11 +739,11 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
         <span class="rcst" id="rc2-st">OPEN</span>
       </div>
     </div>
-    <div class="rc-note">State mirrors telemetry. Override requires /api/relay (Phase 3 firmware).</div>
+    <div class="rc-note">State mirrors telemetry. Cloud commands require sgs/cmd subscriber in firmware.</div>
     <div class="cw-msg" id="msg-relay"></div>
   </div>
 
-  <!-- Wave simulation -->
+  <!-- ⑤ Wave simulation -->
   <div class="cw-s">
     <div class="cw-st">Wave Simulation</div>
     <div class="wr">
@@ -649,384 +767,672 @@ label.raw-tog span { font-size:8px; color:var(--tdim); letter-spacing:1px; }
     </div>
   </div>
 
-</div><!-- /ctrl-win -->
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════
-     JAVASCRIPT
+     JAVASCRIPT — Phase 10 Production Hardened
+     All 20 engineering fixes applied.
 ════════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
-// ── Constants ────────────────────────────────────────────────
-const ARC_FULL = 207.3;      // 270° arc for r=44 gauge
+
+// ── Constants ─────────────────────────────────────────────────
+const ARC_FULL = 207.3;
 const V_MAX    = 300;
 const I_MAX    = 5;
 const T_MAX    = 100;
-const HIST_LEN = 120;        // sparkline history depth
-const ENV_LEN  = 80;         // raw envelope history for osc overlay
+const HIST_LEN = 120;
+const ENV_LEN  = 80;
 const DPR      = window.devicePixelRatio || 1;
 
-// ── State ─────────────────────────────────────────────────────
-let deviceBase = '';
-let apiKey     = localStorage.getItem('sgs_key') || '';
-let failCount  = 0;
-
-// Wave synthesis params
-const W = {
-  freq: 50,
-  amp:  1.0,
-  preset: 'resistive',
-  phase: 0,
-  showRaw: true,
-  cyclesShown: 4,
-  Vrms: 0,
-  Irms: 0,
-  PHASE_SHIFT: { resistive:0, inductive:0.524, capacitive:-0.524, motor:0.698 }
+// FIX #15: localStorage keys for MQTT credentials
+const CRED = {
+  HOST:  'sgs_mq_host',
+  PORT:  'sgs_mq_port',
+  USER:  'sgs_mq_user',
+  PASS:  'sgs_mq_pass',
+  TOPIC: 'sgs_mq_topic',
+  CMD:   'sgs_mq_cmd',
 };
 
-// Data history
-const H = { v:[], i:[], t:[], p:[] };
-const ENV = { v:[], i:[] };  // raw RMS envelope for osc
+// ── State ─────────────────────────────────────────────────────
+let deviceBase   = '';
+let apiKey       = localStorage.getItem('sgs_key') || '';
+let failCount    = 0;
+let pollInFlight = false;  // FIX #16: concurrent request guard
 
-// Power flow
+// ── MQTT State ────────────────────────────────────────────────
+let mqttClient    = null;
+let mqttConnected = false;
+let mqttRxCount   = 0;
+let mqttLastRxTs  = 0;
+let mqttConnectTs = 0;
+
+// ── Wave synthesis params ─────────────────────────────────────
+const W = {
+  freq: 50, amp: 1.0, preset: 'resistive', phase: 0,
+  showRaw: true, cyclesShown: 4, Vrms: 0, Irms: 0,
+  // FIX #5: canonical preset table — syncPreset validates against this
+  PHASE_SHIFT: { resistive: 0, inductive: 0.524, capacitive: -0.524, motor: 0.698 }
+};
+
+// ── Data history ──────────────────────────────────────────────
+const H   = { v:[], i:[], t:[], p:[] };
+const ENV = { v:[], i:[] };
+
+// ── Power flow particles ──────────────────────────────────────
 const PFP = [];
-for (let k=0;k<10;k++) PFP.push({t:k/10,path:'main'});
-for (let k=0;k<5; k++) PFP.push({t:k/5, path:'l1'  });
-for (let k=0;k<5; k++) PFP.push({t:k/5, path:'l2'  });
-let pfState='BOOT', r1=false, r2=false;
+for (let k = 0; k < 10; k++) PFP.push({ t: k/10, path: 'main' });
+for (let k = 0; k < 5;  k++) PFP.push({ t: k/5,  path: 'l1'   });
+for (let k = 0; k < 5;  k++) PFP.push({ t: k/5,  path: 'l2'   });
+let pfState = 'BOOT', r1 = false, r2 = false;
 
 // ── Helpers ───────────────────────────────────────────────────
 const $     = id => document.getElementById(id);
-const clamp = (v,lo,hi) => Math.max(lo,Math.min(hi,v));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-function tCol(t) {
-  return t>=80?'#ef233c': t>=60?'#f8961e': t>=45?'#f9c74f':'#2dc653';
+function tCol(t)   { return t >= 80 ? '#ef233c' : t >= 60 ? '#f8961e' : t >= 45 ? '#f9c74f' : '#2dc653'; }
+function rCol(r)   { return { LOW:'#2dc653', MODERATE:'#f9c74f', HIGH:'#f8961e', CRITICAL:'#ef233c' }[r] || '#2dc653'; }
+function rssiCol(r){ return r >= -55 ? '#2dc653' : r >= -70 ? '#f9c74f' : r >= -80 ? '#f8961e' : '#ef233c'; }
+
+// ── FIX #4 + #17: Loading overlay — class-based state only ───
+function dismissLoading() {
+  const ov = $('loading');
+  // FIX #17: check classList, not style.display (which is '' on initial load)
+  if (ov.classList.contains('ld-hidden')) return;
+  ov.classList.add('ld-hidden');
+  ov.addEventListener('transitionend', () => { ov.style.display = 'none'; }, { once: true });
 }
-function rCol(r) {
-  return {LOW:'#2dc653',MODERATE:'#f9c74f',HIGH:'#f8961e',CRITICAL:'#ef233c'}[r]||'#2dc653';
+
+function showLoading(txt) {
+  const ov = $('loading');
+  ov.style.display = 'flex';
+  ov.offsetHeight; // force reflow so transition fires
+  ov.classList.remove('ld-hidden');
+  if (txt) $('ld-msg').textContent = txt;
 }
-function rssiCol(r) {
-  return r>=-55?'#2dc653': r>=-70?'#f9c74f': r>=-80?'#f8961e':'#ef233c';
+
+// ── FIX #15: Credential management via localStorage ───────────
+function loadCredentials() {
+  $('mq-host').value  = localStorage.getItem(CRED.HOST)  || '';
+  $('mq-port').value  = localStorage.getItem(CRED.PORT)  || '8884';
+  $('mq-user').value  = localStorage.getItem(CRED.USER)  || '';
+  $('mq-pass').value  = localStorage.getItem(CRED.PASS)  || '';
+  $('mq-topic').value = localStorage.getItem(CRED.TOPIC) || 'sgs/telemetry';
+  $('mq-cmd').value   = localStorage.getItem(CRED.CMD)   || 'sgs/cmd';
+}
+
+function saveCredentials() {
+  localStorage.setItem(CRED.HOST,  $('mq-host').value.trim());
+  localStorage.setItem(CRED.PORT,  $('mq-port').value.trim());
+  localStorage.setItem(CRED.USER,  $('mq-user').value.trim());
+  localStorage.setItem(CRED.PASS,  $('mq-pass').value);
+  localStorage.setItem(CRED.TOPIC, $('mq-topic').value.trim());
+  localStorage.setItem(CRED.CMD,   $('mq-cmd').value.trim());
+  msg('msg-mqtt', '✓ CREDENTIALS SAVED LOCALLY', 'var(--pwr)');
+}
+
+// ── MQTT helpers ──────────────────────────────────────────────
+function mqttSetPill(state, text) {
+  const pill = $('mqtt-pill');
+  pill.className = 'mqtt-pill ' + state;
+  $('mqtt-pill-txt').textContent = text;
+}
+
+function mqttSetCloudBadge(text, cls) {
+  $('cloud-badge-val').textContent = text;
+  $('cloud-badge-val').className   = cls || '';
+  const dot = $('cloud-dot');
+  dot.className = cls === 'ok' ? 'connected' : cls === 'warn' ? 'connecting' : '';
+}
+
+// FIX #11: shared subscribe function — called from both 'connect' and as safety net
+function mqttSubscribe() {
+  if (!mqttClient) return;
+  const topic = $('mq-topic').value.trim() || 'sgs/telemetry';
+  mqttClient.subscribe(topic, { qos: 1 }, (err) => {
+    if (err) { msg('msg-mqtt', '✗ Subscribe failed: ' + err.message, 'var(--red)'); }
+  });
+}
+
+function connectMQTT() {
+  if (mqttClient) {
+    try { mqttClient.end(true); } catch(e) {}
+    mqttClient    = null;
+    mqttConnected = false;
+  }
+
+  const host  = $('mq-host').value.trim();
+  const port  = parseInt($('mq-port').value) || 8884;
+  const user  = $('mq-user').value.trim();
+  const pass  = $('mq-pass').value;
+  const topic = $('mq-topic').value.trim() || 'sgs/telemetry';
+
+  if (!host) { msg('msg-mqtt', '✗ Broker host is empty', 'var(--red)'); return; }
+
+  const url = `wss://${host}:${port}/mqtt`;
+
+  msg('msg-mqtt', 'Connecting...', 'var(--warn)');
+  mqttSetPill('connecting', 'CONNECTING...');
+  mqttSetCloudBadge('CONNECTING', 'warn');
+  $('btn-mqtt-connect').textContent = '⏳ CONNECTING...';
+  $('btn-mqtt-connect').disabled    = true;
+
+  const clientId = 'sgs-dash-' + Math.random().toString(16).slice(2, 10);
+  mqttConnectTs  = Date.now();
+
+  mqttClient = mqtt.connect(url, {
+    clientId,
+    username:        user,
+    password:        pass,
+    keepalive:       30,
+    reconnectPeriod: 5000,
+    connectTimeout:  12000,
+    clean:           true,
+  });
+
+  // FIX #11: 'connect' fires on BOTH initial connect and after auto-reconnect in MQTT.js 4.x
+  // Calling mqttSubscribe() here ensures re-subscription is always handled.
+  mqttClient.on('connect', () => {
+    mqttConnected = true;
+    mqttSubscribe();
+
+    const elapsed = Date.now() - mqttConnectTs;
+    msg('msg-mqtt', `✓ Connected · ${elapsed}ms`, 'var(--pwr)');
+
+    mqttSetPill('connected', 'CONNECTED');
+    mqttSetCloudBadge(host.split('.')[0] + '...', 'ok');
+    $('btn-mqtt-connect').textContent = '✕ DISCONNECT';
+    $('btn-mqtt-connect').disabled    = false;
+
+    $('mb-broker').textContent = host;
+    $('mb-topic').textContent  = topic;
+    $('mqtt-bar').classList.add('show');
+    $('nv-cloud').textContent  = 'LIVE';
+    $('nv-cloud').style.color  = 'var(--cyan)';
+
+    dismissLoading();
+    $('cdot').classList.add('live');
+  });
+
+  mqttClient.on('message', (t, payload) => {
+    if (t !== topic) return;
+    try {
+      const data = JSON.parse(payload.toString());
+      const now  = Date.now();
+
+      // FIX #12: this is message INTERVAL (publish period), not RTT latency
+      if (mqttLastRxTs) {
+        $('mb-intvl').textContent = (now - mqttLastRxTs) + ' ms';
+      }
+      mqttLastRxTs = now;
+      mqttRxCount++;
+      $('mb-rx').textContent   = mqttRxCount;
+      $('mb-last').textContent = new Date(now).toLocaleTimeString('en-GB', { hour12: false });
+
+      failCount = 0;
+      $('cdot').classList.add('live');
+      apply(data);
+    } catch(e) {
+      // Malformed JSON — discard silently, do not crash apply()
+    }
+  });
+
+  mqttClient.on('reconnect', () => {
+    mqttConnected = false;
+    mqttSetPill('connecting', 'RECONNECTING...');
+    mqttSetCloudBadge('RECONNECTING', 'warn');
+    $('nv-cloud').textContent = 'RETRY';
+    $('nv-cloud').style.color = 'var(--warn)';
+    $('cdot').classList.remove('live');
+    // Re-subscription happens in 'connect' handler which fires after reconnect succeeds
+  });
+
+  mqttClient.on('close', () => {
+    mqttConnected = false;
+  });
+
+  mqttClient.on('error', (err) => {
+    mqttConnected = false;
+    const errText = err.message || 'Unknown error';
+    msg('msg-mqtt', '✗ ' + errText, 'var(--red)');
+    mqttSetPill('error', 'ERROR');
+    mqttSetCloudBadge('ERROR', 'err');
+    $('btn-mqtt-connect').textContent = '☁ CONNECT CLOUD';
+    $('btn-mqtt-connect').disabled    = false;
+    $('nv-cloud').textContent = 'ERROR';
+    $('nv-cloud').style.color = 'var(--red)';
+    $('cdot').classList.remove('live');
+  });
+
+  mqttClient.on('offline', () => {
+    mqttConnected = false;
+    mqttSetCloudBadge('OFFLINE', 'err');
+    $('nv-cloud').textContent = 'OFFLINE';
+    $('nv-cloud').style.color = 'var(--red)';
+    $('cdot').classList.remove('live');
+  });
+}
+
+// FIX #14: cleanup state before end() callback to prevent race conditions
+function disconnectMQTT() {
+  if (!mqttClient) return;
+  const client = mqttClient;
+  // Null references immediately — no further event handlers will mutate shared state
+  mqttClient    = null;
+  mqttConnected = false;
+
+  // end(force, options, callback) — false = graceful DISCONNECT packet
+  client.end(false, {}, () => { /* broker acknowledged */ });
+
+  // Reset UI — we initiated this, no need to wait for broker ACK
+  mqttSetPill('', 'DISCONNECTED');
+  mqttSetCloudBadge('OFFLINE', '');
+  $('btn-mqtt-connect').textContent = '☁ CONNECT CLOUD';
+  $('btn-mqtt-connect').disabled    = false;
+  $('mqtt-bar').classList.remove('show');
+  $('nv-cloud').textContent = 'OFFLINE';
+  $('nv-cloud').style.color = 'var(--tmid)';
+  $('cdot').classList.remove('live');
+  msg('msg-mqtt', 'Disconnected', 'var(--tmid)');
+}
+
+function mqttPublish(payload) {
+  if (!mqttClient || !mqttConnected) return false;
+  const cmdTopic = $('mq-cmd').value.trim() || 'sgs/cmd';
+  mqttClient.publish(cmdTopic, JSON.stringify(payload), { qos: 1 });
+  return true;
 }
 
 // ── Gauge ─────────────────────────────────────────────────────
 function gauge(id, value, maxV, color, label) {
-  const pct    = clamp(value/maxV, 0, 1);
-  const offset = ARC_FULL*(1-pct);
-  $('garc-'+id).style.strokeDashoffset = offset;
-  $('garc-'+id).style.stroke = color;
-  $('gval-'+id).textContent = label??value.toFixed(1);
-  $('gval-'+id).style.fill  = color;
-  $('gcf-'+id).style.width  = (pct*100)+'%';
-  $('gcf-'+id).style.background = color;
+  const pct    = clamp(value / maxV, 0, 1);
+  const offset = ARC_FULL * (1 - pct);
+  $('garc-' + id).style.strokeDashoffset = offset;
+  $('garc-' + id).style.stroke           = color;
+  $('gval-' + id).textContent            = label ?? value.toFixed(1);
+  $('gval-' + id).style.fill             = color;
+  $('gcf-'  + id).style.width            = (pct * 100) + '%';
+  $('gcf-'  + id).style.background       = color;
 }
 
-// ── Sparklines ────────────────────────────────────────────────
-function push(arr, v) { arr.push(v); if(arr.length>HIST_LEN) arr.shift(); }
+// FIX #1: bound-check BEFORE push (not after)
+// FIX #15 (indirect): these are pure data — no external dependency
+function pushH(arr, v) {
+  if (arr.length >= HIST_LEN) arr.shift();
+  arr.push(v);
+}
+function pushEnv(arr, v) {
+  if (arr.length >= ENV_LEN) arr.shift();
+  arr.push(v);
+}
 
-function sparkline(svgId, data, color) {
+// ── FIX #6: Sparkline — pre-init SVG structure, update via setAttribute ──
+// No innerHTML rebuild on every telemetry tick — eliminates layout thrash
+function initSparklines() {
+  const ns      = 'http://www.w3.org/2000/svg';
+  const configs = [
+    { id: 'sp-v', color: '#f9c74f' },
+    { id: 'sp-i', color: '#4cc9f0' },
+    { id: 'sp-t', color: '#f8961e' },
+    { id: 'sp-p', color: '#2dc653' },
+  ];
+  configs.forEach(({ id, color }) => {
+    const el = $(id);
+    if (!el) return;
+
+    const defs = document.createElementNS(ns, 'defs');
+    const grad = document.createElementNS(ns, 'linearGradient');
+    grad.setAttribute('id', 'sg_' + id);
+    grad.setAttribute('x1', '0'); grad.setAttribute('x2', '0');
+    grad.setAttribute('y1', '0'); grad.setAttribute('y2', '1');
+
+    const s1 = document.createElementNS(ns, 'stop');
+    s1.setAttribute('offset', '0%');
+    s1.setAttribute('stop-color', color);
+    s1.setAttribute('stop-opacity', '0.22');
+
+    const s2 = document.createElementNS(ns, 'stop');
+    s2.setAttribute('offset', '100%');
+    s2.setAttribute('stop-color', color);
+    s2.setAttribute('stop-opacity', '0');
+
+    grad.appendChild(s1);
+    grad.appendChild(s2);
+    defs.appendChild(grad);
+
+    const poly = document.createElementNS(ns, 'polygon');
+    poly.setAttribute('id', 'sf_' + id);
+    poly.setAttribute('fill', 'url(#sg_' + id + ')');
+
+    const line = document.createElementNS(ns, 'polyline');
+    line.setAttribute('id', 'sl_' + id);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '1.5');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('stroke-linejoin', 'round');
+
+    el.appendChild(defs);
+    el.appendChild(poly);
+    el.appendChild(line);
+  });
+}
+
+function sparkline(svgId, data) {
+  if (!data || data.length < 2) return;
   const el = $(svgId);
-  if (!el||data.length<2) return;
-  const W2 = el.clientWidth||300, H2=58, P=5;
-  const lo = Math.min(...data), hi = Math.max(...data), rng = hi-lo||1;
-  const pts = data.map((v,i)=>{
-    const x = P+(i/(data.length-1))*(W2-P*2);
-    const y = H2-P-((v-lo)/rng)*(H2-P*2);
+  if (!el) return;
+  const W2 = el.clientWidth || 300, H2 = 58, P = 5;
+  const lo = Math.min(...data), hi = Math.max(...data), rng = hi - lo || 1;
+  const pts = data.map((v, i) => {
+    const x = P + (i / (data.length - 1)) * (W2 - P * 2);
+    const y = H2 - P - ((v - lo) / rng) * (H2 - P * 2);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
-  el.innerHTML=`
-  <defs><linearGradient id="g${svgId}" x1="0" x2="0" y1="0" y2="1">
-    <stop offset="0%" stop-color="${color}" stop-opacity=".22"/>
-    <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-  </linearGradient></defs>
-  <polygon points="${pts.join(' ')} ${(W2-P).toFixed(1)},${H2} ${P},${H2}" fill="url(#g${svgId})"/>
-  <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5"
-    stroke-linecap="round" stroke-linejoin="round"/>`;
+  const lineEl = $('sl_' + svgId);
+  const fillEl = $('sf_' + svgId);
+  if (lineEl) lineEl.setAttribute('points', pts.join(' '));
+  if (fillEl) fillEl.setAttribute('points',
+    pts.join(' ') + ` ${(W2 - P).toFixed(1)},${H2} ${P},${H2}`
+  );
 }
 
-// ── Oscilloscope ─────────────────────────────────────────────
+// ── Oscilloscope ──────────────────────────────────────────────
+// FIX #20: setTransform (absolute) instead of scale (cumulative)
+// Prevents transform stack corruption on repeated resize calls
 function initOsc() {
-  const c = $('osc-canvas'), wrap = c.parentElement;
-  c.width  = wrap.clientWidth * DPR;
-  c.height = 280 * DPR;
+  const c    = $('osc-canvas');
+  const wrap = c.parentElement;
+  if (!wrap.clientWidth) return; // FIX #8: guard — skip if not yet laid out
+  c.width      = wrap.clientWidth * DPR;
+  c.height     = 280 * DPR;
   c.style.height = '280px';
-  c.getContext('2d').scale(DPR,DPR);
+  c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
-function drawOsc() {
+// FIX #18: dt (delta-time in seconds) passed in from RAF loop
+// Phase advances by actual wall-clock time, not assumed 60fps
+function drawOsc(dt) {
   const c   = $('osc-canvas');
   const ctx = c.getContext('2d');
-  const CW  = c.width/DPR;
-  const CH  = c.height/DPR;
-  const CH3 = CH/3;
+  const CW  = c.width / DPR, CH = c.height / DPR, CH3 = CH / 3;
 
-  ctx.clearRect(0,0,CW,CH);
-  ctx.fillStyle='#030508'; ctx.fillRect(0,0,CW,CH);
+  W.phase += 2 * Math.PI * W.freq * dt;
 
-  const Vp  = W.Vrms * Math.SQRT2 * W.amp;
-  const Ip  = W.Irms * Math.SQRT2 * W.amp;
-  const phi = W.PHASE_SHIFT[W.preset]||0;
-  const p   = W.phase;
-  const TW  = W.cyclesShown / W.freq;
+  ctx.clearRect(0, 0, CW, CH);
+  ctx.fillStyle = '#030508';
+  ctx.fillRect(0, 0, CW, CH);
+
+  // FIX #5: guard against invalid preset key returning undefined → NaN
+  const phiRaw = W.PHASE_SHIFT[W.preset];
+  const phi    = (typeof phiRaw === 'number' && isFinite(phiRaw)) ? phiRaw : 0;
+
+  const Vp = W.Vrms * Math.SQRT2 * W.amp;
+  const Ip = W.Irms * Math.SQRT2 * W.amp;
+  const p  = W.phase;
+  const TW = W.cyclesShown / W.freq;
 
   const channels = [
-    { key:'v', color:'#f9c74f', peak:Vp,    phiOff:0,   label:'V', rmsTxt: W.Vrms.toFixed(1)+'V rms' },
-    { key:'i', color:'#4cc9f0', peak:Ip,    phiOff:phi, label:'I', rmsTxt: W.Irms.toFixed(3)+'A rms' },
-    { key:'p', color:'#2dc653', peak:Vp*Ip, phiOff:0,   label:'P', isPwr:true },
+    { key:'v', color:'#f9c74f', peak:Vp,    phiOff:0,   label:'V', rmsTxt: W.Vrms.toFixed(1) + 'V rms' },
+    { key:'i', color:'#4cc9f0', peak:Ip,    phiOff:phi, label:'I', rmsTxt: W.Irms.toFixed(3) + 'A rms' },
+    { key:'p', color:'#2dc653', peak:Vp*Ip, phiOff:0,   label:'P', isPwr: true },
   ];
 
   channels.forEach((ch, idx) => {
-    const y0  = idx * CH3;
-    const cy  = y0 + CH3/2;
-    const AMP = CH3 * 0.41;
+    const y0 = idx * CH3, cy = y0 + CH3 / 2, AMP = CH3 * 0.41;
 
-    // Grid lines
-    ctx.strokeStyle='#101822'; ctx.lineWidth=0.5;
-    for(let d=1;d<4;d++) {
-      ctx.beginPath(); ctx.moveTo(d*CW/4,y0+2); ctx.lineTo(d*CW/4,y0+CH3-2); ctx.stroke();
-    }
-    // Baseline
-    ctx.strokeStyle='#182435'; ctx.lineWidth=0.6;
-    ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(CW,cy); ctx.stroke();
-    // Separator
-    if(idx>0) {
-      ctx.strokeStyle='#182030'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(0,y0); ctx.lineTo(CW,y0); ctx.stroke();
-    }
-
-    if(!ch.isPwr) {
-      // ── SYNTHESIZED SINE ──
+    ctx.strokeStyle = '#101822'; ctx.lineWidth = 0.5;
+    for (let d = 1; d < 4; d++) {
       ctx.beginPath();
-      for(let x=0;x<CW;x++) {
-        const t = (x/CW)*TW;
-        const v = ch.peak * Math.sin(2*Math.PI*W.freq*t - p - ch.phiOff);
-        const s = ch.peak>0.001 ? AMP/ch.peak : 1;
-        x===0 ? ctx.moveTo(x, cy-v*s) : ctx.lineTo(x, cy-v*s);
+      ctx.moveTo(d * CW / 4, y0 + 2);
+      ctx.lineTo(d * CW / 4, y0 + CH3 - 2);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#182435'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(CW, cy); ctx.stroke();
+    if (idx > 0) {
+      ctx.strokeStyle = '#182030'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CW, y0); ctx.stroke();
+    }
+
+    if (!ch.isPwr) {
+      ctx.beginPath();
+      for (let x = 0; x < CW; x++) {
+        const t = (x / CW) * TW;
+        const v = ch.peak * Math.sin(2 * Math.PI * W.freq * t - p - ch.phiOff);
+        const s = ch.peak > 0.001 ? AMP / ch.peak : 1;
+        x === 0 ? ctx.moveTo(x, cy - v * s) : ctx.lineTo(x, cy - v * s);
       }
-      ctx.strokeStyle = ch.color; ctx.lineWidth=1.8;
-      ctx.shadowBlur=8; ctx.shadowColor=ch.color;
-      ctx.stroke(); ctx.shadowBlur=0;
+      ctx.strokeStyle = ch.color; ctx.lineWidth = 1.8;
+      ctx.shadowBlur = 8; ctx.shadowColor = ch.color;
+      ctx.stroke(); ctx.shadowBlur = 0;
 
-      // ── RAW ENVELOPE OVERLAY ──
-      if(W.showRaw && ENV[ch.key].length > 2) {
+      if (W.showRaw && ENV[ch.key].length > 2) {
         const env = ENV[ch.key];
-        const s   = ch.peak > 0.001 ? AMP/ch.peak : 1;
-        ctx.setLineDash([4,6]);
-        ctx.lineWidth = 1;
-
-        // Upper envelope
+        const s   = ch.peak > 0.001 ? AMP / ch.peak : 1;
+        ctx.setLineDash([4, 6]); ctx.lineWidth = 1;
         ctx.beginPath();
-        env.forEach((val,k) => {
-          const x  = (k/(env.length-1))*CW;
-          const py = cy - val*Math.SQRT2*W.amp*s;
-          k===0 ? ctx.moveTo(x,py) : ctx.lineTo(x,py);
+        env.forEach((val, k) => {
+          const x = (k / (env.length - 1)) * CW;
+          const py = cy - val * Math.SQRT2 * W.amp * s;
+          k === 0 ? ctx.moveTo(x, py) : ctx.lineTo(x, py);
         });
-        ctx.strokeStyle = ch.color+'66'; ctx.stroke();
-
-        // Lower envelope
+        ctx.strokeStyle = ch.color + '66'; ctx.stroke();
         ctx.beginPath();
-        env.forEach((val,k) => {
-          const x  = (k/(env.length-1))*CW;
-          const py = cy + val*Math.SQRT2*W.amp*s;
-          k===0 ? ctx.moveTo(x,py) : ctx.lineTo(x,py);
+        env.forEach((val, k) => {
+          const x = (k / (env.length - 1)) * CW;
+          const py = cy + val * Math.SQRT2 * W.amp * s;
+          k === 0 ? ctx.moveTo(x, py) : ctx.lineTo(x, py);
         });
-        ctx.strokeStyle = ch.color+'44'; ctx.stroke();
+        ctx.strokeStyle = ch.color + '44'; ctx.stroke();
         ctx.setLineDash([]);
       }
-
     } else {
-      // ── INSTANTANEOUS POWER  P(t)=V(t)·I(t) ──
-      const pts=[];
-      for(let x=0;x<CW;x++) {
-        const t = (x/CW)*TW;
-        const v = Vp * Math.sin(2*Math.PI*W.freq*t - p);
-        const i = Ip * Math.sin(2*Math.PI*W.freq*t - p - phi);
-        pts.push({x, y: cy - v*i*(Vp*Ip>0?AMP/(Vp*Ip):1)*0.45 });
+      const pts = [];
+      for (let x = 0; x < CW; x++) {
+        const t = (x / CW) * TW;
+        const v = Vp * Math.sin(2 * Math.PI * W.freq * t - p);
+        const i = Ip * Math.sin(2 * Math.PI * W.freq * t - p - phi);
+        pts.push({ x, y: cy - v * i * (Vp * Ip > 0 ? AMP / (Vp * Ip) : 1) * 0.45 });
       }
-      // Fill
-      ctx.beginPath(); ctx.moveTo(0,cy);
-      pts.forEach(q=>ctx.lineTo(q.x,q.y));
-      ctx.lineTo(CW-1,cy); ctx.closePath();
-      ctx.fillStyle='#2dc65318'; ctx.fill();
-      // Line
+      ctx.beginPath(); ctx.moveTo(0, cy);
+      pts.forEach(q => ctx.lineTo(q.x, q.y));
+      ctx.lineTo(CW - 1, cy); ctx.closePath();
+      ctx.fillStyle = '#2dc65318'; ctx.fill();
       ctx.beginPath();
-      pts.forEach((q,k)=>k===0?ctx.moveTo(q.x,q.y):ctx.lineTo(q.x,q.y));
-      ctx.strokeStyle='#2dc653'; ctx.lineWidth=1.5;
-      ctx.shadowBlur=5; ctx.shadowColor='#2dc653'; ctx.stroke(); ctx.shadowBlur=0;
+      pts.forEach((q, k) => k === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y));
+      ctx.strokeStyle = '#2dc653'; ctx.lineWidth = 1.5;
+      ctx.shadowBlur = 5; ctx.shadowColor = '#2dc653'; ctx.stroke(); ctx.shadowBlur = 0;
     }
 
-    // Channel label
-    ctx.fillStyle = ch.color+'99';
+    ctx.fillStyle = ch.color + '99';
     ctx.font = `10px 'JetBrains Mono',monospace`;
-    ctx.fillText(`${ch.label}  ${ch.rmsTxt||''}`, 10, y0+15);
+    ctx.fillText(`${ch.label}  ${ch.rmsTxt || ''}`, 10, y0 + 15);
   });
 
-  // Time division labels
-  ctx.fillStyle='#2d4560';
-  ctx.font=`8px 'JetBrains Mono',monospace`;
-  const msDiv = (TW*1000/4).toFixed(1);
-  for(let d=0;d<=4;d++) ctx.fillText(`${(d*msDiv).toFixed(0)}ms`, d*CW/4+3, CH-4);
+  ctx.fillStyle = '#2d4560';
+  ctx.font = `8px 'JetBrains Mono',monospace`;
+  const msDiv = (TW * 1000 / 4).toFixed(1);
+  for (let d = 0; d <= 4; d++) ctx.fillText(`${(d * msDiv).toFixed(0)}ms`, d * CW / 4 + 3, CH - 4);
 }
 
 // ── Power Flow Canvas ─────────────────────────────────────────
+// FIX #20: setTransform instead of scale
 function initPF() {
-  const c = $('pf-canvas'), w = c.parentElement;
-  c.width  = w.clientWidth * DPR;
-  c.height = 214 * DPR;
+  const c = $('pf-canvas');
+  const w = c.parentElement;
+  if (!w.clientWidth) return; // FIX #8: guard
+  c.width      = w.clientWidth * DPR;
+  c.height     = 214 * DPR;
   c.style.height = '214px';
-  c.getContext('2d').scale(DPR,DPR);
+  c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
-function bezPt(t, x0,y0,x1,y1,x2,y2,x3,y3) {
-  const m=1-t;
+function bezPt(t, x0, y0, x1, y1, x2, y2, x3, y3) {
+  const m = 1 - t;
   return {
-    x: m*m*m*x0+3*m*m*t*x1+3*m*t*t*x2+t*t*t*x3,
-    y: m*m*m*y0+3*m*m*t*y1+3*m*t*t*y2+t*t*t*y3
+    x: m*m*m*x0 + 3*m*m*t*x1 + 3*m*t*t*x2 + t*t*t*x3,
+    y: m*m*m*y0 + 3*m*m*t*y1 + 3*m*t*t*y2 + t*t*t*y3
   };
 }
 
 function pfPt(t, path, W2, H2) {
-  const cx=W2/2, cy=H2/2;
-  if(path==='main') return bezPt(t, 55,cy, cx-60,cy, cx-20,cy, cx,cy);
-  if(path==='l1')   return bezPt(t, cx,cy, cx+50,cy-22, W2-90,cy-58, W2-52,cy-58);
-  return                    bezPt(t, cx,cy, cx+50,cy+22, W2-90,cy+58, W2-52,cy+58);
+  const cx = W2 / 2, cy = H2 / 2;
+  if (path === 'main') return bezPt(t, 55, cy, cx-60, cy, cx-20, cy, cx, cy);
+  if (path === 'l1')   return bezPt(t, cx, cy, cx+50, cy-22, W2-90, cy-58, W2-52, cy-58);
+  return                       bezPt(t, cx, cy, cx+50, cy+22, W2-90, cy+58, W2-52, cy+58);
 }
 
 function drawPF() {
   const c   = $('pf-canvas');
   const ctx = c.getContext('2d');
-  const W2  = c.width/DPR;
-  const H2  = c.height/DPR;
-  const cx  = W2/2, cy = H2/2;
+  const W2  = c.width / DPR, H2 = c.height / DPR;
+  const cx  = W2 / 2, cy = H2 / 2;
 
-  ctx.clearRect(0,0,W2,H2);
-  ctx.fillStyle='#030508'; ctx.fillRect(0,0,W2,H2);
+  ctx.clearRect(0, 0, W2, H2);
+  ctx.fillStyle = '#030508'; ctx.fillRect(0, 0, W2, H2);
 
-  const isNormal  = pfState==='NORMAL';
-  const isFault   = pfState==='FAULT'||pfState==='LOCKOUT';
-  const lineW     = clamp(W.Irms*3,2,8);
-  const pathCol   = isNormal?'#1a3040': isFault?'#3a1020':'#101820';
-  const partCol   = isFault?'#ef233c': isNormal?'#00f5d4':'#1a3040';
+  const isNormal = pfState === 'NORMAL';
+  const isFault  = pfState === 'FAULT' || pfState === 'LOCKOUT';
+  const lineW    = clamp(W.Irms * 3, 2, 8);
+  const pathCol  = isNormal ? '#1a3040' : isFault ? '#3a1020' : '#101820';
+  const partCol  = isFault  ? '#ef233c' : isNormal ? '#00f5d4' : '#1a3040';
 
-  // Draw bezier paths
-  function bezPath(x0,y0,x1,y1,x2,y2,x3,y3, col, lw) {
-    ctx.beginPath(); ctx.moveTo(x0,y0);
-    ctx.bezierCurveTo(x1,y1,x2,y2,x3,y3);
-    ctx.strokeStyle=col; ctx.lineWidth=lw||2; ctx.stroke();
+  function bezPath(x0, y0, x1, y1, x2, y2, x3, y3, col, lw) {
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.bezierCurveTo(x1, y1, x2, y2, x3, y3);
+    ctx.strokeStyle = col; ctx.lineWidth = lw || 2; ctx.stroke();
   }
-  bezPath(55,cy, cx-60,cy, cx-20,cy, cx,cy, pathCol, isNormal?lineW:2);
-  bezPath(cx,cy, cx+50,cy-22, W2-90,cy-58, W2-52,cy-58, r1?pathCol:'#10181e', isNormal&&r1?lineW:2);
-  bezPath(cx,cy, cx+50,cy+22, W2-90,cy+58, W2-52,cy+58, r2?pathCol:'#10181e', isNormal&&r2?lineW:2);
+  bezPath(55, cy, cx-60, cy, cx-20, cy, cx, cy, pathCol, isNormal ? lineW : 2);
+  bezPath(cx, cy, cx+50, cy-22, W2-90, cy-58, W2-52, cy-58, r1 ? pathCol : '#10181e', isNormal && r1 ? lineW : 2);
+  bezPath(cx, cy, cx+50, cy+22, W2-90, cy+58, W2-52, cy+58, r2 ? pathCol : '#10181e', isNormal && r2 ? lineW : 2);
 
-  // Nodes
-  function node(x,y,label,sub,active,col) {
-    const nw=72,nh=38;
-    ctx.fillStyle   = active?col+'20':'#0b1220';
-    ctx.strokeStyle = active?col:'#1a2535';
-    ctx.lineWidth=1;
-    ctx.fillRect(x-nw/2,y-nh/2,nw,nh);
-    ctx.strokeRect(x-nw/2,y-nh/2,nw,nh);
-    ctx.textAlign='center';
-    ctx.fillStyle = active?col:'#2d4560';
-    ctx.font=`bold 8px 'Orbitron',monospace`;
-    ctx.fillText(label,x,y-5);
-    ctx.fillStyle='#2d4260';
-    ctx.font=`8px 'JetBrains Mono',monospace`;
-    ctx.fillText(sub,x,y+8);
-    ctx.textAlign='left';
+  function node(x, y, label, sub, active, col) {
+    const nw = 72, nh = 38;
+    ctx.fillStyle   = active ? col + '20' : '#0b1220';
+    ctx.strokeStyle = active ? col : '#1a2535';
+    ctx.lineWidth = 1;
+    ctx.fillRect(x - nw/2, y - nh/2, nw, nh);
+    ctx.strokeRect(x - nw/2, y - nh/2, nw, nh);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = active ? col : '#2d4560';
+    ctx.font = `bold 8px 'Orbitron',monospace`;
+    ctx.fillText(label, x, y - 5);
+    ctx.fillStyle = '#2d4260';
+    ctx.font = `8px 'JetBrains Mono',monospace`;
+    ctx.fillText(sub, x, y + 8);
+    ctx.textAlign = 'left';
   }
+  node(55,       cy,      'GRID',  '230V AC',          true,          '#4cc9f0');
+  node(cx,       cy,      'SGS',   pfState,            isNormal,      '#00f5d4');
+  node(W2-52, cy-58, 'LOAD1', r1 ? 'CLOSED' : 'OPEN', r1 && isNormal,'#2dc653');
+  node(W2-52, cy+58, 'LOAD2', r2 ? 'CLOSED' : 'OPEN', r2 && isNormal,'#2dc653');
 
-  node(55, cy,    'GRID',  '230V AC',       true,            '#4cc9f0');
-  node(cx, cy,    'SGS',   pfState,         isNormal,        '#00f5d4');
-  node(W2-52,cy-58,'LOAD1',r1?'CLOSED':'OPEN', r1&&isNormal,'#2dc653');
-  node(W2-52,cy+58,'LOAD2',r2?'CLOSED':'OPEN', r2&&isNormal,'#2dc653');
-
-  // Particles
-  const speed = isNormal ? clamp(W.Irms*0.006+0.003, 0.002, 0.012) : 0.001;
+  const speed = isNormal ? clamp(W.Irms * 0.006 + 0.003, 0.002, 0.012) : 0.001;
   PFP.forEach(p => {
-    if(p.path==='l1'&&!r1) return;
-    if(p.path==='l2'&&!r2) return;
-    p.t = (p.t+speed)%1;
+    if (p.path === 'l1' && !r1) return;
+    if (p.path === 'l2' && !r2) return;
+    p.t = (p.t + speed) % 1;
     const pt = pfPt(p.t, p.path, W2, H2);
-    ctx.beginPath(); ctx.arc(pt.x,pt.y, 2.4, 0, Math.PI*2);
-    ctx.fillStyle=partCol; ctx.shadowBlur=9; ctx.shadowColor=partCol;
-    ctx.fill(); ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = partCol; ctx.shadowBlur = 9; ctx.shadowColor = partCol;
+    ctx.fill(); ctx.shadowBlur = 0;
   });
 
-  // Power label
-  ctx.fillStyle='#2d4560'; ctx.font=`9px 'JetBrains Mono',monospace`;
-  ctx.textAlign='center';
-  ctx.fillText(`${(W.Vrms*W.Irms*0.85).toFixed(0)} W`, cx, H2-8);
-  ctx.textAlign='left';
+  ctx.fillStyle = '#2d4560'; ctx.font = `9px 'JetBrains Mono',monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`${(W.Vrms * W.Irms * 0.85).toFixed(0)} W`, cx, H2 - 8);
+  ctx.textAlign = 'left';
+}
+
+// ── FIX #8: ResizeObserver — correct canvas sizing from first paint ──
+// Replaces window 'resize' which fires too late and misses initial layout
+function initResizeObserver() {
+  if (!window.ResizeObserver) {
+    // Graceful fallback for older browsers (Safari < 13.1)
+    window.addEventListener('resize', () => { initOsc(); initPF(); });
+    return;
+  }
+  const ro = new ResizeObserver(() => { initOsc(); initPF(); });
+  ro.observe($('osc-canvas').parentElement);
+  ro.observe($('pf-canvas').parentElement);
 }
 
 // ── Fault Radar ───────────────────────────────────────────────
 function drawRadar(vals) {
   const c   = $('radar-canvas');
   const ctx = c.getContext('2d');
-  const W2=224, H2=205, cx=W2/2, cy=H2/2+6, R=78, N=5;
-  const LABELS=['OVERCURRENT','OVERVOLT','UNDERVOLT','THERMAL','INSTABILITY'];
+  const W2 = 224, H2 = 205, cx = W2 / 2, cy = H2 / 2 + 6, R = 78, N = 5;
+  const LABELS = ['OVERCURRENT','OVERVOLT','UNDERVOLT','THERMAL','INSTABILITY'];
 
-  ctx.clearRect(0,0,W2,H2);
-  ctx.fillStyle='#030508'; ctx.fillRect(0,0,W2,H2);
+  ctx.clearRect(0, 0, W2, H2);
+  ctx.fillStyle = '#030508'; ctx.fillRect(0, 0, W2, H2);
 
-  // Rings
-  for(let r=1;r<=4;r++) {
+  for (let r = 1; r <= 4; r++) {
     ctx.beginPath();
-    for(let i=0;i<N;i++) {
-      const a=(i/N)*Math.PI*2-Math.PI/2;
-      const x=cx+Math.cos(a)*R*(r/4), y=cy+Math.sin(a)*R*(r/4);
-      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+      const x = cx + Math.cos(a) * R * (r / 4);
+      const y = cy + Math.sin(a) * R * (r / 4);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
     ctx.closePath();
-    ctx.strokeStyle=r===4?'#1e2e40':'#131d2b';
-    ctx.lineWidth=r===4?1:.5; ctx.stroke();
+    ctx.strokeStyle = r === 4 ? '#1e2e40' : '#131d2b';
+    ctx.lineWidth = r === 4 ? 1 : 0.5;
+    ctx.stroke();
   }
-  // Axes
-  for(let i=0;i<N;i++) {
-    const a=(i/N)*Math.PI*2-Math.PI/2;
-    ctx.beginPath(); ctx.moveTo(cx,cy);
-    ctx.lineTo(cx+Math.cos(a)*R, cy+Math.sin(a)*R);
-    ctx.strokeStyle='#182535'; ctx.lineWidth=.7; ctx.stroke();
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    ctx.strokeStyle = '#182535'; ctx.lineWidth = 0.7; ctx.stroke();
   }
 
-  const mx = Math.max(...vals);
-  const col= mx>=.8?'#ef233c': mx>=.5?'#f8961e': mx>=.25?'#f9c74f':'#00f5d4';
+  const mx  = Math.max(...vals);
+  const col = mx >= .8 ? '#ef233c' : mx >= .5 ? '#f8961e' : mx >= .25 ? '#f9c74f' : '#00f5d4';
 
-  // Data polygon
   ctx.beginPath();
-  for(let i=0;i<N;i++) {
-    const a=(i/N)*Math.PI*2-Math.PI/2;
-    const r=R*clamp(vals[i],0,1);
-    i===0?ctx.moveTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r)
-         :ctx.lineTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r);
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const r = R * clamp(vals[i], 0, 1);
+    i === 0
+      ? ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r)
+      : ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
   }
   ctx.closePath();
-  ctx.fillStyle=col+'28'; ctx.fill();
-  ctx.strokeStyle=col; ctx.lineWidth=1.5;
-  ctx.shadowBlur=10; ctx.shadowColor=col; ctx.stroke(); ctx.shadowBlur=0;
+  ctx.fillStyle = col + '28'; ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 10; ctx.shadowColor = col; ctx.stroke(); ctx.shadowBlur = 0;
 
-  // Dots
-  for(let i=0;i<N;i++) {
-    const a=(i/N)*Math.PI*2-Math.PI/2;
-    const r=R*clamp(vals[i],0,1);
-    ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r, cy+Math.sin(a)*r, 3,0,Math.PI*2);
-    ctx.fillStyle=col; ctx.fill();
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const r = R * clamp(vals[i], 0, 1);
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0, Math.PI * 2);
+    ctx.fillStyle = col; ctx.fill();
   }
-
-  // Labels
-  ctx.font=`7px 'JetBrains Mono',monospace`;
-  ctx.textAlign='center';
-  for(let i=0;i<N;i++) {
-    const a=(i/N)*Math.PI*2-Math.PI/2;
-    ctx.fillStyle = vals[i]>.35 ? col : '#2d4560';
-    ctx.fillText(LABELS[i], cx+Math.cos(a)*(R+18), cy+Math.sin(a)*(R+18)+3);
+  ctx.font = `7px 'JetBrains Mono',monospace`;
+  ctx.textAlign = 'center';
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    ctx.fillStyle = vals[i] > .35 ? col : '#2d4560';
+    ctx.fillText(LABELS[i], cx + Math.cos(a) * (R + 18), cy + Math.sin(a) * (R + 18) + 3);
   }
-  ctx.textAlign='left';
+  ctx.textAlign = 'left';
 }
 
-// ── Apply Telemetry ───────────────────────────────────────────
+// ── FIX #10: apply() — safe outer wrapper catches any error ──
+// Prevents a single bad telemetry payload from killing the update loop
 function apply(d) {
-  if(!d) return;
+  try {
+    _apply(d);
+  } catch (e) {
+    console.error('[SGS] apply() failed:', e.message, '| payload:', d);
+  }
+}
+
+function _apply(d) {
+  if (!d) return;
 
   const sv  = d.sensors?.voltage     || {};
   const si  = d.sensors?.current     || {};
@@ -1038,24 +1444,18 @@ function apply(d) {
   const smp = d.sampling   || {};
   const pr  = d.prediction || {};
 
-  const vf  = parseFloat(sv.filtered_value) || 0;
-  const cf  = parseFloat(si.filtered_value) || 0;
-  const tf  = parseFloat(st.filtered_value) || 0;
-  const pw  = parseFloat(pwr.real_power_w)  || 0;
+  const vf = parseFloat(sv.filtered_value) || 0;
+  const cf = parseFloat(si.filtered_value) || 0;
+  const tf = parseFloat(st.filtered_value) || 0;
+  const pw = parseFloat(pwr.real_power_w)  || 0;
 
-  // Update wave sources
   W.Vrms = vf; W.Irms = cf;
 
-  // Raw envelope buffers
-  if(ENV.v.length>ENV_LEN) ENV.v.shift();
-  if(ENV.i.length>ENV_LEN) ENV.i.shift();
-  ENV.v.push(vf); ENV.i.push(cf);
+  // FIX #1: pushEnv checks length BEFORE push
+  pushEnv(ENV.v, vf); pushEnv(ENV.i, cf);
+  pushH(H.v, vf); pushH(H.i, cf); pushH(H.t, tf); pushH(H.p, pw);
 
-  // Sparkline history
-  push(H.v,vf); push(H.i,cf); push(H.t,tf); push(H.p,pw);
-
-  // ── GAUGES ──
-  const vc = vf>=260||vf<=190?'#ef233c': vf>=250||vf<=200?'#f8961e':'#f9c74f';
+  const vc = vf >= 260 || vf <= 190 ? '#ef233c' : vf >= 250 || vf <= 200 ? '#f8961e' : '#f9c74f';
   gauge('v', vf, V_MAX, vc, vf.toFixed(1));
   gauge('i', cf, I_MAX, '#4cc9f0', cf.toFixed(2));
   gauge('t', tf, T_MAX, tCol(tf), tf.toFixed(1));
@@ -1064,303 +1464,371 @@ function apply(d) {
   const prob = parseFloat(pr.fault_probability) || 0;
   gauge('r', prob, 100, rCol(risk), risk);
   $('gsub-r').textContent = `FAULT PROB: ${prob}%`;
-  $('gcf-r').style.width = prob + '%';
+  $('gcf-r').style.width  = prob + '%';
 
-  const rssi   = parseInt(net.wifi_rssi) || -90;
-  const rssiQ  = clamp((rssi+100)/60,0,1)*100;
-  gauge('s', rssiQ, 100, rssiCol(rssi), rssi+'');
-  $('gcf-v').style.width = (sv.confidence||0) + '%';
-  $('gcf-i').style.width = (si.confidence||0) + '%';
-  $('gcf-t').style.width = (st.confidence||0) + '%';
+  const rssi  = parseInt(net.wifi_rssi) || -90;
+  const rssiQ = clamp((rssi + 100) / 60, 0, 1) * 100;
+  gauge('s', rssiQ, 100, rssiCol(rssi), rssi + '');
+
+  // FIX #7: gsub-v now displays live ADC confidence from telemetry
+  $('gsub-v').textContent = `GPIO 34 · CONF ${sv.confidence || 0}%`;
+
+  $('gcf-v').style.width = (sv.confidence || 0) + '%';
+  $('gcf-i').style.width = (si.confidence || 0) + '%';
+  $('gcf-t').style.width = (st.confidence || 0) + '%';
   $('gcf-s').style.width = rssiQ + '%';
 
-  // ── STATUS BANNER ──
   const state = al.fsm_state || 'BOOT';
-  const fname = al.active_fault !== 'NONE' ? ` — ${al.active_fault}` : '';
+  const fname = al.active_fault && al.active_fault !== 'NONE' ? ` — ${al.active_fault}` : '';
   const banner = $('status-banner');
   banner.textContent = `● ${state}${fname}`;
   banner.className   = 's' + state;
 
-  // ── RELAY + FLOW STATE ──
   pfState = state;
   r1 = d.loads?.relay1?.state || false;
   r2 = d.loads?.relay2?.state || false;
-  $('pf-st').textContent = r1||r2 ? 'ENERGIZED' : 'RELAY OPEN';
-  $('rc1').className     = 'rcard ' + (r1?'rc-on':'rc-off');
-  $('rc2').className     = 'rcard ' + (r2?'rc-on':'rc-off');
-  $('rc1-st').textContent = r1 ? 'CLOSED' : 'OPEN';
-  $('rc2-st').textContent = r2 ? 'CLOSED' : 'OPEN';
+  $('pf-st').textContent   = r1 || r2 ? 'ENERGIZED' : 'RELAY OPEN';
+  $('rc1').className       = 'rcard ' + (r1 ? 'rc-on' : 'rc-off');
+  $('rc2').className       = 'rcard ' + (r2 ? 'rc-on' : 'rc-off');
+  $('rc1-st').textContent  = r1 ? 'CLOSED' : 'OPEN';
+  $('rc2-st').textContent  = r2 ? 'CLOSED' : 'OPEN';
 
-  // ── THERMAL ──
-  const tmarg = clamp(1-tf/80,0,1)*100;
-  const lpct  = clamp(cf/I_MAX,0,1)*100;
-  $('tzb-c').style.width = clamp(tf/T_MAX,0,1)*100+'%';
+  const tmarg = clamp(1 - tf / 80, 0, 1) * 100;
+  const lpct  = clamp(cf / I_MAX, 0, 1) * 100;
+  $('tzb-c').style.width      = clamp(tf / T_MAX, 0, 1) * 100 + '%';
   $('tzb-c').style.background = tCol(tf);
-  $('tzv-c').textContent = tf>-100 ? tf.toFixed(1)+'°' : '---';
+  $('tzv-c').textContent = tf > -100 ? tf.toFixed(1) + '°' : '---';
   $('tzv-c').style.color = tCol(tf);
-  $('tzb-m').style.width = tmarg+'%';
-  $('tzb-m').style.background = tmarg>50?'#2dc653': tmarg>25?'#f9c74f':'#ef233c';
-  $('tzv-m').textContent = tmarg.toFixed(0)+'%';
-  $('tzv-m').style.color = tmarg>50?'#2dc653': tmarg>25?'#f9c74f':'#ef233c';
-  $('tzb-l').style.width = lpct+'%';
-  $('tzv-l').textContent = lpct.toFixed(0)+'%';
+  $('tzb-m').style.width      = tmarg + '%';
+  $('tzb-m').style.background = tmarg > 50 ? '#2dc653' : tmarg > 25 ? '#f9c74f' : '#ef233c';
+  $('tzv-m').textContent = tmarg.toFixed(0) + '%';
+  $('tzv-m').style.color = tmarg > 50 ? '#2dc653' : tmarg > 25 ? '#f9c74f' : '#ef233c';
+  $('tzb-l').style.width = lpct + '%';
+  $('tzv-l').textContent = lpct.toFixed(0) + '%';
 
-  // ── SYSTEM ROWS ──
-  const up = sys.uptime_s||0;
-  $('sv-up').textContent    = `${Math.floor(up/3600)}h${Math.floor((up%3600)/60)}m${up%60}s`;
-  const kb = (sys.free_heap||0)/1024;
-  $('sv-heap').textContent  = kb.toFixed(1)+' KB';
-  $('sv-heap').className    = 'sv '+(kb<30?'e': kb<50?'w':'ok');
-  $('sv-rate').textContent  = (smp.adc_sample_count&&up) ? (smp.adc_sample_count/up).toFixed(0)+'/s':'---';
+  const up = sys.uptime_s || 0;
+  $('sv-up').textContent    = `${Math.floor(up / 3600)}h${Math.floor((up % 3600) / 60)}m${up % 60}s`;
+  const kb = (sys.free_heap || 0) / 1024;
+  $('sv-heap').textContent  = kb.toFixed(1) + ' KB';
+  $('sv-heap').className    = 'sv ' + (kb < 30 ? 'e' : kb < 50 ? 'w' : 'ok');
+  $('sv-rate').textContent  = (smp.adc_sample_count && up) ? (smp.adc_sample_count / up).toFixed(0) + '/s' : '---';
   $('sv-cal').textContent   = smp.adc_calibrated ? 'YES' : 'NO';
-  $('sv-cal').className     = 'sv '+(smp.adc_calibrated?'ok':'w');
-  $('sv-trips').textContent = al.trip_count||0;
-  $('sv-trips').className   = 'sv '+((al.trip_count||0)>0?'w':'ok');
-  $('sv-energy').textContent= parseFloat(pwr.energy_estimate_wh||0).toFixed(3)+' Wh';
+  $('sv-cal').className     = 'sv ' + (smp.adc_calibrated ? 'ok' : 'w');
+  $('sv-trips').textContent = al.trip_count || 0;
+  $('sv-trips').className   = 'sv ' + ((al.trip_count || 0) > 0 ? 'w' : 'ok');
+  $('sv-energy').textContent = parseFloat(pwr.energy_estimate_wh || 0).toFixed(3) + ' Wh';
 
-  // ── RADAR ──
   const rv = [
-    clamp((al.over_current    ?1: al.warnings?.oc    ?0.5:0)+(prob/200),0,1),
-    clamp((al.over_voltage    ?1: al.warnings?.ov    ?0.5:0)+(prob/300),0,1),
-    clamp((al.warnings?.uv    ?0.6:0)+(prob/300),0,1),
-    clamp((al.over_temperature?1: al.warnings?.thermal?0.5:0)+(tf/180),0,1),
-    clamp(prob/100,0,1),
+    clamp((al.over_current     ? 1 : al.warnings?.oc      ? 0.5 : 0) + (prob / 200), 0, 1),
+    clamp((al.over_voltage     ? 1 : al.warnings?.ov      ? 0.5 : 0) + (prob / 300), 0, 1),
+    clamp((al.warnings?.uv     ? 0.6 : 0)                             + (prob / 300), 0, 1),
+    clamp((al.over_temperature ? 1 : al.warnings?.thermal ? 0.5 : 0) + (tf / 180),   0, 1),
+    clamp(prob / 100, 0, 1),
   ];
   drawRadar(rv);
   $('radar-prob').textContent = `${prob}% PROB.`;
 
-  // ── SPARKLINES ──
-  sparkline('sp-v',H.v,'#f9c74f'); sparkline('sp-i',H.i,'#4cc9f0');
-  sparkline('sp-t',H.t,'#f8961e'); sparkline('sp-p',H.p,'#2dc653');
-  $('spv-v').textContent = vf.toFixed(1)+' V';
-  $('spv-i').textContent = cf.toFixed(3)+' A';
-  $('spv-t').textContent = tf.toFixed(1)+'°C';
-  $('spv-p').textContent = pw.toFixed(1)+' W';
+  // FIX #6: sparkline updates via setAttribute, no innerHTML rebuild
+  sparkline('sp-v', H.v);
+  sparkline('sp-i', H.i);
+  sparkline('sp-t', H.t);
+  sparkline('sp-p', H.p);
+  $('spv-v').textContent = vf.toFixed(1) + ' V';
+  $('spv-i').textContent = cf.toFixed(3) + ' A';
+  $('spv-t').textContent = tf.toFixed(1) + '°C';
+  $('spv-p').textContent = pw.toFixed(1) + ' W';
 
-  // ── FAULT FLAGS ──
   function ff(id, label, active, kind) {
     const el = $(id);
     el.textContent = label;
-    el.className   = 'ff'+(active?(kind==='f'?' af': kind==='w'?' aw':' ai'):'');
+    el.className   = 'ff' + (active ? (kind === 'f' ? ' af' : kind === 'w' ? ' aw' : ' ai') : '');
   }
-  ff('ff-state',  `FSM: ${state}`,              state!=='NORMAL'&&state!=='BOOT','i');
-  ff('ff-fault',  `FAULT: ${al.active_fault||'NONE'}`, al.active_fault&&al.active_fault!=='NONE','f');
-  ff('ff-trips',  `TRIPS: ${al.trip_count||0}`, (al.trip_count||0)>0,'w');
-  ff('ff-prob',   `PROB: ${prob}%`,             prob>=50,'w');
-  ff('ff-ov',     'OVER-VOLT',   al.over_voltage,       'f');
-  ff('ff-oc',     'OVER-CURR',   al.over_current,       'f');
-  ff('ff-ot',     'OVER-TEMP',   al.over_temperature,   'f');
-  ff('ff-sc',     'SHORT-CIRC',  al.short_circuit_risk, 'f');
-  ff('ff-ir',     'INRUSH',      al.inrush_event,       'i');
-  ff('ff-wov',    'WARN: OV',    al.warnings?.ov,       'w');
-  ff('ff-wuv',    'WARN: UV',    al.warnings?.uv,       'w');
-  ff('ff-woc',    'WARN: OC',    al.warnings?.oc,       'w');
-  ff('ff-wth',    'WARN: THERM', al.warnings?.thermal,  'w');
-  ff('ff-wcr',    'CURR RISING', al.warnings?.curr_rising,'w');
-  ff('ff-led',    'LED ACTIVE',  d.actuators?.alert_led?.state,'i');
-  ff('ff-buz',    'BUZZER ON',   d.actuators?.buzzer?.state,   'w');
+  ff('ff-state', `FSM: ${state}`,              state !== 'NORMAL' && state !== 'BOOT', 'i');
+  ff('ff-fault', `FAULT: ${al.active_fault || 'NONE'}`, al.active_fault && al.active_fault !== 'NONE', 'f');
+  ff('ff-trips', `TRIPS: ${al.trip_count || 0}`,        (al.trip_count || 0) > 0, 'w');
+  ff('ff-prob',  `PROB: ${prob}%`,                      prob >= 50, 'w');
+  ff('ff-ov',    'OVER-VOLT',   al.over_voltage,        'f');
+  ff('ff-oc',    'OVER-CURR',   al.over_current,        'f');
+  ff('ff-ot',    'OVER-TEMP',   al.over_temperature,    'f');
+  ff('ff-sc',    'SHORT-CIRC',  al.short_circuit_risk,  'f');
+  ff('ff-ir',    'INRUSH',      al.inrush_event,        'i');
+  ff('ff-wov',   'WARN: OV',    al.warnings?.ov,        'w');
+  ff('ff-wuv',   'WARN: UV',    al.warnings?.uv,        'w');
+  ff('ff-woc',   'WARN: OC',    al.warnings?.oc,        'w');
+  ff('ff-wth',   'WARN: THERM', al.warnings?.thermal,   'w');
+  ff('ff-wcr',   'CURR RISING', al.warnings?.curr_rising,'w');
+  ff('ff-led',   'LED ACTIVE',  d.actuators?.alert_led?.state, 'i');
+  ff('ff-buz',   'BUZZER ON',   d.actuators?.buzzer?.state,    'w');
 
-  // ── NETWORK ──
-  $('nv-rssi').textContent = rssi+' dBm';
+  $('nv-rssi').textContent = rssi + ' dBm';
   $('nv-rssi').style.color = rssiCol(rssi);
-  $('nv-ip').textContent   = net.ip||'---';
-  $('nv-mqtt').textContent = net.mqtt_connected?'CONNECTED':'OFFLINE';
-  $('nv-mqtt').style.color = net.mqtt_connected?'var(--pwr)':'var(--red)';
-  $('nv-samp').textContent = (smp.adc_sample_count||0).toLocaleString();
+  $('nv-ip').textContent   = net.ip || '---';
+  $('nv-mqtt').textContent = net.mqtt_connected ? 'CONNECTED' : 'OFFLINE';
+  $('nv-mqtt').style.color = net.mqtt_connected ? 'var(--pwr)' : 'var(--red)';
+  $('nv-samp').textContent = (smp.adc_sample_count || 0).toLocaleString();
 
-  // Device ID
-  if(d.device) $('dev-badge').textContent = 'DEVICE: '+d.device;
+  if (d.device) $('dev-badge').textContent = 'DEVICE: ' + d.device;
 }
 
-// ── Polling ───────────────────────────────────────────────────
+// ── FIX #9: LAN polling — AbortController replaces AbortSignal.timeout ──
+// AbortSignal.timeout() is not supported in older Safari and some WebViews
+// FIX #16: pollInFlight guard prevents concurrent request pile-up
 async function poll() {
-  if(!deviceBase) return;
+  if (!deviceBase || mqttConnected || pollInFlight) return;
+  pollInFlight = true;
+
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4500);
+
   try {
-    const res = await fetch(deviceBase+'/api/telemetry', {signal:AbortSignal.timeout(4500)});
-    if(!res.ok) throw new Error('HTTP '+res.status);
+    const res = await fetch(deviceBase + '/api/telemetry', { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     failCount = 0;
     $('cdot').classList.add('live');
     apply(data);
-    const ov = $('loading');
-    if(ov.style.opacity!=='0') {
-      ov.style.opacity='0';
-      setTimeout(()=>ov.style.display='none', 450);
+    dismissLoading();
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      // Timeout — don't aggressively increment fail count, just skip this tick
+    } else {
+      failCount++;
+      $('cdot').classList.remove('live');
+      if (failCount === 1) {
+        showLoading('LAN unreachable: ' + deviceBase);
+      }
     }
-  } catch(e) {
-    failCount++;
-    $('cdot').classList.remove('live');
-    if(failCount===1) {
-      $('loading').style.display='flex';
-      $('loading').style.opacity='1';
-      $('ld-msg').textContent = 'Connection failed: '+deviceBase+'/api/telemetry';
-    }
+  } finally {
+    clearTimeout(timer);
+    pollInFlight = false; // FIX #16: always release guard
   }
 }
 
-// ── RAF Loop ──────────────────────────────────────────────────
-let lastF = 0;
-function loop(ts) {
-  if(ts-lastF >= 16) {
-    lastF = ts;
-    W.phase += (2*Math.PI*W.freq)/60;
-    drawOsc();
-    drawPF();
+// ── API helper (LAN only) — also upgraded to AbortController ──
+async function api(endpoint, method, body) {
+  if (!deviceBase) return { error: 'No LAN device connected' };
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const r = await fetch(deviceBase + endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey || '' },
+      body:    body ? JSON.stringify(body) : undefined,
+      signal:  ctrl.signal,
+    });
+    return await r.json();
+  } catch (e) {
+    return { error: e.name === 'AbortError' ? 'Request timeout' : e.message };
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+// ── FIX #18 + FIX #20: RAF loop with delta-time ───────────────
+// dt is clamped to 50ms max to avoid huge phase jumps after tab switch
+let lastRafTs = 0;
+function loop(ts) {
+  const dt = lastRafTs ? Math.min((ts - lastRafTs) / 1000, 0.05) : 1 / 60;
+  lastRafTs = ts;
+  drawOsc(dt);
+  drawPF();
   requestAnimationFrame(loop);
 }
 
-// ── Drag for control window ───────────────────────────────────
+// ── FIX #19: Drag — getBoundingClientRect for correct initial position ──
+// Prevents jump when window is positioned via 'right' CSS (offsetLeft = 0)
 function initDrag() {
   const win = $('ctrl-win');
-  let ox=0,oy=0,on=false;
+  let ox = 0, oy = 0, on = false;
+
   $('cw-drag').addEventListener('mousedown', e => {
-    on=true; ox=e.clientX-win.offsetLeft; oy=e.clientY-win.offsetTop; e.preventDefault();
+    const rect = win.getBoundingClientRect();
+    // Capture visual position and convert to left/top before any movement
+    win.style.right = 'auto';
+    win.style.left  = rect.left + 'px';
+    win.style.top   = rect.top  + 'px';
+    on = true;
+    ox = e.clientX - rect.left;
+    oy = e.clientY - rect.top;
+    e.preventDefault();
   });
+
   document.addEventListener('mousemove', e => {
-    if(!on) return;
-    win.style.right='auto';
-    win.style.left=(e.clientX-ox)+'px';
-    win.style.top =(e.clientY-oy)+'px';
+    if (!on) return;
+    win.style.left = (e.clientX - ox) + 'px';
+    win.style.top  = (e.clientY - oy) + 'px';
   });
-  document.addEventListener('mouseup', ()=>on=false);
+
+  document.addEventListener('mouseup', () => { on = false; });
 }
 
-// ── Status helper ─────────────────────────────────────────────
+// ── FIX #3: Clock with drift correction ───────────────────────
+// setTimeout(fn, 1000) drifts ~1s/hour — sync to wall-clock ms boundary
+function tickClock() {
+  const now = new Date();
+  $('clock').textContent = now.toLocaleTimeString('en-GB', { hour12: false });
+  setTimeout(tickClock, 1000 - now.getMilliseconds());
+}
+
+// ── Feedback helper ───────────────────────────────────────────
 function msg(id, text, color) {
-  const el=$(id); el.textContent=text; el.style.color=color||'var(--tmid)';
-  if(color) setTimeout(()=>{el.textContent=''; el.style.color='';},3200);
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color || 'var(--tmid)';
+  if (color) setTimeout(() => { el.textContent = ''; el.style.color = ''; }, 3500);
 }
 
-// ── API helper ────────────────────────────────────────────────
-async function api(endpoint, method, body) {
-  if(!deviceBase) return {error:'No device connected'};
-  try {
-    const r = await fetch(deviceBase+endpoint, {
-      method, headers:{'Content-Type':'application/json','X-API-Key':apiKey||''},
-      body: body?JSON.stringify(body):undefined,
-      signal:AbortSignal.timeout(5000)
-    });
-    return await r.json();
-  } catch(e) { return {error:e.message}; }
-}
-
-// ── Preset sync helper ────────────────────────────────────────
+// ── FIX #5: syncPreset — validates key before assigning ───────
 function syncPreset(preset) {
+  if (!Object.prototype.hasOwnProperty.call(W.PHASE_SHIFT, preset)) return;
   W.preset = preset;
-  document.querySelectorAll('[data-p]').forEach(b=>b.classList.toggle('on',b.dataset.p===preset));
-  document.querySelectorAll('[data-p2]').forEach(b=>b.classList.toggle('on',b.dataset.p2===preset));
+  document.querySelectorAll('[data-p]').forEach(b  => b.classList.toggle('on', b.dataset.p  === preset));
+  document.querySelectorAll('[data-p2]').forEach(b => b.classList.toggle('on', b.dataset.p2 === preset));
 }
 
-// ── Setup controls ────────────────────────────────────────────
+// ── Setup ─────────────────────────────────────────────────────
 function setup() {
-  // Connect
+
+  // FIX #15: populate fields from localStorage — never from source code
+  loadCredentials();
+  $('api-key').value = apiKey;
+
+  // Loading screen control button — opens control panel without dismissing overlay
+  $('ld-ctrl-btn').addEventListener('click', () => {
+    $('ctrl-win').classList.add('show');
+    // Hover style
+  });
+  $('ld-ctrl-btn').addEventListener('mouseover', () => {
+    $('ld-ctrl-btn').style.background = 'rgba(0,245,212,.12)';
+  });
+  $('ld-ctrl-btn').addEventListener('mouseout', () => {
+    $('ld-ctrl-btn').style.background = 'none';
+  });
+
+  // LAN connect
   $('btn-connect').addEventListener('click', () => {
-    const ip = $('ip').value.trim(); if(!ip) return;
-    deviceBase = 'http://'+ip.replace(/^https?:\/\//,'');
-    if(location.protocol==='https:') $('https-warn').style.display='block';
+    const ip = $('ip').value.trim();
+    if (!ip) return;
+    deviceBase = 'http://' + ip.replace(/^https?:\/\//, '');
+    if (location.protocol === 'https:') $('https-warn').style.display = 'block';
     poll();
   });
-  $('ip').addEventListener('keydown', e=>{ if(e.key==='Enter') $('btn-connect').click(); });
+  $('ip').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-connect').click(); });
 
   // Control window
-  $('btn-ctrl').addEventListener('click',  ()=>$('ctrl-win').classList.toggle('show'));
-  $('cw-close').addEventListener('click',  ()=>$('ctrl-win').classList.remove('show'));
+  $('btn-ctrl').addEventListener('click',  () => $('ctrl-win').classList.toggle('show'));
+  $('cw-close').addEventListener('click',  () => $('ctrl-win').classList.remove('show'));
+
+  // MQTT connect / disconnect
+  $('btn-mqtt-connect').addEventListener('click', () => {
+    if (mqttConnected) disconnectMQTT();
+    else               connectMQTT();
+  });
+
+  // FIX #15: save credentials to localStorage
+  $('btn-save-creds').addEventListener('click', saveCredentials);
 
   // API key
-  $('api-key').value = apiKey;
   $('btn-save-key').addEventListener('click', () => {
     apiKey = $('api-key').value.trim();
     localStorage.setItem('sgs_key', apiKey);
-    msg('msg-key','✓ KEY SAVED','var(--pwr)');
+    msg('msg-key', '✓ KEY SAVED', 'var(--pwr)');
   });
 
-  // FSM Reset
+  // FIX #13: FSM Reset — btn re-enabled only AFTER response resolves
   $('btn-reset').addEventListener('click', async () => {
-    $('btn-reset').disabled=true;
-    msg('msg-reset','Sending...','var(--warn)');
-    const r = await api('/api/reset','POST');
-    if(r.error) msg('msg-reset','✗ '+r.error,'var(--red)');
-    else        msg('msg-reset','✓ '+(r.status||'OK'),'var(--pwr)');
-    setTimeout(()=>$('btn-reset').disabled=false, 2000);
+    $('btn-reset').disabled = true;
+    msg('msg-reset', 'Sending...', 'var(--warn)');
+
+    if (mqttConnected) {
+      const ok = mqttPublish({ action: 'reset', ts: Date.now() });
+      msg('msg-reset',
+        ok ? '✓ RESET → MQTT (sgs/cmd)' : '✗ MQTT publish failed',
+        ok ? 'var(--pwr)' : 'var(--red)'
+      );
+      $('btn-reset').disabled = false; // MQTT publish is synchronous — safe to re-enable here
+    } else {
+      const r = await api('/api/reset', 'POST'); // await completes before re-enable
+      if (r.error) msg('msg-reset', '✗ ' + r.error, 'var(--red)');
+      else         msg('msg-reset', '✓ ' + (r.status || 'OK'), 'var(--pwr)');
+      $('btn-reset').disabled = false;
+    }
   });
 
   // Relay toggles
-  ['rc1','rc2'].forEach(id=>{
-    $(id).addEventListener('click', async ()=>{
-      const n = id==='rc1'?1:2;
-      msg('msg-relay',`Toggling relay ${n}...`,'var(--warn)');
-      const r = await api('/api/relay','POST',{relay:n});
-      if(r.error?.includes('Not found')||r.error?.includes('404'))
-        msg('msg-relay','⚠ /api/relay not yet available (Phase 3)','var(--warn)');
-      else if(r.error) msg('msg-relay','✗ '+r.error,'var(--red)');
-      else             msg('msg-relay','✓ '+(r.status||'Toggled'),'var(--pwr)');
+  ['rc1', 'rc2'].forEach(id => {
+    $(id).addEventListener('click', async () => {
+      const n = id === 'rc1' ? 1 : 2;
+      msg('msg-relay', 'Sending relay ' + n + '...', 'var(--warn)');
+
+      if (mqttConnected) {
+        const ok = mqttPublish({ action: 'relay', relay: n, cmd: 'toggle', ts: Date.now() });
+        msg('msg-relay',
+          ok ? `✓ RELAY ${n} → MQTT (sgs/cmd)` : '✗ MQTT publish failed',
+          ok ? 'var(--pwr)' : 'var(--red)'
+        );
+      } else {
+        const r = await api('/api/relay', 'POST', { relay: n });
+        if (r.error?.includes('Not found') || r.error?.includes('404'))
+          msg('msg-relay', '⚠ /api/relay not yet implemented', 'var(--warn)');
+        else if (r.error) msg('msg-relay', '✗ ' + r.error, 'var(--red)');
+        else              msg('msg-relay', '✓ ' + (r.status || 'Toggled'), 'var(--pwr)');
+      }
     });
   });
 
-  // Osc frequency slider
-  $('sl-freq').addEventListener('input', function() {
+  // Oscilloscope controls
+  $('sl-freq').addEventListener('input', function () {
     W.freq = parseFloat(this.value);
-    $('lbl-freq').textContent  = W.freq.toFixed(1)+' Hz';
+    $('lbl-freq').textContent  = W.freq.toFixed(1) + ' Hz';
     $('cw-freq').value         = this.value;
-    $('cw-freq-v').textContent = W.freq.toFixed(0)+' Hz';
+    $('cw-freq-v').textContent = W.freq.toFixed(0) + ' Hz';
   });
-
-  // Osc time/div
-  $('sl-tdiv').addEventListener('input', function() {
+  $('sl-tdiv').addEventListener('input', function () {
     W.cyclesShown = parseInt(this.value);
-    $('lbl-tdiv').textContent = (W.cyclesShown/W.freq*1000/4).toFixed(1)+' ms';
+    $('lbl-tdiv').textContent = (W.cyclesShown / W.freq * 1000 / 4).toFixed(1) + ' ms';
   });
-
-  // Presets (osc bar)
-  document.querySelectorAll('[data-p]').forEach(b=>{
-    b.addEventListener('click', function(){ syncPreset(this.dataset.p); });
+  document.querySelectorAll('[data-p]').forEach(b => {
+    b.addEventListener('click', function () { syncPreset(this.dataset.p); });
   });
-
-  // Presets (control window)
-  document.querySelectorAll('[data-p2]').forEach(b=>{
-    b.addEventListener('click', function(){ syncPreset(this.dataset.p2); });
+  document.querySelectorAll('[data-p2]').forEach(b => {
+    b.addEventListener('click', function () { syncPreset(this.dataset.p2); });
   });
-
-  // CW frequency
-  $('cw-freq').addEventListener('input', function() {
+  $('cw-freq').addEventListener('input', function () {
     W.freq = parseFloat(this.value);
-    $('cw-freq-v').textContent = W.freq.toFixed(0)+' Hz';
+    $('cw-freq-v').textContent = W.freq.toFixed(0) + ' Hz';
     $('sl-freq').value         = this.value;
-    $('lbl-freq').textContent  = W.freq.toFixed(1)+' Hz';
+    $('lbl-freq').textContent  = W.freq.toFixed(1) + ' Hz';
   });
-
-  // CW amplitude
-  $('cw-amp').addEventListener('input', function() {
+  $('cw-amp').addEventListener('input', function () {
     W.amp = parseFloat(this.value);
-    $('cw-amp-v').textContent = W.amp.toFixed(2)+'×';
+    $('cw-amp-v').textContent = W.amp.toFixed(2) + '×';
   });
+  $('chk-raw').addEventListener('change', function () { W.showRaw = this.checked; });
 
-  // Raw overlay toggle
-  $('chk-raw').addEventListener('change', function(){ W.showRaw=this.checked; });
-
-  // Resize
-  window.addEventListener('resize', ()=>{ initOsc(); initPF(); });
-
-  // URL param: ?ip=192.168.x.x
+  // URL params
   const params = new URLSearchParams(location.search);
-  if(params.get('ip')) { $('ip').value=params.get('ip'); $('btn-connect').click(); }
+  if (params.get('ip'))    { $('ip').value = params.get('ip'); $('btn-connect').click(); }
+  if (params.get('cloud')) { $('ctrl-win').classList.add('show'); }
 
-  // HTTPS notice
-  if(location.protocol==='https:') $('https-warn').style.display='block';
+  if (location.protocol === 'https:') $('https-warn').style.display = 'block';
 }
 
-// ── Clock ─────────────────────────────────────────────────────
-setInterval(()=>{
-  $('clock').textContent = new Date().toLocaleTimeString('en-GB',{hour12:false});
-},1000);
-
 // ── Init ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', ()=>{
-  initOsc(); initPF(); initDrag(); setup();
-  drawOsc(); drawRadar([0,0,0,0,0]); drawPF();
+document.addEventListener('DOMContentLoaded', () => {
+  initOsc();
+  initPF();
+  initDrag();
+  initSparklines();        // FIX #6: pre-build SVG structure once
+  initResizeObserver();    // FIX #8: ResizeObserver (with fallback)
+  setup();
+  tickClock();             // FIX #3: drift-corrected clock
+  drawOsc(1 / 60);         // Initial frame at nominal 60fps dt
+  drawRadar([0, 0, 0, 0, 0]);
+  drawPF();
   setInterval(poll, 500);
-  requestAnimationFrame(loop);
+  requestAnimationFrame(loop);  // FIX #18: delta-time RAF loop starts
 });
 </script>
 </body>
