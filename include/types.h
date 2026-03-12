@@ -20,11 +20,13 @@ enum FSMState : uint8_t {
 
 // ─── Fault Types ──────────────────────────────────────────────────────────────
 enum FaultType : uint8_t {
-    FAULT_NONE        = 0,
-    FAULT_OVERVOLTAGE = 1,
-    FAULT_UNDERVOLT   = 2,
-    FAULT_OVERCURRENT = 3,
-    FAULT_THERMAL     = 4
+    FAULT_NONE          = 0,
+    FAULT_OVERVOLTAGE   = 1,
+    FAULT_UNDERVOLT     = 2,
+    FAULT_OVERCURRENT   = 3,
+    FAULT_THERMAL       = 4,
+    FAULT_SHORT_CIRCUIT = 5,   // ANSI 50 — instantaneous SC, bypasses reclose → LOCKOUT
+    FAULT_SENSOR_FAIL   = 6    // Hardware sensor failure — triggers immediate LOCKOUT
 };
 
 // ─── Warning Flag Bitmasks ────────────────────────────────────────────────────
@@ -60,12 +62,14 @@ inline const char* fsmStateName(FSMState s) {
 
 inline const char* faultTypeName(FaultType f) {
     switch (f) {
-        case FAULT_NONE:        return "NONE";
-        case FAULT_OVERVOLTAGE: return "OV";
-        case FAULT_UNDERVOLT:   return "UV";
-        case FAULT_OVERCURRENT: return "OC";
-        case FAULT_THERMAL:     return "THERMAL";
-        default:                return "UNKNOWN";
+        case FAULT_NONE:          return "NONE";
+        case FAULT_OVERVOLTAGE:   return "OV";
+        case FAULT_UNDERVOLT:     return "UV";
+        case FAULT_OVERCURRENT:   return "OC";
+        case FAULT_THERMAL:       return "THERMAL";
+        case FAULT_SHORT_CIRCUIT: return "SHORT_CIRCUIT";
+        case FAULT_SENSOR_FAIL:   return "SENSOR_FAIL";
+        default:                  return "UNKNOWN";
     }
 }
 
@@ -99,6 +103,10 @@ struct SensorReading {
     uint32_t ts_ms;
     bool     relay1_closed;
     bool     relay2_closed;
+    // Full multi-fault bitmask from FaultEngine (FAULT_BIT_* values).
+    // Allows telemetry and dashboard to display all simultaneously active
+    // faults, not just the highest-priority one surfaced via FSMContext.
+    uint16_t fault_bits;
 };
 
 // ─── Per-sensor metadata for telemetry ───────────────────────────────────────

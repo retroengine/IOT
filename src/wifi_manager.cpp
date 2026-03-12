@@ -104,16 +104,6 @@ display:flex;justify-content:center;align-items:center;min-height:100vh;font-siz
 namespace WiFiManager {
 
     void init() {
-    // ── TEMPORARY HARDCODE — remove after first successful connect ──────────
-    {
-        Preferences _tmp;
-        _tmp.begin(NVS_NAMESPACE, false);
-        _tmp.putString(NVS_KEY_WIFI_SSID, "saikiran");
-        _tmp.putString(NVS_KEY_WIFI_PASS, "saikiran");
-        _tmp.end();
-    }
-    // ────────────────────────────────────────────────────────────────────────
-
         prefs.begin(NVS_NAMESPACE, true);
         String ssid = prefs.getString(NVS_KEY_WIFI_SSID, "");
         String pass = prefs.getString(NVS_KEY_WIFI_PASS, "");

@@ -67,11 +67,21 @@ void task_protection(void* pvParam) {
         float i   = ADCSampler::getCurrent();
         float t   = DS18B20::getTemp();
 
+        // Raw ADC integers required by fault_engine v3.0:
+        //   EC-06: saturation detection (open wire / op-amp rail short)
+        //   EC-07: frozen sensor detection (ADC mux hang / IC lockup)
+        int raw_v_int = ADCSampler::getLastRawV();
+        int raw_i_int = ADCSampler::getLastRawI();
+
         // 2. Run fault engine
-        FaultEngine::evaluate(v, i, t);
+        // v3.0 signature: evaluate(voltage, current, temp, raw_v_adc, raw_i_adc)
+        FaultEngine::evaluate(v, i, t, raw_v_int, raw_i_int);
 
         // 3. Run FSM
-        FSM::tick(t);
+        // v3.0 signature: tick(temp_c, voltage_v)
+        // voltage_v used for recovery confirmation (EC-14):
+        // voltage must hold ±5% of 230V for 500ms before relay re-closes.
+        FSM::tick(t, v);
 
         // 4. Get current FSM context
         FSMContext ctx = FSM::getContext();
@@ -91,6 +101,11 @@ void task_protection(void* pvParam) {
             g_reading.ts_ms         = millis();
             g_reading.relay1_closed = RelayControl::isLoad1Closed();
             g_reading.relay2_closed = RelayControl::isLoad2Closed();
+            // fault_engine v3.0: full multi-fault bitmask for telemetry/dashboard.
+            // Allows dashboard to display all simultaneous active faults, not
+            // just the highest-priority one. Requires adding to SensorReading
+            // in types.h:  uint16_t fault_bits;
+            g_reading.fault_bits    = FaultEngine::getActiveFaultBits();
             g_ctx = ctx;
             xSemaphoreGive(g_state_mutex);
         }

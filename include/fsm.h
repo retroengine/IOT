@@ -8,7 +8,9 @@
 
 namespace FSM {
     void       init();
-    void       tick(float temp_c);
+    // temp_c   : DS18B20 reading — used for thermal guard and reset blocking
+    // voltage_v: ADC voltage — used for recovery band confirmation (EC-14)
+    void       tick(float temp_c, float voltage_v);
     FSMContext getContext();
     void       requestReset();  // Called by API — sets reset_requested flag
 }
