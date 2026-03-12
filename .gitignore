@@ -1,0 +1,27 @@
+# ── PlatformIO build artifacts ─────────────────────────────────
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# ── VSCode ──────────────────────────────────────────────────────
+.vscode/
+*.code-workspace
+
+# ── Claude Code ─────────────────────────────────────────────────
+.claude/
+
+# ── macOS ───────────────────────────────────────────────────────
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# ── Windows ─────────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+
+# ── Secrets — NEVER commit these ────────────────────────────────
+# NVS keys are auto-generated at runtime and stored on-device.
+# If you ever hardcode credentials for testing, exclude them here.
+secrets.h
+credentials.h
