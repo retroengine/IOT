@@ -753,6 +753,7 @@ let pfInitRetries = 0;
 
 const $     = id => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 function tCol(t)    { return t >= 80 ? '#ef233c' : t >= 60 ? '#f8961e' : t >= 45 ? '#f9c74f' : '#2dc653'; }
 function rCol(r)    { return { LOW:'#2dc653', MODERATE:'#f9c74f', HIGH:'#f8961e', CRITICAL:'#ef233c' }[r] || '#2dc653'; }
@@ -1182,6 +1183,12 @@ function drawOsc(dt) {
         const v = Vp * Math.sin(2 * Math.PI * W.freq * t - p);
         const i = Ip * Math.sin(2 * Math.PI * W.freq * t - p - phi);
         pts.push({ x, y: cy - v * i * (Vp * Ip > 0 ? AMP / (Vp * Ip) : 1) * 0.45 });
+      const pts = [];
+      for (let x = 0; x < CW; x++) {
+        const t = (x / CW) * TW;
+        const v = Vp * Math.sin(2 * Math.PI * W.freq * t - p);
+        const i = Ip * Math.sin(2 * Math.PI * W.freq * t - p - phi);
+        pts.push({ x, y: cy - v * i * (Vp * Ip > 0 ? AMP / (Vp * Ip) : 1) * 0.45 });
       }
       ctx.beginPath(); ctx.moveTo(0, cy); pts.forEach(q => ctx.lineTo(q.x, q.y)); ctx.lineTo(CW - 1, cy); ctx.closePath(); ctx.fillStyle = '#2dc65318'; ctx.fill();
       ctx.beginPath(); pts.forEach((q, k) => k === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)); ctx.strokeStyle = '#2dc653'; ctx.lineWidth = 1.5; ctx.shadowBlur = 5; ctx.shadowColor = '#2dc653'; ctx.stroke(); ctx.shadowBlur = 0;
@@ -1255,6 +1262,9 @@ function drawPF() {
     if (p.path === 'l1' && !r1) return;
     if (p.path === 'l2' && !r2) return;
     p.t = (p.t + speed) % 1;
+    if (p.path === 'l1' && !r1) return;
+    if (p.path === 'l2' && !r2) return;
+    p.t = (p.t + speed) % 1;
     const pt = pfPt(p.t, p.path, W2, H2);
     ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.4, 0, Math.PI*2);
     ctx.fillStyle=partCol; ctx.shadowBlur=9; ctx.shadowColor=partCol; ctx.fill(); ctx.shadowBlur=0;
@@ -1320,6 +1330,10 @@ function _apply(d) {
   const smp = d.sampling|| {};
   const pr  = d.prediction || {};
 
+  const vf = parseFloat(sv.filtered_value) || 0;
+  const cf = parseFloat(si.filtered_value) || 0;
+  const tf = parseFloat(st.filtered_value) || 0;
+  const pw = parseFloat(pwr.real_power_w)  || 0;
   const vf = parseFloat(sv.filtered_value) || 0;
   const cf = parseFloat(si.filtered_value) || 0;
   const tf = parseFloat(st.filtered_value) || 0;
@@ -1395,6 +1409,10 @@ function _apply(d) {
   $('sv-trips').textContent = al.trip_count || 0;
   $('sv-trips').className   = 'sv ' + ((al.trip_count || 0) > 0 ? 'w' : 'ok');
   $('sv-energy').textContent = parseFloat(pwr.energy_estimate_wh || 0).toFixed(3) + ' Wh';
+  $('sv-cal').className     = 'sv ' + (smp.adc_calibrated ? 'ok' : 'w');
+  $('sv-trips').textContent = al.trip_count || 0;
+  $('sv-trips').className   = 'sv ' + ((al.trip_count || 0) > 0 ? 'w' : 'ok');
+  $('sv-energy').textContent = parseFloat(pwr.energy_estimate_wh || 0).toFixed(3) + ' Wh';
 
   const rv = [
     clamp((al.over_current  ? 1 : al.warnings?.oc     ? 0.5 : 0) + (prob/200), 0, 1),
@@ -1440,6 +1458,7 @@ function _apply(d) {
   $('nv-samp').textContent   = (smp.adc_sample_count || 0).toLocaleString();
 
   if (d.device) $('dev-badge').textContent = 'DEVICE: ' + d.device;
+  if (d.device) $('dev-badge').textContent = 'DEVICE: ' + d.device;
 }
 
 // ── FIX A1: LAN poll via recursive setTimeout (no overlapping calls) ──────────
@@ -1448,6 +1467,8 @@ async function poll() {
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 4500);
   try {
+    const res = await fetch(deviceBase + '/api/telemetry', { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const res = await fetch(deviceBase + '/api/telemetry', { signal: ctrl.signal });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -1536,7 +1557,10 @@ function msg(id, text, color) {
 // ── Preset sync ───────────────────────────────────────────────────────────────
 function syncPreset(preset) {
   if (!Object.prototype.hasOwnProperty.call(W.PHASE_SHIFT, preset)) return;
+  if (!Object.prototype.hasOwnProperty.call(W.PHASE_SHIFT, preset)) return;
   W.preset = preset;
+  document.querySelectorAll('[data-p]').forEach(b  => b.classList.toggle('on', b.dataset.p  === preset));
+  document.querySelectorAll('[data-p2]').forEach(b => b.classList.toggle('on', b.dataset.p2 === preset));
   document.querySelectorAll('[data-p]').forEach(b  => b.classList.toggle('on', b.dataset.p  === preset));
   document.querySelectorAll('[data-p2]').forEach(b => b.classList.toggle('on', b.dataset.p2 === preset));
 }
@@ -1571,6 +1595,7 @@ function setup() {
     updateRelayModeNote();
     schedulePoll();
   });
+  $('ip').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-connect').click(); });
   $('ip').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-connect').click(); });
 
   $('btn-ctrl').addEventListener('click', () => $('ctrl-win').classList.toggle('show'));
@@ -1663,7 +1688,9 @@ function setup() {
     $('cw-freq').value = this.value; $('cw-freq-v').textContent = W.freq.toFixed(0) + ' Hz';
   });
   $('sl-tdiv').addEventListener('input', function () {
+  $('sl-tdiv').addEventListener('input', function () {
     W.cyclesShown = parseInt(this.value);
+    $('lbl-tdiv').textContent = (W.cyclesShown / W.freq * 1000 / 4).toFixed(1) + ' ms';
     $('lbl-tdiv').textContent = (W.cyclesShown / W.freq * 1000 / 4).toFixed(1) + ' ms';
   });
   document.querySelectorAll('[data-p]').forEach(b  => { b.addEventListener('click', function () { syncPreset(this.dataset.p);  }); });
@@ -1675,6 +1702,7 @@ function setup() {
   $('cw-amp').addEventListener('input', function () { W.amp = parseFloat(this.value); $('cw-amp-v').textContent = W.amp.toFixed(2) + '×'; });
   $('chk-raw').addEventListener('change', function () { W.showRaw = this.checked; });
 
+  // URL params
   // URL params
   const params = new URLSearchParams(location.search);
   if (params.get('ip')) { $('ip').value = params.get('ip'); $('btn-connect').click(); }
