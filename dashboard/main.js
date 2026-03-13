@@ -21,9 +21,11 @@
 import * as telemetryPoller                   from './telemetry/telemetryPoller.js';
 import { startMockPoller, stopMockPoller }    from './telemetry/mockData.js';
 import { push as bufferPush }                 from './telemetry/telemetryBuffer.js';
-import { Page1Status }                        from './pages/page1-status.js';
-import { Page2Faults }                        from './pages/page2-faults.js';
-import { Page5Analytics }                     from './pages/page5-analytics.js';
+import { Page1Status }      from './pages/page1-status.js';
+import { Page2Faults }      from './pages/page2-faults.js';
+import { Page3Diagnostics } from './pages/page3-diagnostics.js?v=5'; 
+import { Page4Cloud }       from './pages/page4-cloud.js?v=5';       
+import { Page5Analytics }   from './pages/page5-analytics.js?v=5';
 
 // ── Dev mode detection ────────────────────────────────────────────────────
 // Automatically true on localhost / file:// so the dashboard works immediately
@@ -40,16 +42,20 @@ const DEV_MODE = FORCE_DEV_MODE || (
 if (DEV_MODE) {
   console.info('[main] DEV_MODE active — using mock telemetry (mockData.js)');
 }
-
+class _NullPage {
+  mount(containerEl)    { /* leave phase placeholder divs intact */ }
+  update(telemetryData) { /* no-op */ }
+  destroy()             { /* nothing to clean up */ }
+}
 // ── Page registry ─────────────────────────────────────────────────────────
 // Maps data-page attribute values to Page class constructors.
 // Pages not yet implemented are registered as _NullPage (no-op stub).
 const PAGE_REGISTRY = {
-  status:      Page1Status,    // Phase 4 — implemented
-  faults:      Page2Faults,    // Phase 6 — implemented
-  diagnostics: _NullPage,      // Phase 7
-  cloud:       _NullPage,      // Phase 7
-  analytics:   Page5Analytics, // Phase 5 — implemented
+  status:      Page1Status,    
+  faults:      Page2Faults,    
+  diagnostics: Page3Diagnostics, // Changed from _NullPage
+  cloud:       Page4Cloud,       // Changed from _NullPage
+  analytics:   Page5Analytics, 
 };
 
 // ── Router state ──────────────────────────────────────────────────────────
@@ -227,8 +233,4 @@ window.getCurrentPage = getCurrentPage;
  * No-op page class. Leaves existing .zone-placeholder content untouched.
  * Replaced by a real page class when the phase is implemented.
  */
-class _NullPage {
-  mount(containerEl)    { /* leave phase placeholder divs intact */ }
-  update(telemetryData) { /* no-op */ }
-  destroy()             { /* nothing to clean up */ }
-}
+

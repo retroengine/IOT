@@ -265,7 +265,7 @@ class ChartPanel {
     this._loadingEl.style.display = isLoading ? 'flex' : 'none';
   }
 
-  destroy() {
+destroy() {
     this._resizeObserver.disconnect();
     this._canvasEl.removeEventListener('mousemove', this._onMouseMove);
     this._canvasEl.removeEventListener('mouseleave', this._onMouseLeave);
@@ -406,23 +406,41 @@ export class Page5Analytics {
   }
 
   destroy() {
-    // Cancel any in-flight fetch
-    if (this._abortCtrl) {
-      this._abortCtrl.abort();
-      this._abortCtrl = null;
-    }
+    try {
+      // 1. Cancel in-flight fetches
+      if (this._abortCtrl) {
+        this._abortCtrl.abort();
+        this._abortCtrl = null;
+      }
 
-    // Destroy all ChartPanels (cleans up their ResizeObservers + listeners)
-    for (const panel of this._panels) {
-      panel.destroy();
-    }
-    this._panels = [];
+      // 2. Destroy panels safely
+      if (this._panels) {
+        for (const panel of this._panels) {
+          try { panel.destroy(); } catch (err) { /* ignore panel errors */ }
+        }
+        this._panels = [];
+      }
 
-    // Remove page-level event listeners
-    for (const [el, type, handler] of this._listeners) {
-      el.removeEventListener(type, handler);
+      // 3. Remove listeners safely
+      if (this._listeners) {
+        for (const [el, type, handler] of this._listeners) {
+          try { el.removeEventListener(type, handler); } catch (err) { /* ignore listener errors */ }
+        }
+        this._listeners = [];
+      }
+    } catch (globalErr) {
+      console.error('[page5-analytics] Error during cleanup:', globalErr);
+    } finally {
+      // 4. THE NUKE: This runs no matter what happens above
+      if (this._container) {
+        // Remove all child nodes aggressively
+        while (this._container.firstChild) {
+          this._container.removeChild(this._container.firstChild);
+        }
+        // Fallback clear
+        this._container.innerHTML = '';
+      }
     }
-    this._listeners = [];
   }
 
   // ── DOM construction ───────────────────────────────────────────────────────
@@ -855,10 +873,12 @@ export class Page5Analytics {
         : 'background: var(--bg-week-pill); color: var(--text-primary);',
     ].join(';');
   }
-
   _makeDateTimeInput() {
     const el = document.createElement('input');
-    el.type  = 'datetime-local';
+    
+    // Change this from 'datetime-local' to just 'date'
+    el.type  = 'date'; 
+    
     el.style.cssText = [
       'background: var(--bg-week-pill)',
       'border: 1px solid var(--border-pill)',
@@ -868,7 +888,6 @@ export class Page5Analytics {
       'padding: 4px 10px',
       'cursor: pointer',
       'outline: none',
-      // Chromium colourscheme
       'color-scheme: dark',
     ].join(';');
     return el;

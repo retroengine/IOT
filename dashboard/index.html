@@ -51,15 +51,17 @@
 
     /* ── Dashboard Container (DESIGN.md §4 Dashboard Container) ── */
     /* The dashboard is a rounded card on the grey outer page */
-    .dashboard {
+.dashboard {
       position: relative;
-      max-width: 1280px;
+      /* Change max-width to 100% so it fills the screen */
+      max-width: 100%;
       min-height: 100vh;
       margin: 0 auto;
       background-color: var(--bg-dashboard);
-      border-radius: var(--radius-xl);             /* 16–20px per spec */
+      /* Change this to 0 to remove the curved edges */
+      border-radius: 0;             
       box-shadow: var(--shadow-dashboard);
-      padding: 0 var(--space-xl);                  /* 32px side padding */
+      padding: 0 var(--space-xl);
       overflow: hidden;
     }
 
@@ -258,12 +260,14 @@
     }
 
     /* ── Mobile Nav (DESIGN.md §14) ── */
-    @media (max-width: 767px) {
-      .nav__links {
-        display: none;                /* collapsed — toggled by JS menu */
+/* On very wide viewports the page bg peeks around the rounded dashboard */
+    @media (min-width: 1400px) {
+      body {
+        /* Change this from var(--space-lg) 0 to just 0 */
+        padding: 0; 
       }
-      .nav__mobile-menu-btn {
-        display: flex;
+      .dashboard {
+        min-height: 100vh;
       }
     }
 
@@ -291,6 +295,11 @@
     ::-webkit-scrollbar       { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg-dashboard); }
     ::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 3px; }
+
+    /* Hide rogue buttons that spawn outside the dashboard */ 
+    body > button {
+      display: none !important;
+    }
   </style>
 </head>
 
