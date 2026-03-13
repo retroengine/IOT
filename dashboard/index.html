@@ -1,1728 +1,547 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SGS — Dappr Edition</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-<style>
-/* ═══════════════════════════════════════════════════════════
-   DESIGN SYSTEM: Dappr Dashboard Integration
-   All original DOM IDs and class bindings preserved.
-═══════════════════════════════════════════════════════════ */
-:root {
-  --bg-app:     #ECF1F4;
-  --sidebar:    #0B0C10;
-  --card-light: #FFFFFF;
-  --card-dark:  #0B0C10;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Smart Grid Sentinel — Industrial IoT Monitoring Dashboard" />
+  <title>Smart Grid Sentinel</title>
 
-  --text-main:  #0B0C10;
-  --text-sec:   #6B7280;
-  --text-inv:   #FFFFFF;
-  --text-inv-s: #9CA3AF;
+  <!-- ── Google Fonts ── -->
+  <!-- DM Sans: primary UI font (DESIGN.md §3 — preferred) -->
+  <!-- JetBrains Mono: monospace font for payload inspector (Page 4) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
 
-  --acc-green:    #22C55E;
-  --acc-green-bg: #DCFCE7;
-  --acc-red:      #EF4444;
-  --acc-red-bg:   #FEE2E2;
+  <!-- ── Design Tokens & Effects (Phase 1 — FROZEN) ── -->
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="effects.css" />
 
-  --volt:     #4F46E5;
-  --curr:     #0EA5E9;
-  --pwr:      #10B981;
-  --red:      #EF4444;
-  --warn:     #F59E0B;
-  --cyan:     #06B6D4;
-  --void:     #ECF1F4;
-  --tmid:     #4B5563;
-  --tdim:     #9CA3AF;
-  --bdr:      #F3F4F6;
-  --bdr2:     #E5E7EB;
+  <style>
+    /* ──────────────────────────────────────────────────────────────
+       Phase 1 Shell Layout Styles
+       Structural layout only — no component styling here.
+       All color values reference tokens.css variables.
+    ────────────────────────────────────────────────────────────── */
 
-  --DF: 'Poppins', sans-serif;
-  --MF: 'Inter', sans-serif;
-  --Mono: 'JetBrains Mono', monospace;
+    /* ── Reset & Base ── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  --radius-lg: 32px;
-  --radius-md: 24px;
-  --radius-sm: 16px;
-  --radius-pl: 999px;
-  --shadow-lg: 0 12px 36px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.03);
-}
+    html, body {
+      height: 100%;
+      font-family: var(--font-primary);
+      font-size: 14px;
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      /* Prevent horizontal scroll at any viewport width */
+      overflow-x: hidden;
+    }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--bg-app);
-  color: var(--text-main);
-  font-family: var(--MF);
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  padding: 16px;
-  gap: 24px;
-}
+    /* Tabular numbers globally — DESIGN.md §3 rule 1 */
+    body {
+      font-variant-numeric: tabular-nums;
+    }
 
-/* ── LAYOUT ───────────────────────────────────────────────── */
-.dappr-sidebar {
-  width: 86px;
-  background: var(--sidebar);
-  border-radius: 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 32px 0;
-  position: relative;
-  flex-shrink: 0;
-  box-shadow: var(--shadow-lg);
-}
-.sidebar-logo { color: #fff; font-family: var(--DF); font-weight: 700; font-size: 18px; margin-bottom: 40px; }
-.sidebar-chevron {
-  position: absolute; right: -12px; top: 80px; width: 24px; height: 24px;
-  background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-weight: bold; font-size: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); color: #000;
-}
-.sidebar-icons { display: flex; flex-direction: column; gap: 24px; width: 100%; align-items: center; }
-.s-icon { width: 40px; height: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #fff; opacity: 0.6; }
-.s-icon.active { background: rgba(255,255,255,0.1); opacity: 1; }
+    /* ── Dashboard Container (DESIGN.md §4 Dashboard Container) ── */
+    /* The dashboard is a rounded card on the grey outer page */
+    .dashboard {
+      position: relative;
+      max-width: 1280px;
+      min-height: 100vh;
+      margin: 0 auto;
+      background-color: var(--bg-dashboard);
+      border-radius: var(--radius-xl);             /* 16–20px per spec */
+      box-shadow: var(--shadow-dashboard);
+      padding: 0 var(--space-xl);                  /* 32px side padding */
+      overflow: hidden;
+    }
 
-.dappr-main { flex: 1; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; padding-right: 8px; }
-.dappr-main::-webkit-scrollbar { width: 0px; }
+    /* On very wide viewports the page bg peeks around the rounded dashboard */
+    @media (min-width: 1400px) {
+      body {
+        padding: var(--space-lg) 0;
+      }
+      .dashboard {
+        min-height: calc(100vh - var(--space-lg) * 2);
+      }
+    }
 
-.dappr-right { width: 340px; display: flex; flex-direction: column; gap: 24px; flex-shrink: 0; overflow-y: auto; }
-.dappr-right::-webkit-scrollbar { width: 0px; }
+    /* ── Navigation Bar (DESIGN.md §13) ── */
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      padding: 0 var(--space-xl);
+      /* Sticky top — always visible (DESIGN.md §13) */
+      position: sticky;
+      top: 0;
+      z-index: var(--z-nav);
+      /* Inherits dashboard bg; subtle blur on scroll applied via JS class */
+      background-color: var(--bg-dashboard);
+      /* Bottom separator: 1px border-subtle (DESIGN.md §5.15) */
+      border-bottom: 1px solid var(--border-subtle);
+    }
 
-/* ── COMPONENTS ───────────────────────────────────────────── */
-.card-light { background: var(--card-light); border-radius: var(--radius-md); box-shadow: var(--shadow-md); padding: 24px; }
-.card-dark  { background: var(--card-dark);  border-radius: var(--radius-md); color: var(--text-inv); padding: 24px; box-shadow: var(--shadow-lg); }
+    /* Nav: logo + links group on the left */
+    .nav__left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);           /* 24px gap between logo and links */
+    }
 
-/* ── HEADER ───────────────────────────────────────────────── */
-.top-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; }
-.greeting h1 { font-family: var(--DF); font-size: 32px; font-weight: 600; letter-spacing: -0.5px; }
-.top-utils { display: flex; gap: 12px; align-items: center; }
+    /* Logo mark — white geometric SVG placeholder, 32px */
+    .nav__logo {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--text-primary);
+      text-decoration: none;
+      gap: var(--space-xs);
+    }
 
-.pill {
-  display: flex; align-items: center; gap: 8px; background: #fff;
-  padding: 8px 16px; border-radius: var(--radius-pl); font-size: 13px; font-weight: 500;
-  box-shadow: var(--shadow-md);
-}
-.pill input { border: none; outline: none; font-family: var(--MF); font-weight: 600; width: 110px; }
-.pill button { border: none; background: none; font-weight: 600; cursor: pointer; color: var(--text-main); font-family: var(--DF); }
-.pill-dark { background: var(--sidebar); color: #fff; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; cursor: pointer; border: none; }
+    .nav__logo-icon {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+    }
 
-.cdot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-sec); }
-.cdot.live { background: var(--acc-green); box-shadow: 0 0 10px var(--acc-green); }
-/* FIX E2: stale state styling */
-.cdot.stale { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: pulse-warn 1s infinite; }
-@keyframes pulse-warn { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .nav__logo-text {
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
 
-#cloud-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-sec); }
-#cloud-dot.connecting { background: var(--warn); }
-#cloud-dot.connected  { background: var(--acc-green); }
-#cloud-badge-val { font-weight: 600; }
-#cloud-badge-val.ok  { color: var(--acc-green); }
-#cloud-badge-val.err { color: var(--acc-red); }
+    /* Nav link list */
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);           /* 24px per DESIGN.md §13 */
+      list-style: none;
+    }
 
-/* FIX E2: stale data banner */
-#stale-banner {
-  display: none; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3);
-  padding: 8px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600;
-  color: #B45309; text-align: center; margin-bottom: 0;
-}
-#stale-banner.show { display: block; }
+    .nav__link {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--text-primary);
+      opacity: 0.70;
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity 200ms ease;
+      white-space: nowrap;
+    }
 
-/* ── GAUGES ───────────────────────────────────────────────── */
-.gauge-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
-.gp { background: var(--card-light); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-md); display: flex; flex-direction: column; position: relative; }
-.gp-lbl { font-family: var(--DF); font-size: 14px; font-weight: 600; color: var(--text-main); margin-bottom: 12px; }
-.gp-chart-area { display: flex; align-items: center; justify-content: space-between; }
-.g-svg { width: 64px; height: 64px; }
-.g-trk { fill: none; stroke: var(--bdr); stroke-width: 8; stroke-linecap: round; }
-.g-arc { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .6s, stroke .4s; }
-.g-val { font-family: var(--DF); font-weight: 700; font-size: 20px; text-anchor: middle; }
-.g-unt { font-family: var(--MF); font-size: 9px; text-anchor: middle; fill: var(--text-sec); }
-.gp-sub { font-size: 12px; color: var(--text-sec); margin-top: 12px; line-height: 1.4; }
-.gp-conf { width: 100%; height: 4px; background: var(--bdr); border-radius: 2px; margin-top: 12px; overflow: hidden; }
-.gp-cf { height: 100%; border-radius: 2px; transition: width .5s; }
+    /* Active page tab — full opacity (DESIGN.md §13) */
+    .nav__link.active,
+    .nav__link:hover {
+      opacity: 1.00;
+    }
 
-/* ── CHARTS ───────────────────────────────────────────────── */
-.mid-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; }
+    /* Nav right: FSM badge + optional account */
+    .nav__right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
 
-.canvas-wrap { background: #030508; border-radius: 16px; overflow: hidden; position: relative; margin-top: 16px; }
-#osc-canvas, #pf-canvas, #radar-canvas { display: block; width: 100%; }
+    /* ── FSM State Badge (DESIGN.md §5.2 / §13) ── */
+    /* Persistent across every page — most critical system signal */
+    #fsm-state-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 80px;
+      height: 24px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      /* Default BOOT state — JS will update data-state and inline styles */
+      background-color: var(--state-boot);
+      color: var(--text-primary);
+    }
 
-.panel-title { font-family: var(--DF); font-size: 18px; font-weight: 600; margin-bottom: 4px; display: block; }
-.panel-sub { font-size: 13px; color: var(--text-inv-s); }
+    /* ── Page Content Area ── */
+    /* Wraps all zone containers — zones stack vertically */
+    .page-content {
+      /* Phase 1: no display grid yet — zones stack as block elements */
+      padding-bottom: var(--space-2xl);
+    }
 
-.osc-footer { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
-.oc-g { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 12px; }
-.oc-l { font-size: 11px; color: var(--text-inv-s); text-transform: uppercase; }
-.oc-v { font-size: 12px; font-weight: 600; color: #fff; }
-input[type=range] { -webkit-appearance: none; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; outline: none; width: 80px; }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; cursor: pointer; }
+    /* Active page shown, inactive pages hidden */
+    .page {
+      display: none;
+    }
+    .page.active {
+      display: block;
+    }
 
-.presets { display: flex; gap: 4px; }
-.preset { background: none; border: 1px solid rgba(255,255,255,0.2); color: var(--text-inv-s); font-size: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
-.preset.on { background: #fff; color: #000; border-color: #fff; font-weight: 600; }
-label.raw-tog { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-inv-s); cursor: pointer; }
+    /* ── Zone Base Styles (DESIGN.md §4 Zone-Based Layout Model) ── */
+    /* Each zone is an empty placeholder in Phase 1 */
+    .zone {
+      width: 100%;
+    }
 
-/* ── RIGHT COLUMN ─────────────────────────────────────────── */
-#status-banner {
-  font-family: var(--DF); font-size: 14px; font-weight: 600; padding: 12px 16px;
-  border-radius: 12px; margin-top: 16px; text-align: center;
-}
-.sNORMAL   { background: rgba(34,197,94,0.15);  color: #4ade80; }
-.sBOOT     { background: rgba(255,255,255,0.1);  color: #fff; }
-.sWARNING  { background: rgba(245,158,11,0.15);  color: #fbbf24; }
-.sFAULT    { background: rgba(239,68,68,0.15);   color: #f87171; }
-.sRECOVERY { background: rgba(6,182,212,0.15);   color: #22d3ee; }
-.sLOCKOUT  { background: rgba(239,68,68,0.2);    color: #fca5a5; }
-/* FIX C3: fallback for unknown FSM states */
-.sUNKNOWN  { background: rgba(107,114,128,0.15); color: #9CA3AF; }
+    /* ── Zone 1 — System Status Bar ── */
+    /* Height: 50–70px fixed, full width, bottom border */
+    #zone-system-status {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-xl);
+      gap: var(--space-lg);
+      border-bottom: 1px solid var(--border-subtle);
+      background-color: var(--bg-dashboard);
+      /* Sticky below the nav so it's always visible */
+      position: sticky;
+      top: 56px;                      /* nav height */
+      z-index: calc(var(--z-nav) - 1);
+    }
 
-.stat-list { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
-.sys-r { display: flex; justify-content: space-between; align-items: center; }
-.sl { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; color: var(--text-main); }
-.sl::before { content:''; display:block; width: 32px; height: 32px; border-radius: 50%; background: var(--bg-app); }
-.sv { font-family: var(--DF); font-size: 14px; font-weight: 600; }
-.sv.ok { color: var(--acc-green); }
-.sv.w  { color: var(--warn); }
-.sv.e  { color: var(--acc-red); }
+    /* ── Zone 2 — Main Metrics (Live Telemetry Gauges) ── */
+    /* ~200px height, arc gauges + waveforms */
+    #zone-main-metrics {
+      min-height: 200px;
+      padding: var(--space-lg) var(--space-xl);
+    }
 
-.tz { margin-bottom: 12px; }
-.tz-l  { font-size: 12px; color: var(--text-sec); display: block; margin-bottom: 4px; font-weight: 500; }
-.tz-bw { height: 8px; background: var(--bdr); border-radius: 4px; overflow: hidden; display: flex; align-items: center; }
-.tz-b  { height: 100%; transition: width 0.5s; border-radius: 4px; }
-.tz-v  { font-size: 12px; font-weight: 600; float: right; margin-top: -20px; }
+    /* ── Zone 3A / 3B — Charts (split column) ── */
+    /* 3A: Energy Flow Map (~280px) | 3B: GPU Status Panels (~280px) */
+    #zone-charts {
+      min-height: 280px;
+      padding: var(--space-lg) var(--space-xl);
+    }
 
-/* ── HIVEMQ PANEL (FIX: persistent cloud status) ──────────── */
-.hivemq-panel {
-  background: var(--card-dark); border-radius: var(--radius-md);
-  padding: 20px; box-shadow: var(--shadow-lg);
-}
-.hivemq-panel .panel-title { font-size: 15px; }
-.hq-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-.hq-cell { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 10px 12px; }
-.hq-lbl  { font-size: 10px; color: var(--text-inv-s); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-.hq-val  { font-size: 12px; font-weight: 600; color: #fff; font-family: var(--Mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hq-val.ok  { color: var(--acc-green); }
-.hq-val.err { color: var(--acc-red); }
-.hq-val.warn { color: #fbbf24; }
-.hq-status-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
-.hq-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-sec); flex-shrink: 0; }
-.hq-dot.connected  { background: var(--acc-green); box-shadow: 0 0 8px var(--acc-green); }
-.hq-dot.connecting { background: #fbbf24; animation: pulse-warn 1s infinite; }
-.hq-dot.error      { background: var(--acc-red); }
-.hq-status-txt { font-size: 12px; font-weight: 600; color: var(--text-inv-s); }
-.hq-btn { margin-top: 12px; width: 100%; background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 9px; font-family: var(--DF); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-.hq-btn:hover { background: rgba(255,255,255,0.14); }
+    /* ── Zone 4 — Health Grid (Hex Health Grid) ── */
+    /* ~180px — honeycomb health scores */
+    #zone-health-grid {
+      min-height: 180px;
+      padding: var(--space-lg) var(--space-xl);
+    }
 
-/* ── BOTTOM ROW ───────────────────────────────────────────── */
-.bot-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-top: 24px; }
-.sparks-wrapper { background: var(--card-light); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-md); }
-.sparks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-.sc { display: flex; flex-direction: column; }
-.sch { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px; }
-.scn { font-size: 13px; font-weight: 500; color: var(--text-sec); }
-.scv { font-family: var(--DF); font-size: 24px; font-weight: 700; }
-.sp-svg { width: 100%; background: var(--bg-app); border-radius: 12px; padding: 8px; }
+    /* ── Zone 5 — Sidebar ── */
+    /* Waveform + relay + energy sidebar */
+    #zone-sidebar {
+      min-height: 160px;
+      padding: var(--space-lg) var(--space-xl);
+    }
 
-.flags-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 16px; }
-.ff { background: var(--bdr); padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; text-align: center; color: var(--text-sec); transition: 0.3s; }
-.ff.af { background: var(--acc-red-bg);         color: var(--acc-red); }
-.ff.aw { background: rgba(245,158,11,0.15);     color: #B45309; }
-.ff.ai { background: rgba(6,182,212,0.15);      color: #0E7490; }
+    /* ── Phase 1 Empty State Placeholders ── */
+    /* Faint placeholder text so empty zones are visually distinct */
+    .zone-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: inherit;
+      color: var(--text-faint);
+      font-size: var(--text-label);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius-md);
+      pointer-events: none;
+      user-select: none;
+    }
 
-.net-strip { display: flex; gap: 16px; margin-top: 24px; flex-wrap: wrap; }
-.nc  { background: var(--bg-app); padding: 12px; border-radius: 12px; flex: 1; }
-.ncl { font-size: 11px; color: var(--text-sec); margin-bottom: 4px; }
-.ncv { font-size: 13px; font-weight: 600; font-family: var(--Mono); }
+    /* ── Mobile Nav (DESIGN.md §14) ── */
+    @media (max-width: 767px) {
+      .nav__links {
+        display: none;                /* collapsed — toggled by JS menu */
+      }
+      .nav__mobile-menu-btn {
+        display: flex;
+      }
+    }
 
-/* ── FLOATING CONTROL WINDOW ──────────────────────────────── */
-#ctrl-win {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 380px; z-index: 10000;
-  background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 24px 48px rgba(0,0,0,0.1);
-  border-radius: var(--radius-md); display: none;
-}
-#ctrl-win.show { display: block; }
-.cw-hdr   { display: flex; justify-content: space-between; padding: 20px; cursor: grab; border-bottom: 1px solid var(--bdr); }
-.cw-title { font-family: var(--DF); font-weight: 600; font-size: 16px; }
-.cw-x     { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-sec); }
-.cw-s     { padding: 20px; border-bottom: 1px solid var(--bdr); }
-.cw-st    { font-size: 12px; font-weight: 600; color: var(--text-sec); text-transform: uppercase; margin-bottom: 16px; }
+    /* ── Mobile menu button (hidden on desktop) ── */
+    .nav__mobile-menu-btn {
+      display: none;                  /* shown only on mobile via media query above */
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-week-pill);
+      border: 1px solid var(--border-pill);
+      border-radius: var(--radius-pill);
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
 
-.mqtt-field, .key-row, .wr { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.mfl, .wrl { font-size: 12px; font-weight: 500; color: var(--text-main); width: 60px; }
-.mfi, .key-inp { flex: 1; background: var(--bdr); border: none; border-radius: 8px; padding: 10px 12px; font-family: var(--Mono); font-size: 12px; outline: none; }
-.cw-btn, .btn-sv-creds, .btn-sv { width: 100%; background: var(--sidebar); color: #fff; border: none; padding: 12px; border-radius: var(--radius-pl); font-family: var(--DF); font-weight: 600; font-size: 13px; cursor: pointer; margin-top: 8px; }
-.btn-rst { background: var(--acc-red-bg); color: var(--acc-red); }
-.cw-msg { font-size: 11px; text-align: center; margin-top: 8px; font-weight: 500; }
-.mqtt-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 12px; background: var(--bdr); margin-bottom: 16px; }
-.mqtt-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.mqtt-pill.connected { color: var(--acc-green); background: var(--acc-green-bg); }
-.mqtt-pill.error     { color: var(--acc-red);   background: var(--acc-red-bg); }
+    /* ── Accessibility: focus rings ── */
+    :focus-visible {
+      outline: 2px solid var(--state-normal);
+      outline-offset: 2px;
+    }
 
-/* FIX B2: credential warning */
-.cred-warn { font-size: 10px; color: #B45309; background: rgba(245,158,11,0.08); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
-
-/* FIX X4: relay mode label */
-.relay-mode-note { font-size: 10px; color: var(--text-sec); text-align: center; margin-bottom: 10px; }
-.relay-mode-note.mqtt-only { color: var(--acc-green); }
-
-.relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.rcard { background: var(--bg-app); padding: 16px; border-radius: 16px; text-align: center; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
-/* FIX C4: optimistic state + pending */
-.rcard.pending { opacity: 0.6; cursor: wait; }
-.rcl  { display: block; font-size: 11px; color: var(--text-sec); margin-bottom: 8px; }
-.rcst { font-family: var(--DF); font-size: 16px; font-weight: 700; }
-.rc-on  { border-color: var(--acc-green); background: var(--card-light); box-shadow: var(--shadow-md); }
-.rc-on  .rcst { color: var(--acc-green); }
-.rc-off .rcst { color: var(--text-main); }
-
-/* ── UTILS ────────────────────────────────────────────────── */
-#loading {
-  position: fixed; inset: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
-  z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; transition: opacity 0.4s;
-}
-#loading.ld-hidden { opacity: 0; pointer-events: none; }
-.ld-logo { font-family: var(--DF); font-size: 40px; font-weight: 700; color: var(--sidebar); }
-.ld-bar  { width: 200px; height: 4px; background: var(--bdr); border-radius: 2px; overflow: hidden; }
-.ld-anim { height: 100%; background: var(--sidebar); animation: ldbar 1.5s infinite ease-in-out; }
-@keyframes ldbar { 0%{width:0;margin-left:0} 50%{width:100%;margin-left:0} 100%{width:0;margin-left:100%} }
-.ld-msg { font-size: 14px; font-weight: 500; color: var(--text-sec); }
-#ld-ctrl-btn { background: var(--card-light); border: 1px solid var(--bdr2); padding: 12px 24px; border-radius: var(--radius-pl); font-family: var(--DF); font-weight: 600; cursor: pointer; margin-top: 24px; box-shadow: var(--shadow-md); }
-
-/* FIX E1: apply error indicator */
-#apply-err { display: none; position: fixed; bottom: 20px; right: 20px; background: var(--acc-red-bg); color: var(--acc-red); border-radius: 12px; padding: 10px 16px; font-size: 12px; font-weight: 600; z-index: 9000; box-shadow: var(--shadow-md); max-width: 320px; }
-#apply-err.show { display: block; }
-
-#https-warn, #mqtt-bar { display: none; background: #fff; padding: 12px 24px; border-radius: var(--radius-md); box-shadow: var(--shadow-md); font-size: 12px; font-weight: 500; margin-bottom: 16px; }
-#mqtt-bar.show { display: flex; gap: 24px; }
-.mb-val { font-weight: 600; font-family: var(--Mono); margin-left: 8px; }
-</style>
+    /* ── Scrollbar (minimal, respects dark theme) ── */
+    ::-webkit-scrollbar       { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dashboard); }
+    ::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 3px; }
+  </style>
 </head>
+
 <body>
+  <!-- ════════════════════════════════════════════════════════════════
+       Smart Grid Sentinel — Phase 1 Shell
+       All zone containers are empty. Content injected by page modules
+       in Phase 4 (page1-status.js) and subsequent phases.
+  ════════════════════════════════════════════════════════════════ -->
 
-<div id="loading">
-  <div class="ld-logo">sgs.</div>
-  <div class="ld-bar"><div class="ld-anim"></div></div>
-  <div class="ld-msg" id="ld-msg">Waiting for connection...</div>
-  <button id="ld-ctrl-btn">Open Configuration</button>
-</div>
+  <div class="dashboard" id="dashboard">
 
-<!-- FIX E1: apply error toast -->
-<div id="apply-err"></div>
+    <!-- ── Navigation Bar (DESIGN.md §5.1 / §13) ── -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
 
-<div class="dappr-layout" style="display:contents;">
+      <!-- Left: Logo + page links -->
+      <div class="nav__left">
 
-  <aside class="dappr-sidebar">
-    <div class="sidebar-logo">sgs.</div>
-    <div class="sidebar-icons">
-      <div class="s-icon active">⌂</div>
-      <div class="s-icon">⚡</div>
-      <div class="s-icon">⚲</div>
-      <div class="s-icon">⚙</div>
-    </div>
-    <div class="sidebar-chevron">❯</div>
-  </aside>
+        <!-- Logo mark — white geometric SVG (Phase 1 inline placeholder) -->
+        <a class="nav__logo" href="#" aria-label="Smart Grid Sentinel home">
+          <svg class="nav__logo-icon" viewBox="0 0 32 32" fill="none"
+               xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <!-- Geometric grid sentinel icon — white, minimalist -->
+            <rect x="3" y="3" width="11" height="11" rx="2"
+                  fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="18" y="3" width="11" height="11" rx="2"
+                  fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="3" y="18" width="11" height="11" rx="2"
+                  fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <!-- Active/live indicator — bottom-right quad filled -->
+            <rect x="18" y="18" width="11" height="11" rx="2"
+                  fill="currentColor" opacity="0.8"/>
+          </svg>
+          <span class="nav__logo-text">SGS</span>
+        </a>
 
-  <main class="dappr-main">
-
-    <header class="top-header">
-      <div class="greeting">
-        <h1>Mission Control, Operator!</h1>
-        <div style="font-size: 14px; color: var(--text-sec); margin-top: 4px;" id="clock">--:--:--</div>
-      </div>
-      <div class="top-utils">
-        <div class="pill">
-           <div id="cdot" class="cdot"></div>
-           <input id="ip" type="text" placeholder="LAN IP: 192.168.x">
-           <button id="btn-connect">Connect</button>
-        </div>
-        <div class="pill" id="cloud-badge">
-           <div id="cloud-dot"></div>
-           <span id="cloud-badge-val">OFFLINE</span>
-        </div>
-        <button class="pill-dark" id="btn-ctrl">⚙</button>
-      </div>
-    </header>
-
-    <!-- FIX E2: stale data banner -->
-    <div id="stale-banner">⚠ DATA STALE — Last update <span id="stale-age">?</span>s ago. Device may be offline.</div>
-
-    <div id="https-warn">⚠ HTTPS Notice: ESP32 HTTP LAN polling blocked. Use Cloud MQTT.</div>
-    <div id="mqtt-bar">
-      <div>BROKER <span class="mb-val" id="mb-broker">---</span></div>
-      <div>TOPIC <span class="mb-val" id="mb-topic">---</span></div>
-      <div>RX <span class="mb-val" id="mb-rx">0</span></div>
-      <div>LAST <span class="mb-val" id="mb-last">---</span></div>
-      <div>INTVL <span class="mb-val" id="mb-intvl">---</span></div>
-    </div>
-
-    <div class="gauge-row">
-      <div class="gp">
-        <div class="gp-chart-area">
-          <div style="flex:1">
-             <div class="gp-lbl">Voltage</div>
-             <svg class="g-svg" viewBox="0 0 110 110">
-               <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
-               <circle class="g-arc" id="garc-v" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--volt)" transform="rotate(-135 55 55)"/>
-               <text class="g-val" id="gval-v" x="55" y="55" dy="0.35em" fill="var(--volt)">---</text>
-               <text class="g-unt" x="55" y="70">V</text>
-             </svg>
-          </div>
-        </div>
-        <div class="gp-sub" id="gsub-v">GPIO 34 · ADC1</div>
-        <div class="gp-conf"><div class="gp-cf" id="gcf-v" style="width:0%;background:var(--volt)"></div></div>
-      </div>
-
-      <div class="gp">
-        <div class="gp-chart-area">
-          <div style="flex:1">
-             <div class="gp-lbl">Current</div>
-             <svg class="g-svg" viewBox="0 0 110 110">
-                <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
-                <circle class="g-arc" id="garc-i" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--curr)" transform="rotate(-135 55 55)"/>
-                <text class="g-val" id="gval-i" x="55" y="55" dy="0.35em" fill="var(--curr)">---</text>
-                <text class="g-unt" x="55" y="70">A</text>
-             </svg>
-          </div>
-        </div>
-        <div class="gp-sub">GPIO 35 · ADC1</div>
-        <div class="gp-conf"><div class="gp-cf" id="gcf-i" style="width:0%;background:var(--curr)"></div></div>
+        <!-- Page navigation links (DESIGN.md §13) -->
+        <ul class="nav__links" role="list">
+          <li>
+            <a class="nav__link active"
+               href="#"
+               data-page="status"
+               role="tab"
+               aria-selected="true"
+               aria-controls="page-status">
+              Status
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="faults"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-faults">
+              Faults &amp; Control
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="diagnostics"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-diagnostics">
+              Diagnostics
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="cloud"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-cloud">
+              Cloud/MQTT
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="analytics"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-analytics">
+              Analytics
+            </a>
+          </li>
+        </ul>
       </div>
 
-      <div class="gp">
-        <div class="gp-chart-area">
-          <div style="flex:1">
-             <div class="gp-lbl">Temperature</div>
-             <svg class="g-svg" viewBox="0 0 110 110">
-                <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
-                <circle class="g-arc" id="garc-t" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--warn)" transform="rotate(-135 55 55)"/>
-                <text class="g-val" id="gval-t" x="55" y="55" dy="0.35em" fill="var(--warn)">---</text>
-                <text class="g-unt" x="55" y="70">°C</text>
-             </svg>
-          </div>
-        </div>
-        <div class="gp-sub">DS18B20 · Core</div>
-        <div class="gp-conf"><div class="gp-cf" id="gcf-t" style="width:0%;background:var(--warn)"></div></div>
+      <!-- Right: FSM State Badge (persistent — DESIGN.md §5.2) -->
+      <div class="nav__right">
+        <!-- Mobile: "Menu" pill button (hidden on desktop) -->
+        <button class="nav__mobile-menu-btn"
+                type="button"
+                aria-label="Open navigation menu"
+                aria-expanded="false">
+          Menu
+        </button>
+
+        <!-- FSM State Badge — always visible, updates via JS in Phase 4 -->
+        <!-- data-state drives the glow rules in effects.css -->
+        <span id="fsm-state-badge"
+              role="status"
+              aria-live="polite"
+              aria-label="System state: Boot"
+              data-state="BOOT">
+          BOOT
+        </span>
       </div>
+    </nav>
 
-      <div class="gp">
-        <div class="gp-chart-area">
-          <div style="flex:1">
-             <div class="gp-lbl">System Risk</div>
-             <svg class="g-svg" viewBox="0 0 110 110">
-                <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
-                <circle class="g-arc" id="garc-r" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--pwr)" transform="rotate(-135 55 55)"/>
-                <text class="g-val" id="gval-r" x="55" y="55" dy="0.35em" fill="var(--pwr)" font-size="16">LOW</text>
-             </svg>
-          </div>
-        </div>
-        <div class="gp-sub" id="gsub-r">FAULT PROB: 0%</div>
-        <div class="gp-conf"><div class="gp-cf" id="gcf-r" style="width:0%;background:var(--pwr)"></div></div>
-      </div>
+    <!-- ════════════════════════════════════════════════════════════════
+         Page Containers
+         Each page is a full-content slot. Only the active page is shown.
+         Page modules (Phase 4+) inject into these containers.
+    ════════════════════════════════════════════════════════════════ -->
 
-      <div class="gp">
-        <div class="gp-chart-area">
-          <div style="flex:1">
-             <div class="gp-lbl">Signal Quality</div>
-             <svg class="g-svg" viewBox="0 0 110 110">
-                <circle class="g-trk" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" transform="rotate(-135 55 55)"/>
-                <circle class="g-arc" id="garc-s" cx="55" cy="55" r="44" stroke-dasharray="207.3 69.1" stroke-dashoffset="207.3" stroke="var(--cyan)" transform="rotate(-135 55 55)"/>
-                <text class="g-val" id="gval-s" x="55" y="55" dy="0.35em" fill="var(--cyan)" font-size="18">---</text>
-                <text class="g-unt" x="55" y="70">dBm</text>
-             </svg>
-          </div>
-        </div>
-        <div class="gp-sub" id="dev-badge">DEVICE: ---</div>
-        <div class="gp-conf"><div class="gp-cf" id="gcf-s" style="width:0%;background:var(--cyan)"></div></div>
-      </div>
-    </div>
+    <!-- ── Page 1: Status (primary live-monitoring view) ── -->
+    <main id="page-status"
+          class="page active"
+          role="main"
+          aria-label="Status page">
 
-    <div class="mid-grid">
-      <div class="card-dark">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <span class="panel-title">Live Signal Viewer</span>
-            <span class="panel-sub">Synthesized &amp; Raw Envelope Overlay</span>
-          </div>
-          <label class="raw-tog">
-            <input type="checkbox" id="chk-raw" checked> RAW OVERLAY
-          </label>
-        </div>
-        <div class="canvas-wrap"><canvas id="osc-canvas" height="280"></canvas></div>
-        <div class="osc-footer">
-          <div class="oc-g">
-            <span class="oc-l">FREQ</span>
-            <input type="range" id="sl-freq" min="45" max="65" step="0.5" value="50">
-            <span class="oc-v" id="lbl-freq">50.0 Hz</span>
-          </div>
-          <div class="oc-g">
-            <span class="oc-l">T/DIV</span>
-            <input type="range" id="sl-tdiv" min="1" max="8" step="1" value="4">
-            <span class="oc-v" id="lbl-tdiv">20 ms</span>
-          </div>
-          <div class="oc-g">
-            <span class="oc-l">LOAD PRESET</span>
-            <div class="presets">
-              <button class="preset on" data-p="resistive">RES</button>
-              <button class="preset" data-p="inductive">IND</button>
-              <button class="preset" data-p="capacitive">CAP</button>
-              <button class="preset" data-p="motor">MOT</button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!--
+        Zone 1 — System Status Bar (DESIGN.md §4 / §5.15)
+        50–70px fixed height · FSM badge · alerts · connection · clock
+        Populated by: components/fsmBadge.js + pages/statusPage.js (Phase 4)
+      -->
+      <section id="zone-system-status"
+               class="zone"
+               aria-label="System status bar">
+        <!-- Phase 1: empty — content injected in Phase 4 -->
+      </section>
 
-      <div class="card-dark">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <span class="panel-title">Energy Flow</span>
-            <span class="panel-sub" id="pf-st">RELAY OPEN</span>
-          </div>
-        </div>
-        <div class="canvas-wrap"><canvas id="pf-canvas" height="214"></canvas></div>
-        <div style="margin-top: 16px;">
-           <span class="panel-title" style="font-size: 14px;">Fault Threat Radar</span>
-           <span class="panel-sub" id="radar-prob">0% PROB.</span>
-           <div class="canvas-wrap" style="background:transparent;"><canvas id="radar-canvas" width="224" height="140" style="margin: 0 auto; display: block;"></canvas></div>
-        </div>
-      </div>
-    </div>
+      <!-- Page content wrapper — zones stack below status bar -->
+      <div class="page-content">
 
-    <div class="bot-grid">
-      <div class="sparks-wrapper">
-         <span class="panel-title" style="color:var(--text-main)">Recent Telemetry</span>
-         <span class="panel-sub" style="color:var(--text-sec); display:block; margin-bottom: 24px;">Last 120 samples</span>
-         <div class="sparks-grid">
-            <div class="sc"><div class="sch"><span class="scn">VOLTAGE</span><span class="scv" id="spv-v">---</span></div><svg class="sp-svg" height="58" id="sp-v"></svg></div>
-            <div class="sc"><div class="sch"><span class="scn">CURRENT</span><span class="scv" id="spv-i">---</span></div><svg class="sp-svg" height="58" id="sp-i"></svg></div>
-            <div class="sc"><div class="sch"><span class="scn">TEMP</span><span class="scv" id="spv-t">---</span></div><svg class="sp-svg" height="58" id="sp-t"></svg></div>
-            <div class="sc"><div class="sch"><span class="scn">POWER</span><span class="scv" id="spv-p">---</span></div><svg class="sp-svg" height="58" id="sp-p"></svg></div>
-         </div>
-         <div class="net-strip">
-            <div class="nc"><div class="ncl">WIFI RSSI</div><div class="ncv" id="nv-rssi">---</div></div>
-            <div class="nc"><div class="ncl">IP ADDRESS</div><div class="ncv" id="nv-ip">---</div></div>
-            <div class="nc"><div class="ncl">MQTT</div><div class="ncv" id="nv-mqtt">---</div></div>
-            <div class="nc"><div class="ncl">CLOUD</div><div class="ncv" id="nv-cloud">OFFLINE</div></div>
-            <div class="nc"><div class="ncl">ADC SAMPLES</div><div class="ncv" id="nv-samp">---</div></div>
-         </div>
-      </div>
+        <!--
+          Zone 2 — Main Metrics / Live Telemetry Gauges (DESIGN.md §4)
+          ~200px · Arc gauges · hero numbers · waveform card
+          Populated by: pages/statusPage.js (Phase 4)
+        -->
+        <section id="zone-main-metrics"
+                 class="zone"
+                 aria-label="Main telemetry metrics">
+          <div class="zone-placeholder">Zone 2 — Main Metrics</div>
+        </section>
 
-      <div class="card-light">
-         <span class="panel-title" style="color:var(--text-main)">Active Conditions</span>
-         <div class="flags-grid">
-            <div class="ff" id="ff-state">FSM: ---</div>
-            <div class="ff" id="ff-fault">FAULT: NONE</div>
-            <div class="ff" id="ff-trips">TRIPS: 0</div>
-            <div class="ff" id="ff-prob">PROB: 0%</div>
-            <div class="ff" id="ff-ov">OVER-VOLT</div>
-            <div class="ff" id="ff-oc">OVER-CURR</div>
-            <div class="ff" id="ff-ot">OVER-TEMP</div>
-            <div class="ff" id="ff-sc">SHORT-CIRC</div>
-            <div class="ff" id="ff-ir">INRUSH</div>
-            <div class="ff" id="ff-wov">WARN: OV</div>
-            <div class="ff" id="ff-wuv">WARN: UV</div>
-            <div class="ff" id="ff-woc">WARN: OC</div>
-            <div class="ff" id="ff-wth">WARN: THERM</div>
-            <div class="ff" id="ff-wcr">CURR RISING</div>
-            <div class="ff" id="ff-led">LED ACTIVE</div>
-            <div class="ff" id="ff-buz">BUZZER ON</div>
-         </div>
-      </div>
-    </div>
+        <!--
+          Zone 3 — Charts (DESIGN.md §4: Zone 3A + Zone 3B side by side)
+          3A: Energy Flow Map (~280px SVG node diagram)
+          3B: GPU Status Panels (compact metric strips)
+          Populated by: components/energyFlowMap.js + components/gpuStatusPanel.js (Phase 4)
+        -->
+        <section id="zone-charts"
+                 class="zone"
+                 aria-label="Charts and energy flow">
+          <div class="zone-placeholder">Zone 3 — Charts / Energy Flow / GPU Panels</div>
+        </section>
 
-  </main>
+        <!--
+          Zone 4 — Health Grid (DESIGN.md §4 Zone 5 — Hex Health Grid)
+          ~180px · Honeycomb hex cells for subsystem health scores
+          Populated by: components/hexHealthGrid.js (Phase 4)
+        -->
+        <section id="zone-health-grid"
+                 class="zone"
+                 aria-label="System health grid">
+          <div class="zone-placeholder">Zone 4 — Hex Health Grid</div>
+        </section>
 
-  <aside class="dappr-right">
+        <!--
+          Zone 5 — Sidebar (DESIGN.md §4 Zone 4 Waveform + sidebar content)
+          Oscilloscope waveform · Relay toggle · Energy consumed · Fault indicators
+          Populated by: pages/statusPage.js (Phase 4)
+        -->
+        <section id="zone-sidebar"
+                 class="zone"
+                 aria-label="Sidebar — waveform and relay">
+          <div class="zone-placeholder">Zone 5 — Sidebar / Waveform / Relay</div>
+        </section>
 
-    <div class="card-dark">
-      <span class="panel-title">Formation status</span>
-      <span class="panel-sub">Finite State Machine</span>
-      <div id="status-banner" class="sBOOT">● INITIALIZING</div>
-    </div>
+      </div><!-- /.page-content -->
+    </main>
 
-    <!-- FIX: persistent HiveMQ cloud panel -->
-    <div class="hivemq-panel">
-      <span class="panel-title">HiveMQ Cloud</span>
-      <div class="hq-status-row">
-        <div class="hq-dot" id="hq-dot"></div>
-        <span class="hq-status-txt" id="hq-status-txt">DISCONNECTED</span>
-      </div>
-      <div class="hq-grid">
-        <div class="hq-cell" style="grid-column:1/-1">
-          <div class="hq-lbl">Broker</div>
-          <div class="hq-val" id="hq-broker">---</div>
-        </div>
-        <div class="hq-cell" style="grid-column:1/-1">
-          <div class="hq-lbl">Topic · auto-detected from device</div>
-          <div class="hq-val" id="hq-topic">---</div>
-        </div>
-        <div class="hq-cell">
-          <div class="hq-lbl">Messages RX</div>
-          <div class="hq-val ok" id="hq-rx">0</div>
-        </div>
-        <div class="hq-cell">
-          <div class="hq-lbl">Last RX</div>
-          <div class="hq-val" id="hq-last">---</div>
-        </div>
-        <div class="hq-cell">
-          <div class="hq-lbl">Interval</div>
-          <div class="hq-val" id="hq-intvl">---</div>
-        </div>
-        <div class="hq-cell">
-          <div class="hq-lbl">Latency</div>
-          <div class="hq-val" id="hq-latency">---</div>
+    <!-- ── Page 2: Faults & Control ── -->
+    <main id="page-faults"
+          class="page"
+          role="main"
+          aria-label="Faults and control page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 2 — Faults &amp; Control (Phase 6)
         </div>
       </div>
-      <button class="hq-btn" id="hq-toggle-btn">Connect Cloud</button>
-    </div>
+    </main>
 
-    <div class="card-light">
-      <span class="panel-title" style="color:var(--text-main)">Thermal &amp; Load</span>
-      <div class="stat-list" style="margin-top: 24px;">
-        <div class="tz">
-          <span class="tz-l">Core Temperature <span class="tz-v" id="tzv-c">---</span></span>
-          <div class="tz-bw"><div class="tz-b" id="tzb-c" style="width:0%"></div></div>
-        </div>
-        <div class="tz">
-          <span class="tz-l">Warn Margin <span class="tz-v" id="tzv-m">---</span></span>
-          <div class="tz-bw"><div class="tz-b" id="tzb-m" style="width:0%"></div></div>
-        </div>
-        <div class="tz">
-          <span class="tz-l">Current Load <span class="tz-v" id="tzv-l">---</span></span>
-          <div class="tz-bw"><div class="tz-b" id="tzb-l" style="width:0%; background:var(--cyan)"></div></div>
+    <!-- ── Page 3: Diagnostics ── -->
+    <main id="page-diagnostics"
+          class="page"
+          role="main"
+          aria-label="Diagnostics page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 3 — Diagnostics (Phase 7)
         </div>
       </div>
-    </div>
+    </main>
 
-    <div class="card-light">
-      <span class="panel-title" style="color:var(--text-main)">System Stats</span>
-      <div class="stat-list">
-        <div class="sys-r"><span class="sl">Uptime</span><span class="sv ok" id="sv-up">---</span></div>
-        <div class="sys-r"><span class="sl">Free Heap</span><span class="sv" id="sv-heap">---</span></div>
-        <div class="sys-r"><span class="sl">Sample Rate</span><span class="sv" id="sv-rate">---</span></div>
-        <div class="sys-r"><span class="sl">ADC Calibrated</span><span class="sv" id="sv-cal">---</span></div>
-        <div class="sys-r"><span class="sl">Trip Count</span><span class="sv" id="sv-trips">---</span></div>
-        <div class="sys-r"><span class="sl">Energy Est.</span><span class="sv ok" id="sv-energy">---</span></div>
+    <!-- ── Page 4: Cloud / MQTT ── -->
+    <main id="page-cloud"
+          class="page"
+          role="main"
+          aria-label="Cloud and MQTT page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 4 — Cloud / MQTT (Phase 7)
+        </div>
       </div>
-    </div>
+    </main>
 
-  </aside>
-
-</div>
-
-<!-- CONTROL WINDOW -->
-<div id="ctrl-win">
-  <div class="cw-hdr" id="cw-drag">
-    <span class="cw-title">Operator Control</span>
-    <button class="cw-x" id="cw-close">✕</button>
-  </div>
-
-  <div class="cw-s">
-    <div class="cw-st">Cloud Connect — HiveMQ</div>
-    <div id="mqtt-pill-wrap">
-      <div class="mqtt-pill" id="mqtt-pill"><div class="mqtt-pill-dot"></div><span id="mqtt-pill-txt">DISCONNECTED</span></div>
-    </div>
-    <!-- FIX B2: plaintext credential warning -->
-    <div class="cred-warn">⚠ Credentials saved to browser localStorage (plaintext). Use only on trusted devices.</div>
-    <div class="mqtt-field"><span class="mfl">BROKER</span><input class="mfi" id="mq-host" type="text" placeholder="xxxx.s1.eu.hivemq.cloud"></div>
-    <div class="mqtt-field"><span class="mfl">PORT</span><input class="mfi" id="mq-port" type="number" placeholder="8884"></div>
-    <div class="mqtt-field"><span class="mfl">USER</span><input class="mfi" id="mq-user" type="text" placeholder="username"></div>
-    <div class="mqtt-field"><span class="mfl">PASS</span><input class="mfi" id="mq-pass" type="password" placeholder="password"></div>
-    <!-- FIX X1/X3: correct topic placeholders with device-specific format -->
-    <div class="mqtt-field"><span class="mfl">TOPIC</span><input class="mfi" id="mq-topic" type="text" placeholder="sgs/device/sgs-xxxxxx/telemetry"></div>
-    <div class="mqtt-field"><span class="mfl">CMD</span><input class="mfi" id="mq-cmd" type="text" placeholder="sgs/device/sgs-xxxxxx/cmd"></div>
-    <div style="font-size:10px; color:var(--text-sec); margin-bottom:12px;">
-      Device ID found in serial log as <code style="background:var(--bdr);padding:2px 5px;border-radius:4px;">sgs-xxxxxx</code>.
-      Topic auto-fills once first message is received.
-    </div>
-    <div style="display:flex; gap:8px;">
-       <button class="btn-sv-creds" id="btn-save-creds" style="background:var(--bdr); color:var(--text-main);">Save</button>
-       <button class="cw-btn" id="btn-mqtt-connect">Connect Cloud</button>
-    </div>
-    <div class="cw-msg" id="msg-mqtt"></div>
-  </div>
-
-  <div class="cw-s">
-    <div class="cw-st">LAN Authentication</div>
-    <div class="key-row">
-      <input class="key-inp" id="api-key" type="password" placeholder="Enter API key...">
-      <button class="btn-sv" id="btn-save-key" style="width:auto;">Save</button>
-    </div>
-    <div class="cw-msg" id="msg-key"></div>
-  </div>
-
-  <div class="cw-s" style="display:flex; gap:12px;">
-    <div style="flex:1;">
-       <div class="cw-st">FSM Reset</div>
-       <button class="cw-btn btn-rst" id="btn-reset">⚡ Reset</button>
-       <div class="cw-msg" id="msg-reset"></div>
-    </div>
-    <div style="flex:1;">
-       <div class="cw-st">Wave Sim</div>
-       <input type="range" id="cw-freq" min="45" max="65" step="0.5" value="50" style="width:100%; margin-bottom:8px;">
-       <span id="cw-freq-v" style="font-size:10px; font-weight:600;">50 Hz</span>
-       <input type="range" id="cw-amp" min="0.1" max="2.0" step="0.05" value="1.0" style="width:100%; margin:8px 0;">
-       <span id="cw-amp-v" style="font-size:10px; font-weight:600;">1.00×</span>
-       <div class="presets" style="margin-top:8px;">
-          <button class="preset on" data-p2="resistive" style="color:#000; border-color:#ccc;">R</button>
-          <button class="preset" data-p2="inductive"  style="color:#000; border-color:#ccc;">L</button>
-          <button class="preset" data-p2="capacitive" style="color:#000; border-color:#ccc;">C</button>
-          <button class="preset" data-p2="motor"      style="color:#000; border-color:#ccc;">M</button>
-       </div>
-    </div>
-  </div>
-
-  <div class="cw-s" style="border-bottom:none;">
-    <div class="cw-st">Load Control</div>
-    <!-- FIX X4: relay mode indicator -->
-    <div class="relay-mode-note" id="relay-mode-note">⚡ Connect via MQTT or LAN to control relays</div>
-    <div class="relay-grid">
-      <div class="rcard rc-off" id="rc1" data-relay="1">
-        <span class="rcl">RELAY 1</span>
-        <span class="rcst" id="rc1-st">OPEN</span>
+    <!-- ── Page 5: Analytics ── -->
+    <main id="page-analytics"
+          class="page"
+          role="main"
+          aria-label="Analytics page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 5 — Analytics (Phase 5) — Connect a time-series backend to enable.
+        </div>
       </div>
-      <div class="rcard rc-off" id="rc2" data-relay="2">
-        <span class="rcl">RELAY 2</span>
-        <span class="rcst" id="rc2-st">OPEN</span>
-      </div>
-    </div>
-    <div class="cw-msg" id="msg-relay"></div>
-  </div>
-</div>
+    </main>
+
+  </div><!-- /.dashboard -->
+
+  <!-- ════════════════════════════════════════════════════════════════
+       Phase 1 — rendering engine singletons (FROZEN)
+       Loaded here so they are available before main.js runs.
+  ════════════════════════════════════════════════════════════════ -->
+  <script type="module" src="rendering/animationLoop.js"></script>
+  <script type="module" src="rendering/canvasEngine.js"></script>
+  <script type="module" src="rendering/svgEngine.js"></script>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       Phase 4 — Page router & telemetry bootstrap
+       main.js imports Page1Status, telemetryPoller, and mockData.
+       All page mounting, tab routing, and data flow originate here.
+  ════════════════════════════════════════════════════════════════ -->
+  <script type="module" src="main.js"></script>
 
-<script>
-'use strict';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-const ARC_FULL  = 207.3;
-const V_MAX     = 300;
-const I_MAX     = 5;
-const T_MAX     = 100;
-const HIST_LEN  = 120;
-const ENV_LEN   = 80;
-const DPR       = window.devicePixelRatio || 1;
-// FIX E2: staleness threshold
-const STALE_MS  = 5000;
-// FIX C5: max RAF retries for initPF
-const PF_MAX_RETRIES = 20;
-
-const CRED = {
-  HOST:  'sgs_mq_host',
-  PORT:  'sgs_mq_port',
-  USER:  'sgs_mq_user',
-  PASS:  'sgs_mq_pass',   // NOTE: stored plaintext — see warning in UI
-  TOPIC: 'sgs_mq_topic',
-  CMD:   'sgs_mq_cmd',
-};
-
-let deviceBase   = '';
-let apiKey       = localStorage.getItem('sgs_key') || '';
-let failCount    = 0;
-// FIX A1: poll managed by setTimeout, not setInterval
-let pollTimer    = null;
-
-let mqttClient    = null;
-let mqttConnected = false;
-let mqttRxCount   = 0;
-let mqttLastRxTs  = 0;
-let mqttConnectTs = 0;
-// FIX E2: last successful data timestamp (both LAN and MQTT)
-let lastDataTs    = 0;
-
-const W = {
-  freq: 50, amp: 1.0, preset: 'resistive', phase: 0,
-  showRaw: true, cyclesShown: 4, Vrms: 0, Irms: 0,
-  PHASE_SHIFT: { resistive: 0, inductive: 0.524, capacitive: -0.524, motor: 0.698 }
-};
-
-const H   = { v:[], i:[], t:[], p:[] };
-const ENV = { v:[], i:[] };
-
-const PFP = [];
-for (let k = 0; k < 10; k++) PFP.push({ t: k/10, path: 'main' });
-for (let k = 0; k < 5;  k++) PFP.push({ t: k/5,  path: 'l1'   });
-for (let k = 0; k < 5;  k++) PFP.push({ t: k/5,  path: 'l2'   });
-let pfState = 'BOOT', r1 = false, r2 = false;
-// FIX C5: PF init retry counter
-let pfInitRetries = 0;
-
-const $     = id => document.getElementById(id);
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
-function tCol(t)    { return t >= 80 ? '#ef233c' : t >= 60 ? '#f8961e' : t >= 45 ? '#f9c74f' : '#2dc653'; }
-function rCol(r)    { return { LOW:'#2dc653', MODERATE:'#f9c74f', HIGH:'#f8961e', CRITICAL:'#ef233c' }[r] || '#2dc653'; }
-function rssiCol(r) { return r >= -55 ? '#2dc653' : r >= -70 ? '#f9c74f' : r >= -80 ? '#f8961e' : '#ef233c'; }
-
-// ── Loading overlay ───────────────────────────────────────────────────────────
-function dismissLoading() {
-  const ov = $('loading');
-  if (ov.classList.contains('ld-hidden')) return;
-  ov.classList.add('ld-hidden');
-  ov.addEventListener('transitionend', () => { ov.style.display = 'none'; }, { once: true });
-}
-function showLoading(txt) {
-  const ov = $('loading');
-  ov.style.display = 'flex';
-  ov.offsetHeight;
-  ov.classList.remove('ld-hidden');
-  if (txt) $('ld-msg').textContent = txt;
-}
-
-// ── FIX E1: visible error indicator ──────────────────────────────────────────
-let applyErrTimer = null;
-function showApplyError(msg) {
-  const el = $('apply-err');
-  el.textContent = '⚠ Telemetry parse error: ' + msg;
-  el.classList.add('show');
-  if (applyErrTimer) clearTimeout(applyErrTimer);
-  applyErrTimer = setTimeout(() => { el.classList.remove('show'); }, 5000);
-}
-
-// ── FIX E2: staleness watchdog ────────────────────────────────────────────────
-function updateStaleness() {
-  if (lastDataTs === 0) return;
-  const age = Date.now() - lastDataTs;
-  const banner = $('stale-banner');
-  const cdot   = $('cdot');
-  if (age > STALE_MS) {
-    banner.classList.add('show');
-    $('stale-age').textContent = Math.floor(age / 1000);
-    cdot.classList.remove('live');
-    cdot.classList.add('stale');
-  } else {
-    banner.classList.remove('show');
-    cdot.classList.remove('stale');
-  }
-}
-
-// ── Credentials ───────────────────────────────────────────────────────────────
-function loadCredentials() {
-  $('mq-host').value  = localStorage.getItem(CRED.HOST)  || '';
-  $('mq-port').value  = localStorage.getItem(CRED.PORT)  || '8884';
-  $('mq-user').value  = localStorage.getItem(CRED.USER)  || '';
-  $('mq-pass').value  = localStorage.getItem(CRED.PASS)  || '';
-  $('mq-topic').value = localStorage.getItem(CRED.TOPIC) || '';
-  $('mq-cmd').value   = localStorage.getItem(CRED.CMD)   || '';
-}
-function saveCredentials() {
-  localStorage.setItem(CRED.HOST,  $('mq-host').value.trim());
-  localStorage.setItem(CRED.PORT,  $('mq-port').value.trim());
-  localStorage.setItem(CRED.USER,  $('mq-user').value.trim());
-  localStorage.setItem(CRED.PASS,  $('mq-pass').value);
-  localStorage.setItem(CRED.TOPIC, $('mq-topic').value.trim());
-  localStorage.setItem(CRED.CMD,   $('mq-cmd').value.trim());
-  msg('msg-mqtt', '✓ CREDENTIALS SAVED LOCALLY', 'var(--acc-green)');
-}
-
-// ── FIX X1: auto-fill device topic from first received telemetry 'device' field
-function autoFillTopicFromDevice(deviceId) {
-  if (!deviceId) return;
-  const expectedTopic = `sgs/device/${deviceId}/telemetry`;
-  const expectedCmd   = `sgs/device/${deviceId}/cmd`;
-  // Only auto-fill if field is empty or still has placeholder-style value
-  const curTopic = $('mq-topic').value.trim();
-  const curCmd   = $('mq-cmd').value.trim();
-  if (!curTopic || curTopic.includes('xxxxxx')) {
-    $('mq-topic').value = expectedTopic;
-    localStorage.setItem(CRED.TOPIC, expectedTopic);
-  }
-  if (!curCmd || curCmd.includes('xxxxxx')) {
-    $('mq-cmd').value = expectedCmd;
-    localStorage.setItem(CRED.CMD, expectedCmd);
-  }
-  // Update HiveMQ panel topic display
-  $('hq-topic').textContent = $('mq-topic').value.trim() || expectedTopic;
-  // Update MQTT bar topic display
-  $('mb-topic').textContent = $('mq-topic').value.trim() || expectedTopic;
-}
-
-// ── MQTT UI helpers ────────────────────────────────────────────────────────────
-function mqttSetPill(state, text) {
-  const pill = $('mqtt-pill');
-  pill.className = 'mqtt-pill ' + state;
-  $('mqtt-pill-txt').textContent = text;
-}
-function mqttSetCloudBadge(text, cls) {
-  $('cloud-badge-val').textContent = text;
-  $('cloud-badge-val').className   = cls || '';
-  const dot = $('cloud-dot');
-  dot.className = cls === 'ok' ? 'connected' : cls === 'warn' ? 'connecting' : '';
-}
-
-// ── HiveMQ panel updater (persistent panel, FIX: Bug X1 auto-discover) ────────
-function updateHiveMQPanel(state) {
-  const dot = $('hq-dot');
-  const txt = $('hq-status-txt');
-  const btn = $('hq-toggle-btn');
-  dot.className = 'hq-dot ' + (state === 'connected' ? 'connected' : state === 'connecting' ? 'connecting' : state === 'error' ? 'error' : '');
-  txt.textContent = { connected:'CONNECTED', connecting:'CONNECTING...', error:'ERROR', disconnected:'DISCONNECTED' }[state] || 'DISCONNECTED';
-  btn.textContent = (state === 'connected') ? 'Disconnect' : 'Connect Cloud';
-  const host = $('mq-host').value.trim();
-  $('hq-broker').textContent = host || '---';
-  $('hq-broker').className   = 'hq-val' + (host ? ' ok' : '');
-  const topic = $('mq-topic').value.trim();
-  $('hq-topic').textContent  = topic || '(waiting for device...)';
-  $('hq-topic').className    = 'hq-val' + (topic ? '' : ' warn');
-}
-
-function updateHiveMQStats() {
-  $('hq-rx').textContent    = mqttRxCount;
-  $('hq-last').textContent  = mqttLastRxTs ? new Date(mqttLastRxTs).toLocaleTimeString('en-GB', { hour12:false }) : '---';
-  if (mqttRxCount > 1 && mqttLastRxTs) {
-    // intvl shown in mqtt-bar; mirror it
-    $('hq-intvl').textContent = $('mb-intvl').textContent;
-  }
-}
-
-// ── MQTT subscribe ─────────────────────────────────────────────────────────────
-function mqttSubscribe() {
-  if (!mqttClient) return;
-  const topic = $('mq-topic').value.trim();
-  if (!topic) {
-    msg('msg-mqtt', '⚠ Topic empty — fill in sgs/device/<id>/telemetry', 'var(--warn)');
-    return;
-  }
-  mqttClient.subscribe(topic, { qos: 1 }, (err) => {
-    if (err) msg('msg-mqtt', '✗ Subscribe failed: ' + err.message, 'var(--acc-red)');
-  });
-}
-
-// ── Connect / disconnect MQTT ─────────────────────────────────────────────────
-function connectMQTT() {
-  if (mqttClient) {
-    try { mqttClient.end(true); } catch(e) {}
-    mqttClient = null; mqttConnected = false;
-  }
-  const host  = $('mq-host').value.trim();
-  const port  = parseInt($('mq-port').value) || 8884;
-  const user  = $('mq-user').value.trim();
-  const pass  = $('mq-pass').value;
-  if (!host) { msg('msg-mqtt', '✗ Broker host is empty', 'var(--acc-red)'); return; }
-
-  const url = `wss://${host}:${port}/mqtt`;
-  msg('msg-mqtt', 'Connecting...', 'var(--warn)');
-  mqttSetPill('connecting', 'CONNECTING...');
-  mqttSetCloudBadge('CONNECTING', 'warn');
-  updateHiveMQPanel('connecting');
-  $('btn-mqtt-connect').textContent = 'WAIT...';
-  $('btn-mqtt-connect').disabled    = true;
-
-  const clientId = 'sgs-dash-' + Math.random().toString(16).slice(2, 10);
-  mqttConnectTs  = Date.now();
-
-  mqttClient = mqtt.connect(url, {
-    clientId, username: user, password: pass,
-    keepalive: 30, reconnectPeriod: 5000, connectTimeout: 12000, clean: true,
-  });
-
-  mqttClient.on('connect', () => {
-    mqttConnected = true;
-    mqttSubscribe();
-    const elapsed = Date.now() - mqttConnectTs;
-    // FIX C2: update bar from current field values, not stale closure
-    $('mb-broker').textContent = $('mq-host').value.trim();
-    $('mb-topic').textContent  = $('mq-topic').value.trim() || '(pending device ID)';
-    $('mqtt-bar').classList.add('show');
-    // Update HiveMQ panel latency
-    $('hq-latency').textContent = elapsed + ' ms';
-    $('hq-latency').className   = 'hq-val ok';
-
-    msg('msg-mqtt', `✓ Connected · ${elapsed}ms`, 'var(--acc-green)');
-    mqttSetPill('connected', 'CONNECTED');
-    mqttSetCloudBadge(host.split('.')[0] + '...', 'ok');
-    updateHiveMQPanel('connected');
-    $('btn-mqtt-connect').textContent = 'DISCONNECT';
-    $('btn-mqtt-connect').disabled    = false;
-    $('nv-cloud').textContent  = 'LIVE';
-    $('nv-cloud').style.color  = 'var(--cyan)';
-    updateRelayModeNote();
-    dismissLoading();
-    $('cdot').classList.add('live');
-  });
-
-  mqttClient.on('message', (t, payload) => {
-    const subTopic = $('mq-topic').value.trim();
-    if (t !== subTopic) return;
-    try {
-      const data = JSON.parse(payload.toString());
-      const now  = Date.now();
-      if (mqttLastRxTs) $('mb-intvl').textContent = (now - mqttLastRxTs) + ' ms';
-      mqttLastRxTs = now;
-      mqttRxCount++;
-      $('mb-rx').textContent   = mqttRxCount;
-      $('mb-last').textContent = new Date(now).toLocaleTimeString('en-GB', { hour12:false });
-      updateHiveMQStats();
-      failCount   = 0;
-      lastDataTs  = now;
-      $('cdot').classList.remove('stale');
-      $('cdot').classList.add('live');
-      // FIX X1: auto-discover device topic
-      if (data.device) autoFillTopicFromDevice(data.device);
-      apply(data);
-    } catch(e) { showApplyError(e.message); }
-  });
-
-  mqttClient.on('reconnect', () => {
-    // FIX A2: only update UI if we haven't already been intentionally disconnected
-    if (!mqttClient) return;
-    mqttConnected = false;
-    mqttSetPill('connecting', 'RECONNECTING...');
-    mqttSetCloudBadge('RECONNECTING', 'warn');
-    updateHiveMQPanel('connecting');
-    $('nv-cloud').textContent = 'RETRY';
-    $('nv-cloud').style.color = 'var(--warn)';
-    $('cdot').classList.remove('live');
-  });
-
-  mqttClient.on('close', () => {
-    if (!mqttConnected && !mqttClient) return; // clean disconnect already handled
-    mqttConnected = false;
-    mqttSetPill('', 'DISCONNECTED');
-    mqttSetCloudBadge('OFFLINE', '');
-    updateHiveMQPanel('disconnected');
-    $('btn-mqtt-connect').textContent = 'CONNECT CLOUD';
-    $('btn-mqtt-connect').disabled    = false;
-    $('mqtt-bar').classList.remove('show');
-    $('nv-cloud').textContent = 'OFFLINE';
-    $('nv-cloud').style.color = 'var(--tmid)';
-    $('cdot').classList.remove('live');
-    updateRelayModeNote();
-  });
-
-  mqttClient.on('error', (err) => {
-    mqttConnected = false;
-    msg('msg-mqtt', '✗ ' + (err.message || 'Unknown error'), 'var(--acc-red)');
-    mqttSetPill('error', 'ERROR');
-    mqttSetCloudBadge('ERROR', 'err');
-    updateHiveMQPanel('error');
-    $('btn-mqtt-connect').textContent = 'CONNECT CLOUD';
-    $('btn-mqtt-connect').disabled    = false;
-    $('nv-cloud').textContent = 'ERROR';
-    $('nv-cloud').style.color = 'var(--acc-red)';
-    $('cdot').classList.remove('live');
-  });
-
-  mqttClient.on('offline', () => {
-    mqttConnected = false;
-    mqttSetCloudBadge('OFFLINE', 'err');
-    updateHiveMQPanel('error');
-    $('nv-cloud').textContent = 'OFFLINE';
-    $('nv-cloud').style.color = 'var(--acc-red)';
-    $('cdot').classList.remove('live');
-  });
-}
-
-function disconnectMQTT() {
-  if (!mqttClient) return;
-  const client  = mqttClient;
-  mqttClient    = null;  // null BEFORE end() so reconnect/close handlers skip
-  mqttConnected = false;
-  mqttRxCount   = 0;
-  mqttLastRxTs  = 0;
-  client.end(false, {}, () => {});
-  mqttSetPill('', 'DISCONNECTED');
-  mqttSetCloudBadge('OFFLINE', '');
-  updateHiveMQPanel('disconnected');
-  $('btn-mqtt-connect').textContent = 'CONNECT CLOUD';
-  $('btn-mqtt-connect').disabled    = false;
-  $('mqtt-bar').classList.remove('show');
-  $('mb-rx').textContent    = '0';
-  $('mb-intvl').textContent = '---';
-  $('mb-last').textContent  = '---';
-  $('hq-rx').textContent    = '0';
-  $('hq-intvl').textContent = '---';
-  $('hq-last').textContent  = '---';
-  $('hq-latency').textContent = '---';
-  $('nv-cloud').textContent = 'OFFLINE';
-  $('nv-cloud').style.color = 'var(--tmid)';
-  $('cdot').classList.remove('live');
-  updateRelayModeNote();
-  msg('msg-mqtt', 'Disconnected', 'var(--tmid)');
-}
-
-// FIX X2/X3: corrected command payload key 'cmd' (was 'action')
-function mqttPublish(payload) {
-  if (!mqttClient || !mqttConnected) return false;
-  const cmdTopic = $('mq-cmd').value.trim();
-  if (!cmdTopic) { console.warn('[SGS] CMD topic empty'); return false; }
-  let ok = true;
-  mqttClient.publish(cmdTopic, JSON.stringify(payload), { qos: 1 }, (err) => {
-    if (err) { ok = false; console.error('MQTT publish error:', err); }
-  });
-  return ok;
-}
-
-// ── Gauge updater ─────────────────────────────────────────────────────────────
-function gauge(id, value, maxV, color, label) {
-  const pct    = clamp(value / maxV, 0, 1);
-  const offset = ARC_FULL * (1 - pct);
-  $('garc-' + id).style.strokeDashoffset = offset;
-  $('garc-' + id).style.stroke           = color;
-  $('gval-' + id).textContent            = label ?? value.toFixed(1);
-  $('gval-' + id).style.fill             = color;
-  $('gcf-'  + id).style.width            = (pct * 100) + '%';
-  $('gcf-'  + id).style.background       = color;
-}
-
-function pushH(arr, v)   { if (arr.length >= HIST_LEN) arr.shift(); arr.push(v); }
-function pushEnv(arr, v) { if (arr.length >= ENV_LEN)  arr.shift(); arr.push(v); }
-
-// ── Sparklines ────────────────────────────────────────────────────────────────
-function initSparklines() {
-  const ns = 'http://www.w3.org/2000/svg';
-  const configs = [
-    { id: 'sp-v', color: '#4F46E5' }, { id: 'sp-i', color: '#0EA5E9' },
-    { id: 'sp-t', color: '#F59E0B' }, { id: 'sp-p', color: '#10B981' },
-  ];
-  configs.forEach(({ id, color }) => {
-    const el = $(id); if (!el) return;
-    const defs = document.createElementNS(ns, 'defs');
-    const grad = document.createElementNS(ns, 'linearGradient');
-    grad.setAttribute('id', 'sg_' + id); grad.setAttribute('x1','0'); grad.setAttribute('x2','0'); grad.setAttribute('y1','0'); grad.setAttribute('y2','1');
-    const s1 = document.createElementNS(ns, 'stop'); s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', color); s1.setAttribute('stop-opacity','0.22');
-    const s2 = document.createElementNS(ns, 'stop'); s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', color); s2.setAttribute('stop-opacity','0');
-    grad.appendChild(s1); grad.appendChild(s2); defs.appendChild(grad);
-    const poly = document.createElementNS(ns, 'polygon'); poly.setAttribute('id','sf_' + id); poly.setAttribute('fill','url(#sg_' + id + ')');
-    const line = document.createElementNS(ns, 'polyline'); line.setAttribute('id','sl_' + id); line.setAttribute('fill','none'); line.setAttribute('stroke', color); line.setAttribute('stroke-width','2'); line.setAttribute('stroke-linecap','round'); line.setAttribute('stroke-linejoin','round');
-    el.appendChild(defs); el.appendChild(poly); el.appendChild(line);
-  });
-}
-
-function sparkline(svgId, data) {
-  if (!data || data.length < 2) return;
-  const el = $(svgId); if (!el) return;
-  // FIX A5: fallback width when clientWidth is 0 (before layout paint)
-  const W2 = el.clientWidth || 300, H2 = 58, P = 5;
-  const lo = Math.min(...data), hi = Math.max(...data), rng = hi - lo || 1;
-  const pts = data.map((v, i) => {
-    const x = P + (i / (data.length - 1)) * (W2 - P * 2);
-    const y = H2 - P - ((v - lo) / rng) * (H2 - P * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const lineEl = $('sl_' + svgId), fillEl = $('sf_' + svgId);
-  if (lineEl) lineEl.setAttribute('points', pts.join(' '));
-  if (fillEl) fillEl.setAttribute('points', pts.join(' ') + ` ${(W2-P).toFixed(1)},${H2} ${P},${H2}`);
-}
-
-// ── Oscilloscope ──────────────────────────────────────────────────────────────
-function initOsc() {
-  const c = $('osc-canvas'); const wrap = c.parentElement; if (!wrap.clientWidth) return;
-  c.width = wrap.clientWidth * DPR; c.height = 280 * DPR; c.style.height = '280px';
-  c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
-}
-
-function initRadar() {
-  const c = $('radar-canvas'); const W2 = 224, H2 = 140;
-  c.width = W2 * DPR; c.height = H2 * DPR; c.style.width = W2 + 'px'; c.style.height = H2 + 'px';
-  c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
-}
-
-function drawOsc(dt) {
-  const c = $('osc-canvas'); const ctx = c.getContext('2d');
-  const CW = c.width / DPR, CH = c.height / DPR, CH3 = CH / 3;
-  // FIX A3: wrap phase to prevent float precision degradation
-  W.phase = (W.phase + 2 * Math.PI * W.freq * dt) % (2 * Math.PI);
-  ctx.clearRect(0, 0, CW, CH); ctx.fillStyle = '#030508'; ctx.fillRect(0, 0, CW, CH);
-
-  // FIX D2: no-data overlay when no telemetry received
-  if (W.Vrms === 0 && W.Irms === 0 && lastDataTs === 0) {
-    ctx.fillStyle = '#1a2535';
-    ctx.font = `bold 13px 'JetBrains Mono',monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText('NO DATA — awaiting telemetry', CW / 2, CH / 2);
-    ctx.textAlign = 'left';
-    return;
-  }
-
-  const phiRaw = W.PHASE_SHIFT[W.preset];
-  const phi = (typeof phiRaw === 'number' && isFinite(phiRaw)) ? phiRaw : 0;
-  const Vp = W.Vrms * Math.SQRT2 * W.amp;
-  const Ip = W.Irms * Math.SQRT2 * W.amp;
-  const p  = W.phase;
-  const TW = W.cyclesShown / W.freq;
-
-  // FIX A4: power channel shows computed V*I value
-  const pwrVal = (W.Vrms * W.Irms * 0.85).toFixed(1) + 'W';
-  const channels = [
-    { key:'v', color:'#f9c74f', peak:Vp, phiOff:0,   label:'V', rmsTxt: W.Vrms.toFixed(1) + 'V rms' },
-    { key:'i', color:'#4cc9f0', peak:Ip, phiOff:phi,  label:'I', rmsTxt: W.Irms.toFixed(3) + 'A rms' },
-    { key:'p', color:'#2dc653', peak:Vp*Ip, phiOff:0, label:'P', isPwr: true, rmsTxt: pwrVal },
-  ];
-
-  channels.forEach((ch, idx) => {
-    const y0 = idx * CH3, cy = y0 + CH3 / 2, AMP = CH3 * 0.41;
-    ctx.strokeStyle = '#101822'; ctx.lineWidth = 0.5;
-    for (let d = 1; d < 4; d++) { ctx.beginPath(); ctx.moveTo(d * CW / 4, y0 + 2); ctx.lineTo(d * CW / 4, y0 + CH3 - 2); ctx.stroke(); }
-    ctx.strokeStyle = '#182435'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(CW, cy); ctx.stroke();
-    if (idx > 0) { ctx.strokeStyle = '#182030'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(CW, y0); ctx.stroke(); }
-
-    if (!ch.isPwr) {
-      const s = ch.peak > 0.001 ? AMP / ch.peak : 1;
-      ctx.beginPath();
-      for (let x = 0; x < CW; x++) {
-        const t = (x / CW) * TW;
-        const v = ch.peak * Math.sin(2 * Math.PI * W.freq * t - p - ch.phiOff);
-        x === 0 ? ctx.moveTo(x, cy - v * s) : ctx.lineTo(x, cy - v * s);
-      }
-      ctx.strokeStyle = ch.color; ctx.lineWidth = 1.8; ctx.shadowBlur = 8; ctx.shadowColor = ch.color; ctx.stroke(); ctx.shadowBlur = 0;
-      if (W.showRaw && ENV[ch.key].length > 2) {
-        const env = ENV[ch.key]; ctx.setLineDash([4, 6]); ctx.lineWidth = 1;
-        ctx.beginPath(); env.forEach((val, k) => { const x = (k / (env.length - 1)) * CW; const py = cy - val * Math.SQRT2 * W.amp * s; k === 0 ? ctx.moveTo(x, py) : ctx.lineTo(x, py); }); ctx.strokeStyle = ch.color + '66'; ctx.stroke();
-        ctx.beginPath(); env.forEach((val, k) => { const x = (k / (env.length - 1)) * CW; const py = cy + val * Math.SQRT2 * W.amp * s; k === 0 ? ctx.moveTo(x, py) : ctx.lineTo(x, py); }); ctx.strokeStyle = ch.color + '44'; ctx.stroke(); ctx.setLineDash([]);
-      }
-    } else {
-      const pts = [];
-      for (let x = 0; x < CW; x++) {
-        const t = (x / CW) * TW;
-        const v = Vp * Math.sin(2 * Math.PI * W.freq * t - p);
-        const i = Ip * Math.sin(2 * Math.PI * W.freq * t - p - phi);
-        pts.push({ x, y: cy - v * i * (Vp * Ip > 0 ? AMP / (Vp * Ip) : 1) * 0.45 });
-      const pts = [];
-      for (let x = 0; x < CW; x++) {
-        const t = (x / CW) * TW;
-        const v = Vp * Math.sin(2 * Math.PI * W.freq * t - p);
-        const i = Ip * Math.sin(2 * Math.PI * W.freq * t - p - phi);
-        pts.push({ x, y: cy - v * i * (Vp * Ip > 0 ? AMP / (Vp * Ip) : 1) * 0.45 });
-      }
-      ctx.beginPath(); ctx.moveTo(0, cy); pts.forEach(q => ctx.lineTo(q.x, q.y)); ctx.lineTo(CW - 1, cy); ctx.closePath(); ctx.fillStyle = '#2dc65318'; ctx.fill();
-      ctx.beginPath(); pts.forEach((q, k) => k === 0 ? ctx.moveTo(q.x, q.y) : ctx.lineTo(q.x, q.y)); ctx.strokeStyle = '#2dc653'; ctx.lineWidth = 1.5; ctx.shadowBlur = 5; ctx.shadowColor = '#2dc653'; ctx.stroke(); ctx.shadowBlur = 0;
-    }
-    ctx.fillStyle = ch.color + '99'; ctx.font = `10px 'JetBrains Mono',monospace`;
-    ctx.fillText(`${ch.label}  ${ch.rmsTxt || ''}`, 10, y0 + 15);
-  });
-
-  ctx.fillStyle = '#2d4560'; ctx.font = `8px 'JetBrains Mono',monospace`;
-  const msDiv = (TW * 1000 / 4).toFixed(1);
-  for (let d = 0; d <= 4; d++) ctx.fillText(`${(d * msDiv).toFixed(0)}ms`, d * CW / 4 + 3, CH - 4);
-}
-
-// ── Energy flow (PF canvas) ────────────────────────────────────────────────────
-function initPF() {
-  const c = $('pf-canvas'); const w = c.parentElement;
-  // FIX C5: cap RAF retries to prevent infinite loop on hidden element
-  if (!w.clientWidth) {
-    if (pfInitRetries++ < PF_MAX_RETRIES) requestAnimationFrame(initPF);
-    return;
-  }
-  pfInitRetries = 0;
-  c.width = w.clientWidth * DPR; c.height = 214 * DPR; c.style.height = '214px';
-  c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
-}
-
-function bezPt(t, x0,y0,x1,y1,x2,y2,x3,y3) {
-  const m = 1 - t;
-  return { x: m*m*m*x0+3*m*m*t*x1+3*m*t*t*x2+t*t*t*x3, y: m*m*m*y0+3*m*m*t*y1+3*m*t*t*y2+t*t*t*y3 };
-}
-function pfPt(t, path, W2, H2) {
-  const cx = W2/2, cy = H2/2;
-  if (path === 'main') return bezPt(t, 55,cy,cx-60,cy,cx-20,cy,cx,cy);
-  if (path === 'l1')   return bezPt(t, cx,cy,cx+50,cy-22,W2-90,cy-58,W2-52,cy-58);
-  return bezPt(t, cx,cy,cx+50,cy+22,W2-90,cy+58,W2-52,cy+58);
-}
-
-function drawPF() {
-  const c = $('pf-canvas'); const ctx = c.getContext('2d');
-  const W2 = c.width / DPR, H2 = c.height / DPR, cx = W2/2, cy = H2/2;
-  ctx.clearRect(0, 0, W2, H2); ctx.fillStyle = '#030508'; ctx.fillRect(0, 0, W2, H2);
-  const isNormal = pfState === 'NORMAL';
-  const isFault  = pfState === 'FAULT' || pfState === 'LOCKOUT';
-  const lineW    = clamp(W.Irms * 3, 2, 8);
-  const pathCol  = isNormal ? '#1a3040' : isFault ? '#3a1020' : '#101820';
-  const partCol  = isFault  ? '#ef233c' : isNormal ? '#00f5d4' : '#1a3040';
-
-  function bezPath(x0,y0,x1,y1,x2,y2,x3,y3,col,lw) {
-    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.bezierCurveTo(x1,y1,x2,y2,x3,y3);
-    ctx.strokeStyle=col; ctx.lineWidth=lw||2; ctx.stroke();
-  }
-  bezPath(55,cy,cx-60,cy,cx-20,cy,cx,cy, pathCol, isNormal?lineW:2);
-  bezPath(cx,cy,cx+50,cy-22,W2-90,cy-58,W2-52,cy-58, r1?pathCol:'#10181e', isNormal&&r1?lineW:2);
-  bezPath(cx,cy,cx+50,cy+22,W2-90,cy+58,W2-52,cy+58, r2?pathCol:'#10181e', isNormal&&r2?lineW:2);
-
-  function node(x,y,label,sub,active,col) {
-    const nw=72,nh=38;
-    ctx.fillStyle=active?col+'20':'#0b1220'; ctx.strokeStyle=active?col:'#1a2535'; ctx.lineWidth=1;
-    ctx.fillRect(x-nw/2,y-nh/2,nw,nh); ctx.strokeRect(x-nw/2,y-nh/2,nw,nh);
-    ctx.textAlign='center'; ctx.fillStyle=active?col:'#2d4560'; ctx.font=`bold 10px 'JetBrains Mono',monospace`;
-    ctx.fillText(label,x,y-5); ctx.fillStyle='#2d4260'; ctx.font=`8px 'JetBrains Mono',monospace`;
-    ctx.fillText(sub,x,y+8); ctx.textAlign='left';
-  }
-  node(55,cy,'GRID','230V AC',true,'#4cc9f0');
-  node(cx,cy,'SGS',pfState,isNormal,'#00f5d4');
-  node(W2-52,cy-58,'LOAD1',r1?'CLOSED':'OPEN',r1&&isNormal,'#2dc653');
-  node(W2-52,cy+58,'LOAD2',r2?'CLOSED':'OPEN',r2&&isNormal,'#2dc653');
-
-  const speed = isNormal ? clamp(W.Irms*0.006+0.003, 0.002, 0.012) : 0.001;
-  PFP.forEach(p => {
-    if (p.path === 'l1' && !r1) return;
-    if (p.path === 'l2' && !r2) return;
-    p.t = (p.t + speed) % 1;
-    if (p.path === 'l1' && !r1) return;
-    if (p.path === 'l2' && !r2) return;
-    p.t = (p.t + speed) % 1;
-    const pt = pfPt(p.t, p.path, W2, H2);
-    ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.4, 0, Math.PI*2);
-    ctx.fillStyle=partCol; ctx.shadowBlur=9; ctx.shadowColor=partCol; ctx.fill(); ctx.shadowBlur=0;
-  });
-  ctx.fillStyle='#2d4560'; ctx.font=`9px 'JetBrains Mono',monospace`; ctx.textAlign='center';
-  ctx.fillText(`${(W.Vrms*W.Irms*0.85).toFixed(0)} W`, cx, H2-8); ctx.textAlign='left';
-}
-
-// FIX D1: use requestAnimationFrame to avoid blank frame flash on resize
-function initResizeObserver() {
-  const scheduleResize = (() => {
-    let pending = false;
-    return () => {
-      if (pending) return;
-      pending = true;
-      requestAnimationFrame(() => { initOsc(); initPF(); initRadar(); pending = false; });
-    };
-  })();
-  if (!window.ResizeObserver) { window.addEventListener('resize', scheduleResize); return; }
-  const ro = new ResizeObserver(scheduleResize);
-  ro.observe($('osc-canvas').parentElement);
-  ro.observe($('pf-canvas').parentElement);
-}
-
-function drawRadar(vals) {
-  const c = $('radar-canvas'); const ctx = c.getContext('2d');
-  const W2=224, H2=140, cx=W2/2, cy=H2/2+6, R=50, N=5;
-  const LABELS = ['OVERCURRENT','OVERVOLT','UNDERVOLT','THERMAL','INSTAB.'];
-  ctx.clearRect(0,0,W2,H2); ctx.fillStyle='#030508'; ctx.fillRect(0,0,W2,H2);
-  for (let r=1;r<=4;r++) {
-    ctx.beginPath();
-    for (let i=0;i<N;i++) { const a=(i/N)*Math.PI*2-Math.PI/2; const x=cx+Math.cos(a)*R*(r/4); const y=cy+Math.sin(a)*R*(r/4); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
-    ctx.closePath(); ctx.strokeStyle=r===4?'#1e2e40':'#131d2b'; ctx.lineWidth=r===4?1:0.5; ctx.stroke();
-  }
-  for (let i=0;i<N;i++) { const a=(i/N)*Math.PI*2-Math.PI/2; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R); ctx.strokeStyle='#182535'; ctx.lineWidth=0.7; ctx.stroke(); }
-  const mx = Math.max(...vals);
-  const col = mx>=.8?'#ef233c':mx>=.5?'#f8961e':mx>=.25?'#f9c74f':'#00f5d4';
-  ctx.beginPath();
-  for (let i=0;i<N;i++) { const a=(i/N)*Math.PI*2-Math.PI/2; const r=R*clamp(vals[i],0,1); i===0?ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r); }
-  ctx.closePath(); ctx.fillStyle=col+'28'; ctx.fill(); ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.shadowBlur=10; ctx.shadowColor=col; ctx.stroke(); ctx.shadowBlur=0;
-  for (let i=0;i<N;i++) { const a=(i/N)*Math.PI*2-Math.PI/2; const r=R*clamp(vals[i],0,1); ctx.beginPath(); ctx.arc(cx+Math.cos(a)*r,cy+Math.sin(a)*r,3,0,Math.PI*2); ctx.fillStyle=col; ctx.fill(); }
-  ctx.font=`7px 'JetBrains Mono',monospace`; ctx.textAlign='center';
-  for (let i=0;i<N;i++) { const a=(i/N)*Math.PI*2-Math.PI/2; ctx.fillStyle=vals[i]>.35?col:'#2d4560'; ctx.fillText(LABELS[i],cx+Math.cos(a)*(R+12),cy+Math.sin(a)*(R+12)+3); }
-  ctx.textAlign='left';
-}
-
-// ── apply() — telemetry data → UI ─────────────────────────────────────────────
-// FIX E1: show visible error instead of silent console.error
-function apply(d) {
-  try { _apply(d); }
-  catch (e) { console.error('[SGS] _apply error:', e); showApplyError(e.message); }
-}
-
-function _apply(d) {
-  if (!d) return;
-  const sv  = d.sensors?.voltage     || {};
-  const si  = d.sensors?.current     || {};
-  const st  = d.sensors?.temperature || {};
-  const al  = d.alerts  || {};
-  const pwr = d.power   || {};
-  const net = d.network || {};
-  const sys = d.system  || {};
-  const smp = d.sampling|| {};
-  const pr  = d.prediction || {};
-
-  const vf = parseFloat(sv.filtered_value) || 0;
-  const cf = parseFloat(si.filtered_value) || 0;
-  const tf = parseFloat(st.filtered_value) || 0;
-  const pw = parseFloat(pwr.real_power_w)  || 0;
-  const vf = parseFloat(sv.filtered_value) || 0;
-  const cf = parseFloat(si.filtered_value) || 0;
-  const tf = parseFloat(st.filtered_value) || 0;
-  const pw = parseFloat(pwr.real_power_w)  || 0;
-
-  W.Vrms = vf; W.Irms = cf;
-  pushEnv(ENV.v, vf); pushEnv(ENV.i, cf);
-  pushH(H.v, vf); pushH(H.i, cf); pushH(H.t, tf); pushH(H.p, pw);
-
-  const vc = vf>=260||vf<=190?'#ef233c':vf>=250||vf<=200?'#f8961e':'#f9c74f';
-  gauge('v', vf, V_MAX, vc, vf.toFixed(1));
-  gauge('i', cf, I_MAX, '#0EA5E9', cf.toFixed(2));
-  gauge('t', tf, T_MAX, tCol(tf), tf.toFixed(1));
-
-  const risk = pr.risk_level || 'LOW';
-  const prob = parseFloat(pr.fault_probability) || 0;
-  gauge('r', prob, 100, rCol(risk), risk); $('gsub-r').textContent = `FAULT PROB: ${prob}%`;
-
-  const rssi  = parseInt(net.wifi_rssi) || -90;
-  const rssiQ = clamp((rssi + 100) / 60, 0, 1) * 100;
-  gauge('s', rssiQ, 100, rssiCol(rssi), rssi + '');
-
-  $('gsub-v').textContent  = `GPIO 34 · CONF ${sv.confidence || 0}%`;
-  $('gcf-v').style.width   = (sv.confidence || 0) + '%';
-  $('gcf-i').style.width   = (si.confidence || 0) + '%';
-  $('gcf-t').style.width   = (st.confidence || 0) + '%';
-  $('gcf-s').style.width   = rssiQ + '%';
-
-  // FIX C3: FSM banner fallback class for unknown states
-  const state  = al.fsm_state || 'BOOT';
-  const fname  = al.active_fault && al.active_fault !== 'NONE' ? ` — ${al.active_fault}` : '';
-  const banner = $('status-banner');
-  banner.textContent = `● ${state}${fname}`;
-  const knownStates = ['NORMAL','BOOT','WARNING','FAULT','RECOVERY','LOCKOUT'];
-  banner.className = 's' + (knownStates.includes(state) ? state : 'UNKNOWN');
-
-  pfState = state;
-  r1 = d.loads?.relay1?.state || false;
-  r2 = d.loads?.relay2?.state || false;
-  $('pf-st').textContent = r1 || r2 ? 'ENERGIZED' : 'RELAY OPEN';
-
-  // FIX C4: only update relay UI from telemetry if no pending optimistic state
-  if (!$('rc1').classList.contains('pending')) {
-    $('rc1').className = 'rcard ' + (r1 ? 'rc-on' : 'rc-off');
-    $('rc1-st').textContent = r1 ? 'CLOSED' : 'OPEN';
-  }
-  if (!$('rc2').classList.contains('pending')) {
-    $('rc2').className = 'rcard ' + (r2 ? 'rc-on' : 'rc-off');
-    $('rc2-st').textContent = r2 ? 'CLOSED' : 'OPEN';
-  }
-
-  const tmarg = clamp(1 - tf / 80, 0, 1) * 100;
-  const lpct  = clamp(cf / I_MAX, 0, 1) * 100;
-  $('tzb-c').style.width      = clamp(tf / T_MAX, 0, 1) * 100 + '%';
-  $('tzb-c').style.background = tCol(tf);
-  $('tzv-c').textContent      = tf > -100 ? tf.toFixed(1) + '°' : '---';
-  $('tzv-c').style.color      = tCol(tf);
-  $('tzb-m').style.width      = tmarg + '%';
-  $('tzb-m').style.background = tmarg > 50 ? '#22C55E' : tmarg > 25 ? '#F59E0B' : '#EF4444';
-  $('tzv-m').textContent      = tmarg.toFixed(0) + '%';
-  $('tzv-m').style.color      = tmarg > 50 ? '#22C55E' : tmarg > 25 ? '#F59E0B' : '#EF4444';
-  $('tzb-l').style.width      = lpct + '%';
-  $('tzv-l').textContent      = lpct.toFixed(0) + '%';
-
-  const up = sys.uptime_s || 0;
-  $('sv-up').textContent  = `${Math.floor(up/3600)}h${Math.floor((up%3600)/60)}m${up%60}s`;
-  const kb = (sys.free_heap || 0) / 1024;
-  $('sv-heap').textContent  = kb.toFixed(1) + ' KB';
-  $('sv-heap').className    = 'sv ' + (kb < 30 ? 'e' : kb < 50 ? 'w' : 'ok');
-  $('sv-rate').textContent  = (smp.adc_sample_count && up) ? (smp.adc_sample_count / up).toFixed(0) + '/s' : '---';
-  $('sv-cal').textContent   = smp.adc_calibrated ? 'YES' : 'NO';
-  $('sv-cal').className     = 'sv ' + (smp.adc_calibrated ? 'ok' : 'w');
-  $('sv-trips').textContent = al.trip_count || 0;
-  $('sv-trips').className   = 'sv ' + ((al.trip_count || 0) > 0 ? 'w' : 'ok');
-  $('sv-energy').textContent = parseFloat(pwr.energy_estimate_wh || 0).toFixed(3) + ' Wh';
-  $('sv-cal').className     = 'sv ' + (smp.adc_calibrated ? 'ok' : 'w');
-  $('sv-trips').textContent = al.trip_count || 0;
-  $('sv-trips').className   = 'sv ' + ((al.trip_count || 0) > 0 ? 'w' : 'ok');
-  $('sv-energy').textContent = parseFloat(pwr.energy_estimate_wh || 0).toFixed(3) + ' Wh';
-
-  const rv = [
-    clamp((al.over_current  ? 1 : al.warnings?.oc     ? 0.5 : 0) + (prob/200), 0, 1),
-    clamp((al.over_voltage  ? 1 : al.warnings?.ov     ? 0.5 : 0) + (prob/300), 0, 1),
-    clamp((al.warnings?.uv  ? 0.6 : 0)                            + (prob/300), 0, 1),
-    clamp((al.over_temperature ? 1 : al.warnings?.thermal ? 0.5 : 0) + (tf/180), 0, 1),
-    clamp(prob / 100, 0, 1),
-  ];
-  drawRadar(rv); $('radar-prob').textContent = `${prob}% PROB.`;
-
-  sparkline('sp-v', H.v); sparkline('sp-i', H.i); sparkline('sp-t', H.t); sparkline('sp-p', H.p);
-  $('spv-v').textContent = vf.toFixed(1) + ' V';
-  $('spv-i').textContent = cf.toFixed(3) + ' A';
-  $('spv-t').textContent = tf.toFixed(1) + '°C';
-  $('spv-p').textContent = pw.toFixed(1) + ' W';
-
-  function ff(id, label, active, kind) {
-    const el = $(id); el.textContent = label;
-    el.className = 'ff' + (active ? (kind==='f'?' af':kind==='w'?' aw':' ai') : '');
-  }
-  ff('ff-state', `FSM: ${state}`, state !== 'NORMAL' && state !== 'BOOT', 'i');
-  ff('ff-fault', `FAULT: ${al.active_fault||'NONE'}`, al.active_fault && al.active_fault !== 'NONE', 'f');
-  ff('ff-trips', `TRIPS: ${al.trip_count||0}`, (al.trip_count||0) > 0, 'w');
-  ff('ff-prob',  `PROB: ${prob}%`, prob >= 50, 'w');
-  ff('ff-ov',  'OVER-VOLT',  al.over_voltage,           'f');
-  ff('ff-oc',  'OVER-CURR',  al.over_current,           'f');
-  ff('ff-ot',  'OVER-TEMP',  al.over_temperature,       'f');
-  ff('ff-sc',  'SHORT-CIRC', al.short_circuit_risk,     'f');
-  ff('ff-ir',  'INRUSH',     al.inrush_event,           'i');
-  ff('ff-wov', 'WARN: OV',   al.warnings?.ov,           'w');
-  ff('ff-wuv', 'WARN: UV',   al.warnings?.uv,           'w');
-  ff('ff-woc', 'WARN: OC',   al.warnings?.oc,           'w');
-  ff('ff-wth', 'WARN: THERM',al.warnings?.thermal,      'w');
-  ff('ff-wcr', 'CURR RISING',al.warnings?.curr_rising,  'w');
-  ff('ff-led', 'LED ACTIVE', d.actuators?.alert_led?.state, 'i');
-  ff('ff-buz', 'BUZZER ON',  d.actuators?.buzzer?.state,    'w');
-
-  $('nv-rssi').textContent   = rssi + ' dBm';
-  $('nv-rssi').style.color   = rssiCol(rssi);
-  $('nv-ip').textContent     = net.ip || '---';
-  $('nv-mqtt').textContent   = net.mqtt_connected ? 'CONNECTED' : 'OFFLINE';
-  $('nv-mqtt').style.color   = net.mqtt_connected ? 'var(--pwr)' : 'var(--red)';
-  $('nv-samp').textContent   = (smp.adc_sample_count || 0).toLocaleString();
-
-  if (d.device) $('dev-badge').textContent = 'DEVICE: ' + d.device;
-  if (d.device) $('dev-badge').textContent = 'DEVICE: ' + d.device;
-}
-
-// ── FIX A1: LAN poll via recursive setTimeout (no overlapping calls) ──────────
-async function poll() {
-  if (!deviceBase || mqttConnected) { schedulePoll(); return; }
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 4500);
-  try {
-    const res = await fetch(deviceBase + '/api/telemetry', { signal: ctrl.signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const res = await fetch(deviceBase + '/api/telemetry', { signal: ctrl.signal });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    failCount  = 0;
-    lastDataTs = Date.now();
-    $('cdot').classList.remove('stale');
-    $('cdot').classList.add('live');
-    apply(data);
-    dismissLoading();
-  } catch (e) {
-    if (e.name !== 'AbortError') {
-      failCount++;
-      $('cdot').classList.remove('live');
-      if (failCount === 1) showLoading('LAN unreachable: ' + deviceBase);
-    }
-  } finally {
-    clearTimeout(timer);
-    schedulePoll();
-  }
-}
-function schedulePoll() {
-  clearTimeout(pollTimer);
-  pollTimer = setTimeout(poll, 500);
-}
-
-// ── LAN API helper ─────────────────────────────────────────────────────────────
-async function api(endpoint, method, body) {
-  if (!deviceBase) return { error: 'No LAN device connected' };
-  const ctrl  = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
-  try {
-    const r = await fetch(deviceBase + endpoint, {
-      method,
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey || '' },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: ctrl.signal,
-    });
-    if (!r.ok) return { error: 'HTTP ' + r.status };
-    return await r.json();
-  } catch (e) {
-    return { error: e.name === 'AbortError' ? 'Request timeout' : e.message };
-  } finally { clearTimeout(timer); }
-}
-
-// ── Render loop ───────────────────────────────────────────────────────────────
-let lastRafTs = 0;
-function loop(ts) {
-  const dt = lastRafTs ? Math.min((ts - lastRafTs) / 1000, 0.05) : 1/60;
-  lastRafTs = ts;
-  drawOsc(dt);
-  drawPF();
-  requestAnimationFrame(loop);
-}
-
-// ── Drag ──────────────────────────────────────────────────────────────────────
-function initDrag() {
-  const win = $('ctrl-win'); let ox=0, oy=0, on=false;
-  function startDrag(cx, cy) {
-    const rect = win.getBoundingClientRect(); win.style.transform='none'; win.style.right='auto';
-    win.style.left=rect.left+'px'; win.style.top=rect.top+'px'; on=true; ox=cx-rect.left; oy=cy-rect.top;
-  }
-  function moveDrag(cx, cy) { if (!on) return; win.style.left=(cx-ox)+'px'; win.style.top=(cy-oy)+'px'; }
-  $('cw-drag').addEventListener('mousedown', e => { startDrag(e.clientX, e.clientY); e.preventDefault(); });
-  document.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
-  document.addEventListener('mouseup', () => { on=false; });
-  $('cw-drag').addEventListener('touchstart', e => { startDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive:false });
-  document.addEventListener('touchmove', e => { if (on) { moveDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); } }, { passive:false });
-  document.addEventListener('touchend', () => { on=false; });
-}
-
-// ── Clock ─────────────────────────────────────────────────────────────────────
-function tickClock() {
-  const now = new Date(); $('clock').textContent = now.toLocaleTimeString('en-GB', { hour12:false });
-  setTimeout(tickClock, 1000 - now.getMilliseconds());
-}
-
-// ── Message helper ────────────────────────────────────────────────────────────
-const _msgTimers = {};
-function msg(id, text, color) {
-  const el = $(id); if (!el) return;
-  if (_msgTimers[id]) { clearTimeout(_msgTimers[id]); delete _msgTimers[id]; }
-  el.textContent = text; el.style.color = color || 'var(--text-sec)';
-  if (color) { _msgTimers[id] = setTimeout(() => { el.textContent=''; el.style.color=''; delete _msgTimers[id]; }, 3500); }
-}
-
-// ── Preset sync ───────────────────────────────────────────────────────────────
-function syncPreset(preset) {
-  if (!Object.prototype.hasOwnProperty.call(W.PHASE_SHIFT, preset)) return;
-  if (!Object.prototype.hasOwnProperty.call(W.PHASE_SHIFT, preset)) return;
-  W.preset = preset;
-  document.querySelectorAll('[data-p]').forEach(b  => b.classList.toggle('on', b.dataset.p  === preset));
-  document.querySelectorAll('[data-p2]').forEach(b => b.classList.toggle('on', b.dataset.p2 === preset));
-  document.querySelectorAll('[data-p]').forEach(b  => b.classList.toggle('on', b.dataset.p  === preset));
-  document.querySelectorAll('[data-p2]').forEach(b => b.classList.toggle('on', b.dataset.p2 === preset));
-}
-
-// ── FIX X4: relay mode note ───────────────────────────────────────────────────
-function updateRelayModeNote() {
-  const note = $('relay-mode-note');
-  if (mqttConnected) {
-    note.textContent = '✓ MQTT connected — relay commands active';
-    note.className = 'relay-mode-note mqtt-only';
-  } else if (deviceBase) {
-    note.textContent = '⚠ LAN mode: /api/relay not implemented in firmware';
-    note.className = 'relay-mode-note';
-    note.style.color = 'var(--warn)';
-  } else {
-    note.textContent = '⚡ Connect via MQTT or LAN to control relays';
-    note.className = 'relay-mode-note';
-    note.style.color = '';
-  }
-}
-
-// ── Setup ─────────────────────────────────────────────────────────────────────
-function setup() {
-  loadCredentials();
-  $('api-key').value = apiKey;
-
-  $('ld-ctrl-btn').addEventListener('click', () => { $('ctrl-win').classList.add('show'); });
-  $('btn-connect').addEventListener('click', () => {
-    const ip = $('ip').value.trim(); if (!ip) return;
-    deviceBase = 'http://' + ip.replace(/^(https?:)?\/\//, '');
-    if (location.protocol === 'https:') $('https-warn').style.display = 'block';
-    updateRelayModeNote();
-    schedulePoll();
-  });
-  $('ip').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-connect').click(); });
-  $('ip').addEventListener('keydown', e => { if (e.key === 'Enter') $('btn-connect').click(); });
-
-  $('btn-ctrl').addEventListener('click', () => $('ctrl-win').classList.toggle('show'));
-  $('cw-close').addEventListener('click', () => $('ctrl-win').classList.remove('show'));
-
-  // FIX C1/E3: auto-connect on load if saved credentials exist
-  const savedHost = localStorage.getItem(CRED.HOST);
-  if (savedHost) {
-    updateHiveMQPanel('connecting');
-    // Small delay to allow DOM to fully paint before initiating connection
-    setTimeout(connectMQTT, 600);
-  }
-
-  $('btn-mqtt-connect').addEventListener('click', () => {
-    if (mqttConnected) disconnectMQTT(); else connectMQTT();
-  });
-
-  // Sync hq-toggle-btn with ctrl-win button
-  $('hq-toggle-btn').addEventListener('click', () => {
-    if (mqttConnected) disconnectMQTT(); else {
-      $('ctrl-win').classList.add('show');
-      connectMQTT();
-    }
-  });
-
-  $('btn-save-creds').addEventListener('click', saveCredentials);
-  $('btn-save-key').addEventListener('click', () => {
-    apiKey = $('api-key').value.trim();
-    localStorage.setItem('sgs_key', apiKey);
-    msg('msg-key', '✓ KEY SAVED', 'var(--acc-green)');
-  });
-
-  $('btn-reset').addEventListener('click', async () => {
-    $('btn-reset').disabled = true;
-    msg('msg-reset', 'Sending...', 'var(--warn)');
-    if (mqttConnected) {
-      // FIX X2: use key 'cmd' not 'action'
-      const ok = mqttPublish({ cmd: 'reset', ts: Date.now() });
-      msg('msg-reset', ok ? '✓ RESET → MQTT' : '✗ MQTT failed', ok ? 'var(--acc-green)' : 'var(--acc-red)');
-      $('btn-reset').disabled = false;
-    } else {
-      const r = await api('/api/reset', 'POST');
-      if (r.error) msg('msg-reset', '✗ ' + r.error, 'var(--acc-red)');
-      else msg('msg-reset', '✓ ' + (r.status || 'OK'), 'var(--acc-green)');
-      $('btn-reset').disabled = false;
-    }
-  });
-
-  // FIX C4: relay cards with optimistic update + 3s revert timer
-  ['rc1', 'rc2'].forEach(id => {
-    let revertTimer = null;
-    $(id).addEventListener('click', async () => {
-      const n = id === 'rc1' ? 1 : 2;
-      msg('msg-relay', 'Sending...', 'var(--warn)');
-
-      if (mqttConnected) {
-        // Optimistic: flip card immediately
-        const wasOn = $(id).classList.contains('rc-on');
-        $(id).classList.add('pending');
-        $(id).className = 'rcard pending ' + (wasOn ? 'rc-off' : 'rc-on');
-        $(`${id}-st`).textContent = wasOn ? 'OPEN' : 'CLOSED';
-
-        // FIX X2: use key 'cmd' not 'action'
-        const ok = mqttPublish({ cmd: 'relay_toggle', relay: n, ts: Date.now() });
-        msg('msg-relay', ok ? `✓ RELAY ${n} → MQTT` : '✗ MQTT failed', ok ? 'var(--acc-green)' : 'var(--acc-red)');
-
-        // FIX C4: revert optimistic state after 3s if no telemetry confirmation
-        if (revertTimer) clearTimeout(revertTimer);
-        revertTimer = setTimeout(() => {
-          $(id).classList.remove('pending');
-          $(id).className = 'rcard ' + (wasOn ? 'rc-on' : 'rc-off');
-          $(`${id}-st`).textContent = wasOn ? 'CLOSED' : 'OPEN';
-        }, 3000);
-      } else {
-        // FIX X4: LAN relay — endpoint does not exist, show clear message
-        const r = await api('/api/relay', 'POST', { relay: n });
-        if (r.error?.includes('404') || r.error?.includes('HTTP 404')) {
-          msg('msg-relay', '⚠ Relay control requires MQTT connection', 'var(--warn)');
-        } else if (r.error) {
-          msg('msg-relay', '✗ ' + r.error, 'var(--acc-red)');
-        } else {
-          msg('msg-relay', '✓ ' + (r.status || 'Toggled'), 'var(--acc-green)');
-        }
-      }
-    });
-  });
-
-  $('sl-freq').addEventListener('input', function () {
-    W.freq = parseFloat(this.value); $('lbl-freq').textContent = W.freq.toFixed(1) + ' Hz';
-    $('cw-freq').value = this.value; $('cw-freq-v').textContent = W.freq.toFixed(0) + ' Hz';
-  });
-  $('sl-tdiv').addEventListener('input', function () {
-  $('sl-tdiv').addEventListener('input', function () {
-    W.cyclesShown = parseInt(this.value);
-    $('lbl-tdiv').textContent = (W.cyclesShown / W.freq * 1000 / 4).toFixed(1) + ' ms';
-    $('lbl-tdiv').textContent = (W.cyclesShown / W.freq * 1000 / 4).toFixed(1) + ' ms';
-  });
-  document.querySelectorAll('[data-p]').forEach(b  => { b.addEventListener('click', function () { syncPreset(this.dataset.p);  }); });
-  document.querySelectorAll('[data-p2]').forEach(b => { b.addEventListener('click', function () { syncPreset(this.dataset.p2); }); });
-  $('cw-freq').addEventListener('input', function () {
-    W.freq = parseFloat(this.value); $('cw-freq-v').textContent = W.freq.toFixed(0) + ' Hz';
-    $('sl-freq').value = this.value; $('lbl-freq').textContent  = W.freq.toFixed(1) + ' Hz';
-  });
-  $('cw-amp').addEventListener('input', function () { W.amp = parseFloat(this.value); $('cw-amp-v').textContent = W.amp.toFixed(2) + '×'; });
-  $('chk-raw').addEventListener('change', function () { W.showRaw = this.checked; });
-
-  // URL params
-  // URL params
-  const params = new URLSearchParams(location.search);
-  if (params.get('ip')) { $('ip').value = params.get('ip'); $('btn-connect').click(); }
-  if (params.get('cloud')) { $('ctrl-win').classList.add('show'); }
-  if (location.protocol === 'https:') $('https-warn').style.display = 'block';
-
-  updateHiveMQPanel('disconnected');
-  updateRelayModeNote();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  initOsc(); initPF(); initRadar(); initDrag(); initSparklines(); initResizeObserver();
-  setup(); tickClock();
-  drawOsc(1/60); drawRadar([0,0,0,0,0]); drawPF();
-  // FIX A1: use schedulePoll instead of setInterval
-  schedulePoll();
-  // FIX E2: staleness watchdog runs every second
-  setInterval(updateStaleness, 1000);
-  requestAnimationFrame(loop);
-});
-</script>
 </body>
 </html>
