@@ -164,9 +164,9 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     // ── Build JSON ───────────────────────────────────────────────────────
     JsonDocument doc;
 
-    doc["device"]    = getDeviceId();
-    doc["timestamp"] = r.ts_ms;
-    doc["schema_v"]  = "1.3";
+    doc["device"]   = getDeviceId();
+    doc["ts"]       = r.ts_ms;        // dashboard contract requires "ts" (not "timestamp")
+    doc["schema_v"] = "1.3";
 
     // ── sensors (unchanged from v1.2) ─────────────────────────────────────
     JsonObject sensors = doc["sensors"].to<JsonObject>();
@@ -199,6 +199,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     power["power_factor"]       = serialized(String(pwr.power_factor,       2));
     power["energy_estimate_wh"] = serialized(String(pwr.energy_estimate_wh, 3));
     power["pf_estimated"]       = true;
+    power["frequency_hz"]       = 50.0f;   // Indian grid nominal (IS 12360)
 
     // ── loads (unchanged) ─────────────────────────────────────────────────
     JsonObject loads = doc["loads"].to<JsonObject>();
@@ -213,6 +214,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     alerts["active_fault"]       = faultTypeName(ctx.fault_type);
     alerts["trip_count"]         = ctx.trip_count;
     alerts["over_voltage"]       = fs.over_voltage;
+    alerts["under_voltage"]      = (bool)(r.fault_bits & FAULT_BIT_UV);  // GAP-6 fix
     alerts["over_current"]       = fs.over_current;
     alerts["over_temperature"]   = fs.over_temperature;
     alerts["short_circuit_risk"] = fs.short_circuit_risk;

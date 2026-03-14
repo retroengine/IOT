@@ -31,7 +31,7 @@ import { Page5Analytics }   from './pages/page5-analytics.js?v=5';
 // Automatically true on localhost / file:// so the dashboard works immediately
 // with mock data without any manual toggle. Set FORCE_DEV_MODE = true to
 // override in non-standard dev setups.
-const FORCE_DEV_MODE = true;  // override if needed
+const FORCE_DEV_MODE = false;  // override if needed
 const DEV_MODE = FORCE_DEV_MODE || (
   window.location.hostname === 'localhost'  ||
   window.location.hostname === '127.0.0.1' ||
@@ -207,7 +207,7 @@ function _initTelemetry() {
       // Future: update connectivity indicator in Zone 1
     });
 
-    telemetryPoller.connect();
+    telemetryPoller.connect('10.177.189.199');
   }
 }
 

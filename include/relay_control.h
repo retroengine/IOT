@@ -9,4 +9,5 @@ namespace RelayControl {
     void update(FSMState state);
     bool isLoad1Closed();
     bool isLoad2Closed();
+    void setAPIOverride(bool desired_state);  // POST /api/relay — Phase 4
 }

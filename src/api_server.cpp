@@ -26,6 +26,7 @@
 #include "api_server.h"
 #include "telemetry_builder.h"
 #include "sensor_diagnostics.h"
+#include "relay_control.h"
 #include "config.h"
 #include "fsm.h"
 #include "nvs_log.h"
@@ -327,26 +328,93 @@ namespace APIServer {
             sendJSON(req, 200, out);
         });
 
+        // ── POST /api/relay ────────────────────────────────────────────────
+        // Dashboard contract: { "state": true/false }
+        // Response:           { "ok": true, "relay": <bool> }
+        // No auth in Phase 4 (auth added in Phase 8).
+        // Safety contract:    FSM FAULT/LOCKOUT clears the override immediately.
+        server->on("/api/relay", HTTP_POST,
+            [](AsyncWebServerRequest* req) {
+                // Body-less fallback (should not occur with a correct client)
+                sendJSON(req, 400, "{\"error\":\"No body\"}");
+            },
+            nullptr,
+            [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
+               size_t index, size_t total) {
+                JsonDocument doc;
+                if (deserializeJson(doc, data, len)) {
+                    sendJSON(req, 400, "{\"error\":\"Invalid JSON\"}");
+                    return;
+                }
+                if (!doc.containsKey("state") || !doc["state"].is<bool>()) {
+                    sendJSON(req, 400, "{\"error\":\"Missing boolean field: state\"}");
+                    return;
+                }
+                bool desired = doc["state"].as<bool>();
+                RelayControl::setAPIOverride(desired);
+
+                // Echo back the requested state so the dashboard can confirm
+                String resp = "{\"ok\":true,\"relay\":";
+                resp += desired ? "true" : "false";
+                resp += "}";
+                sendJSON(req, 200, resp);
+            }
+        );
+
         // ── POST /api/reset ────────────────────────────────────────────────
-        server->on("/api/reset", HTTP_POST, [](AsyncWebServerRequest* req) {
-            if (!authOK(req)) { sendUnauth(req); return; }
-            FSM::requestReset();
-            sendJSON(req, 200, "{\"status\":\"reset_requested\"}");
-        });
+        // Dashboard contract — three cmd variants:
+        //   { "cmd": "reset"  } → clear active fault, return FSM to RECOVERY
+        //   { "cmd": "reboot" } → ESP32 soft restart (no response expected)
+        //   { "cmd": "ping"   } → connectivity check, returns { "ok": true }
+        // No auth in Phase 4 (auth added in Phase 8).
+        server->on("/api/reset", HTTP_POST,
+            [](AsyncWebServerRequest* req) {
+                sendJSON(req, 400, "{\"error\":\"No body\"}");
+            },
+            nullptr,
+            [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
+               size_t index, size_t total) {
+                JsonDocument doc;
+                if (deserializeJson(doc, data, len)) {
+                    sendJSON(req, 400, "{\"error\":\"Invalid JSON\"}");
+                    return;
+                }
+                const char* cmd = doc["cmd"] | "";
+
+                if (strcmp(cmd, "reset") == 0) {
+                    FSM::requestReset();
+                    sendJSON(req, 200, "{\"ok\":true}");
+                }
+                else if (strcmp(cmd, "reboot") == 0) {
+                    NVSLog::append({ millis(), FSM_BOOT, FAULT_NONE, 0.0f, "API_REBOOT" });
+                    sendJSON(req, 200, "{\"ok\":true}");
+                    scheduleReboot(500);
+                }
+                else if (strcmp(cmd, "ping") == 0) {
+                    sendJSON(req, 200, "{\"ok\":true}");
+                }
+                else {
+                    sendJSON(req, 400, "{\"error\":\"Unknown cmd\"}");
+                }
+            }
+        );
 
         // ── GET /api/config ────────────────────────────────────────────────
+        // Page 3 fetches this once on mount to display protection thresholds.
+        // Field names match the aliases the dashboard parser accepts (dashboard.md §14).
         server->on("/api/config", HTTP_GET, [](AsyncWebServerRequest* req) {
             JsonDocument doc;
-            doc["volt_ov_warn"]  = VOLT_OV_WARN_V;
-            doc["volt_ov_fault"] = VOLT_OV_FAULT_V;
-            doc["volt_uv_warn"]  = VOLT_UV_WARN_V;
-            doc["volt_uv_fault"] = VOLT_UV_FAULT_V;
-            doc["curr_oc_warn"]  = CURR_OC_WARN_A;
-            doc["curr_oc_fault"] = CURR_OC_FAULT_A;
-            doc["temp_warn"]     = TEMP_WARN_C;
-            doc["temp_fault"]    = TEMP_FAULT_C;
-            doc["recovery_ms"]   = RECOVERY_DELAY_MS;
-            doc["max_trips"]     = MAX_TRIP_COUNT;
+            doc["ovp_threshold_v"]    = VOLT_OV_FAULT_V;     // was volt_ov_fault
+            doc["uvp_threshold_v"]    = VOLT_UV_FAULT_V;     // was volt_uv_fault
+            doc["ocp_threshold_a"]    = CURR_OC_FAULT_A;     // was curr_oc_fault
+            doc["otp_threshold_c"]    = TEMP_FAULT_C;        // was temp_fault
+            doc["reconnect_delay_s"]  = RECOVERY_DELAY_MS / 1000; // was missing
+            doc["fault_lockout_count"]= MAX_TRIP_COUNT;      // was max_trips
+            // Extra fields retained for firmware-side tooling
+            doc["ovp_warn_v"]         = VOLT_OV_WARN_V;
+            doc["uvp_warn_v"]         = VOLT_UV_WARN_V;
+            doc["ocp_warn_a"]         = CURR_OC_WARN_A;
+            doc["otp_warn_c"]         = TEMP_WARN_C;
             String out;
             serializeJson(doc, out);
             sendJSON(req, 200, out);
