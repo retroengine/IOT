@@ -125,10 +125,15 @@ namespace {
     bool     i_was_sat      = false;
 
     // ── Frozen sensor tracking (EC-07) ─────────────────────────────────────
-    // Track last N raw values. If variance = 0, sensor is frozen.
+    // Track last N RAW ADC integer values (not IIR-smoothed physical values).
+    // Raw ADC always has ≥1 LSB quantisation noise on a live signal (variance
+    // typically 2–15 LSB²). A genuinely stuck ADC returns a constant integer
+    // → variance exactly 0. IIR-smoothed values are unsuitable here because
+    // the slow-fall IIR (α=0.10) collapses variance to near-zero even on a
+    // healthy sensor, causing 100% false-positive rate. Fixed: EC-07 rev1.
     static constexpr int FROZEN_N = 20;
-    float frozen_v_buf[FROZEN_N] = {};
-    float frozen_i_buf[FROZEN_N] = {};
+    int frozen_v_buf[FROZEN_N] = {};
+    int frozen_i_buf[FROZEN_N] = {};
     int   frozen_idx = 0;
     bool  frozen_full = false;
 
@@ -222,23 +227,32 @@ namespace {
     }
 
     // EC-07: Frozen/stuck sensor (ADC multiplexer hang)
-    // Returns true if BOTH channels show zero variance → both frozen
-    // (one channel frozen = real grid condition is possible; both = hardware)
-    bool checkFrozen(float v_phys, float i_phys) {
-        frozen_v_buf[frozen_idx] = v_phys;
-        frozen_i_buf[frozen_idx] = i_phys;
+    // Receives RAW ADC integers (0–4095), NOT IIR-smoothed physical values.
+    // Threshold: 1.0 LSB² — live sensor variance is 2–15×, stuck ADC is 0.
+    bool checkFrozen(int raw_v_int, int raw_i_int) {
+        frozen_v_buf[frozen_idx] = raw_v_int;
+        frozen_i_buf[frozen_idx] = raw_i_int;
         if (frozen_idx == FROZEN_N - 1) frozen_full = true;
         frozen_idx = (frozen_idx + 1) % FROZEN_N;
 
-        if (!frozen_full) return false;  // not enough samples yet
+        if (!frozen_full) return false;
 
-        float var_v = bufferVariance(frozen_v_buf, FROZEN_N);
-        float var_i = bufferVariance(frozen_i_buf, FROZEN_N);
+        auto intBufVariance = [](const int* buf, int n) -> float {
+            float sum = 0.0f, sq = 0.0f;
+            for (int k = 0; k < n; k++) {
+                float v = static_cast<float>(buf[k]);
+                sum += v; sq += v * v;
+            }
+            float mean = sum / n;
+            float var  = (sq / n) - (mean * mean);
+            return (var > 0.0f) ? var : 0.0f;
+        };
 
-        // Both channels have zero variance = multiplexer or ADC is frozen
-        // (voltage at 230V on a real grid ALWAYS has ≥1 LSB jitter)
-        if (var_v < 0.001f && var_i < 0.001f) {
-            Serial.printf("[FAULT] SENSOR: frozen ADC — v_var=%.4f i_var=%.4f\n",
+        float var_v = intBufVariance(frozen_v_buf, FROZEN_N);
+        float var_i = intBufVariance(frozen_i_buf, FROZEN_N);
+
+        if (var_v < 1.0f && var_i < 1.0f) {
+            Serial.printf("[FAULT] SENSOR: frozen ADC — raw_v_var=%.2f raw_i_var=%.2f\n",
                           var_v, var_i);
             return true;
         }
@@ -412,11 +426,28 @@ namespace FaultEngine {
         cnt_oc_idmt_arm  = 0;
         cnt_oc_w         = 0;
 
+        // EC-07 rev1: Clear frozen sensor buffers on relay close.
+        //
+        // While the relay is OPEN (FAULT/LOCKOUT state), load current is 0A.
+        // The frozen_v_buf / frozen_i_buf fill with near-constant ADC readings
+        // (current rail near 0, voltage may also be abnormal during fault).
+        // When the relay re-closes (RECOVERY), the first variance check
+        // over those stale samples returns variance ≈ 0 → false SENSOR_FAIL.
+        //
+        // Fix: invalidate the buffer on relay close. frozen_full = false
+        // forces checkFrozen() to skip evaluation until 20 fresh post-close
+        // samples have been collected (~200ms at 10ms loop rate).
+        memset(frozen_v_buf, 0, sizeof(frozen_v_buf));
+        memset(frozen_i_buf, 0, sizeof(frozen_i_buf));
+        frozen_idx  = 0;
+        frozen_full = false;
+
         Serial.printf("[FAULT_ENG] relay closed — inrush blank armed: "
                       "fault suppressed %dms, warn suppressed %dms\n",
                       INRUSH_BLANK_MS, INRUSH_BLANK_WARN_MS);
         Serial.println("[FAULT_ENG] EC-01/02/03: motor/SMPS/resistive inrush protected");
         Serial.println("[FAULT_ENG] EC-11: SC_INSTANT (>27A) + slope check always active");
+        Serial.println("[FAULT_ENG] EC-07: frozen sensor buffers cleared — refill required");
     }
 
     bool isInrushBlankActive() {
@@ -477,8 +508,8 @@ namespace FaultEngine {
             sensor_fault = true;
         }
 
-        // EC-07: Frozen sensor
-        if (!sensor_fault && checkFrozen(v, i)) {
+        // EC-07: Frozen sensor — pass raw ADC integers (EC-07 rev1)
+        if (!sensor_fault && checkFrozen(raw_v_int, raw_i_int)) {
             fault_bits |= FAULT_BIT_SENSOR;
             sensor_fault = true;
         }

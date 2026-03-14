@@ -71,6 +71,15 @@ namespace {
     uint32_t disconnect_count    = 0;       // lifetime disconnect events
     uint32_t disconnect_ts_ms    = 0;       // timestamp of last disconnect
 
+    // EC-05 rev1: Disconnect debounce counter.
+    // Require DISC_DEBOUNCE_N consecutive -127°C readings before declaring
+    // the sensor disconnected. A single marginal/glitch reading is ignored.
+    // A genuinely unplugged wire produces sustained -127°C → trips after
+    // DISC_DEBOUNCE_N × 800ms (3 × 800ms = 2.4 seconds).
+    // Counter resets immediately on any valid reading.
+    static constexpr int DISC_DEBOUNCE_N = 3;
+    int disc_debounce_count = 0;
+
     // ── Validity counters ─────────────────────────────────────────────────
     uint32_t total_reads    = 0;
     uint32_t valid_reads    = 0;
@@ -159,6 +168,9 @@ namespace DS18B20 {
                     ready = true;
                     valid_reads++;
 
+                    // EC-05 rev1: reset disconnect debounce on any valid read
+                    disc_debounce_count = 0;
+
                     // If we were previously disconnected, flag reconnection
                     if (sensor_disconnected) {
                         sensor_disconnected = false;
@@ -179,18 +191,32 @@ namespace DS18B20 {
                     break;
 
                 case STATE_DISCONNECTED:
-                    // ── EC-05: Sensor disconnected → signal LOCKOUT ──────
-                    if (!sensor_disconnected) {
-                        sensor_disconnected = true;
-                        disconnect_count++;
-                        disconnect_ts_ms = now;
-                        Serial.printf("[DS18B20] SENSOR DISCONNECTED (event #%lu) "
-                                      "— FSM LOCKOUT will be triggered\n",
-                                      disconnect_count);
+                    // ── EC-05 rev1: Debounced disconnect detection ───────
+                    // Require DISC_DEBOUNCE_N consecutive -127°C readings
+                    // before declaring sensor disconnected. A single glitch
+                    // or marginal contact is ignored. A genuinely unplugged
+                    // wire produces sustained -127°C and trips after
+                    // DISC_DEBOUNCE_N × 800ms (= 2.4s at N=3).
+                    disc_debounce_count++;
+                    if (disc_debounce_count >= DISC_DEBOUNCE_N) {
+                        if (!sensor_disconnected) {
+                            sensor_disconnected = true;
+                            disconnect_count++;
+                            disconnect_ts_ms = now;
+                            Serial.printf("[DS18B20] SENSOR DISCONNECTED (event #%lu, "
+                                          "%d consecutive -127°C readings) "
+                                          "— FSM LOCKOUT will be triggered\n",
+                                          disconnect_count, disc_debounce_count);
+                        }
+                        // last_valid_temp unchanged — preserve last known reading
+                        // ready = false — stop reporting stale data as valid
+                        ready = false;
+                    } else {
+                        // Not yet confirmed — log glitch but do not declare disconnect
+                        Serial.printf("[DS18B20] disconnect glitch %d/%d "
+                                      "(%.1f°C) — debouncing\n",
+                                      disc_debounce_count, DISC_DEBOUNCE_N, t);
                     }
-                    // last_valid_temp unchanged — preserve last known reading
-                    // ready = false — stop reporting stale data as valid
-                    ready = false;
                     break;
 
                 case STATE_INVALID_RANGE:
