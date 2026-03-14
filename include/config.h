@@ -43,6 +43,8 @@
 #define PIN_DS18B20         4
 #define PIN_OLED_SDA        21
 #define PIN_OLED_SCL        22
+#define PIN_LED_LOAD1       17      // Green  — Load1 relay indicator
+#define PIN_LED_LOAD2       16      // Yellow — Load2 relay indicator
 
 // ─── ADC Core ────────────────────────────────────────────────────────────────
 // 4× oversample → +1 ENOB (12-bit → effective ~13-bit on stable signal)
@@ -113,7 +115,7 @@
 // Recovery validation: voltage must hold in this band before relay re-closes
 // IS 12360 Range A (±5%) — most stable zone for motor re-energisation
 #define VOLT_RECOVERY_LO_V      218.5f      // 230V × 0.95
-#define VOLT_RECOVERY_HI_V      241.5f      // 230V × 1.05
+#define VOLT_RECOVERY_HI_V      250.0f      // 230V × 1.05
 // Recovery must hold in-band for this many consecutive samples before reclose
 #define VOLT_RECOVERY_CONFIRM_N 50          // 50 × 10ms = 500ms of stable voltage
 

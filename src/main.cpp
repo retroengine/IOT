@@ -89,8 +89,17 @@ void task_protection(void* pvParam) {
         // 5. Update relays based on FSM state
         RelayControl::update(ctx.state);
 
-        // 6. Update LED
+        // 6. Update alert LED (blink pattern driven by FSM state)
         LedAlert::tick(ctx.state);
+
+        // 6a. Update load indicator LEDs (GPIO 16 = green / GPIO 17 = yellow)
+        //     Called AFTER RelayControl::update() so relay state is current.
+        //     Green  (GPIO 16) → ON when Load 1 relay is CLOSED
+        //     Yellow (GPIO 17) → ON when Load 2 relay is CLOSED
+        LedAlert::updateLoadLEDs(
+            RelayControl::isLoad1Closed(),
+            RelayControl::isLoad2Closed()
+        );
 
         // 7. Pack sensor reading
         if (xSemaphoreTake(g_state_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {

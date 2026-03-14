@@ -155,40 +155,8 @@ namespace FSM {
 
         ctx.warn_flags = warns;
 
-        // ══════════════════════════════════════════════════════════════════
-        // EC-05: DS18B20 DISCONNECT — IMMEDIATE LOCKOUT FROM ANY STATE
-        //
-        // Operating without thermal protection in a high-power system
-        // is unacceptable. This check runs BEFORE the state switch,
-        // overriding ALL other transitions.
-        //
-        // The only exception is FSM_BOOT — during boot the sensor
-        // may not have had time to initialise. We trust the DS18B20
-        // boot window logic in ds18b20.cpp to handle this.
-        // ══════════════════════════════════════════════════════════════════
-        if (DS18B20::isDisconnected() && ctx.state != FSM_BOOT) {
-            if (ctx.state != FSM_LOCKOUT) {
-                Serial.println("[FSM] EC-05: DS18B20 DISCONNECTED → IMMEDIATE LOCKOUT");
-                Serial.println("[FSM] Thermal protection lost. Physical inspection required.");
-                transition(FSM_LOCKOUT, FAULT_THERMAL);
-                FaultEngine::clearAll();
-                xSemaphoreGive(mtx);
-                return;
-            }
-            // Already in LOCKOUT — stay there, no further action
-            xSemaphoreGive(mtx);
-            return;
-        }
-
-        // Log DS18B20 reconnection event (informational only)
-        if (DS18B20::wasReconnected()) {
-            DS18B20::clearReconnectedFlag();
-            Serial.printf("[FSM] DS18B20 reconnected. T=%.1f°C  "
-                          "State=%s (LOCKOUT requires manual API reset)\n",
-                          temp_c, fsmStateName(ctx.state));
-            NVSLog::append({ now, ctx.state, FAULT_NONE, temp_c,
-                             "DS18B20_RECONNECTED" });
-        }
+        // EC-05 DS18B20 disconnect LOCKOUT — REMOVED.
+        // Sensor fail no longer causes any FSM state change.
 
         // ══════════════════════════════════════════════════════════════════
         //  STATE MACHINE
@@ -382,8 +350,6 @@ namespace FSM {
             // Terminal state. Only exits via:
             //   1. Manual API reset
             //   2. Temperature below TEMP_RESET_BLOCK_C
-            //   3. Sensor fault cleared (DS18B20 reconnected)
-            //   4. For thermal/SC/sensor faults: all conditions must clear
             //
             // Physical inspection SHOULD be performed before resetting.
             case FSM_LOCKOUT: {
@@ -395,20 +361,6 @@ namespace FSM {
                 if (temp_c >= TEMP_RESET_BLOCK_C) {
                     Serial.printf("[FSM] LOCKOUT RESET BLOCKED: T=%.1f°C ≥ %.0f°C\n",
                                   temp_c, TEMP_RESET_BLOCK_C);
-                    break;
-                }
-
-                // Block reset if DS18B20 is still disconnected (EC-05)
-                if (DS18B20::isDisconnected()) {
-                    Serial.println("[FSM] LOCKOUT RESET BLOCKED: DS18B20 still disconnected");
-                    Serial.println("[FSM] Reconnect temperature sensor before resetting");
-                    break;
-                }
-
-                // Block reset if sensor fault is still active
-                if (FaultEngine::getActiveFaultBits() & FAULT_BIT_SENSOR) {
-                    Serial.println("[FSM] LOCKOUT RESET BLOCKED: sensor hardware fault active");
-                    Serial.println("[FSM] Inspect ADC wiring before resetting");
                     break;
                 }
 

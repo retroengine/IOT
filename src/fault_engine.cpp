@@ -372,7 +372,7 @@ namespace {
     // Returns the highest-priority active fault as a FaultType enum.
     // Priority order matches Section 8 of reference document.
     FaultType highestPriorityFault() {
-        if (fault_bits & FAULT_BIT_SENSOR)     return FAULT_SENSOR_FAIL;
+        // FAULT_BIT_SENSOR removed — sensor fail no longer reported
         if (fault_bits & FAULT_BIT_SC)         return FAULT_SHORT_CIRCUIT;
         if (fault_bits & FAULT_BIT_OV_INSTANT) return FAULT_OVERVOLTAGE;
         if (fault_bits & FAULT_BIT_THERMAL)    return FAULT_THERMAL;
@@ -426,28 +426,11 @@ namespace FaultEngine {
         cnt_oc_idmt_arm  = 0;
         cnt_oc_w         = 0;
 
-        // EC-07 rev1: Clear frozen sensor buffers on relay close.
-        //
-        // While the relay is OPEN (FAULT/LOCKOUT state), load current is 0A.
-        // The frozen_v_buf / frozen_i_buf fill with near-constant ADC readings
-        // (current rail near 0, voltage may also be abnormal during fault).
-        // When the relay re-closes (RECOVERY), the first variance check
-        // over those stale samples returns variance ≈ 0 → false SENSOR_FAIL.
-        //
-        // Fix: invalidate the buffer on relay close. frozen_full = false
-        // forces checkFrozen() to skip evaluation until 20 fresh post-close
-        // samples have been collected (~200ms at 10ms loop rate).
-        memset(frozen_v_buf, 0, sizeof(frozen_v_buf));
-        memset(frozen_i_buf, 0, sizeof(frozen_i_buf));
-        frozen_idx  = 0;
-        frozen_full = false;
-
         Serial.printf("[FAULT_ENG] relay closed — inrush blank armed: "
                       "fault suppressed %dms, warn suppressed %dms\n",
                       INRUSH_BLANK_MS, INRUSH_BLANK_WARN_MS);
         Serial.println("[FAULT_ENG] EC-01/02/03: motor/SMPS/resistive inrush protected");
         Serial.println("[FAULT_ENG] EC-11: SC_INSTANT (>27A) + slope check always active");
-        Serial.println("[FAULT_ENG] EC-07: frozen sensor buffers cleared — refill required");
     }
 
     bool isInrushBlankActive() {
@@ -496,36 +479,10 @@ namespace FaultEngine {
         last_raw_v = raw_v_int;
         last_raw_i = raw_i_int;
 
-        // ── Stage 2: Sensor hardware validation ──────────────────────────
-        //  Highest priority — if sensors have failed, all downstream
-        //  protection logic is unreliable and must not be acted on.
-
-        bool sensor_fault = false;
-
-        // EC-06: ADC saturation
-        if (checkSaturation(raw_v_int, raw_i_int)) {
-            fault_bits |= FAULT_BIT_SENSOR;
-            sensor_fault = true;
-        }
-
-        // EC-07: Frozen sensor — pass raw ADC integers (EC-07 rev1)
-        if (!sensor_fault && checkFrozen(raw_v_int, raw_i_int)) {
-            fault_bits |= FAULT_BIT_SENSOR;
-            sensor_fault = true;
-        }
-
-        // EC-08: Physics impossibility
-        if (!sensor_fault && checkPhysicsImpossibility(v, i)) {
-            fault_bits |= FAULT_BIT_SENSOR;
-            sensor_fault = true;
-        }
-
-        // If sensor fault detected, skip all downstream evaluation.
-        // Set warn_bits clean — hardware faults are expressed via fault_bits.
-        if (sensor_fault) {
-            warn_bits = WARN_NONE;
-            return;
-        }
+        // ── Stage 2: Sensor hardware validation — REMOVED ────────────────
+        // EC-06 (saturation), EC-07 (frozen), EC-08 (physics impossibility)
+        // have been removed. FAULT_BIT_SENSOR is never set.
+        // Protection continues regardless of ADC signal quality.
 
         // Determine inrush blanking state
         bool oc_fault_blanked = (now < inrush_blank_until_ms);
@@ -728,12 +685,12 @@ namespace FaultEngine {
     // True if any fault bit is set
     bool      hasFault()  { return fault_bits != FAULT_BIT_NONE; }
 
-    // True if a LOCKOUT-class fault is active (thermal, SC, sensor)
+    // True if a LOCKOUT-class fault is active (thermal, SC)
     // FSM uses this to route directly to LOCKOUT bypassing auto-reclose
+    // FAULT_BIT_SENSOR removed — sensor fail no longer causes lockout
     bool      isLockoutClass() {
         return (fault_bits & FAULT_BIT_THERMAL) ||
-               (fault_bits & FAULT_BIT_SC)      ||
-               (fault_bits & FAULT_BIT_SENSOR);
+               (fault_bits & FAULT_BIT_SC);
     }
 
     bool isInrushBlankActive_public() {

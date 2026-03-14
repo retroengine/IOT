@@ -1,5 +1,5 @@
 // ============================================================
-//  led_alert.cpp — Non-blocking LED blink
+//  led_alert.cpp — Non-blocking LED blink + load indicators
 // ============================================================
 #include "led_alert.h"
 #include "config.h"
@@ -25,9 +25,17 @@ namespace {
 namespace LedAlert {
 
     void init() {
+        // Alert LED
         pinMode(PIN_ALERT_LED, OUTPUT);
         set(false);
-        Serial.println("[LED] init");
+
+        // Load indicator LEDs — start OFF
+        pinMode(PIN_LED_LOAD1, OUTPUT);
+        pinMode(PIN_LED_LOAD2, OUTPUT);
+        digitalWrite(PIN_LED_LOAD1, LOW);
+        digitalWrite(PIN_LED_LOAD2, LOW);
+
+        Serial.println("[LED] init — alert + load indicators ready");
     }
 
     void tick(FSMState state) {
@@ -47,5 +55,11 @@ namespace LedAlert {
                 set(true);         // solid
                 break;
         }
+    }
+
+    // Called from main protection task after relay update
+    void updateLoadLEDs(bool load1_closed, bool load2_closed) {
+        digitalWrite(PIN_LED_LOAD1, load1_closed ? HIGH : LOW);
+        digitalWrite(PIN_LED_LOAD2, load2_closed ? HIGH : LOW);
     }
 }
