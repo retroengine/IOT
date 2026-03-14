@@ -35,7 +35,7 @@ const LAYOUT_CLS = 'p4-active';
 const PAGE4_CSS = `
 /* ─── Page 4 root layout ─── */
 .p4-active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg) var(--space-xl);
@@ -261,11 +261,13 @@ function _fmtCount(n) {
 }
 
 function _injectStyle(id, css) {
-  if (document.getElementById(id)) return;
-  const el = document.createElement('style');
-  el.id = id;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('style');
+    el.id = id;
+    document.head.appendChild(el);
+  }
   el.textContent = css;
-  document.head.appendChild(el);
 }
 
 // ══════════════════════════════════════════════════════════════════════════

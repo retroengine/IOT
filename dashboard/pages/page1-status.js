@@ -41,22 +41,73 @@ const LAYOUT_CLS = 'p1-active';
 // ── Page 1 CSS ────────────────────────────────────────────────────────────
 // All values reference tokens.css variables — zero hardcoded hex.
 const PAGE1_CSS = `
-/* ─── Page 1 Status: two-column grid layout ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Page 1 Status — 12-Column Grid Layout
+   ───────────────────────────────────────────────────────────────────────────
+   The page-content area is a 12-column grid with 4 rows.
+
+   Row 1  cols 1–7   Waveform (inside Zone 2)
+          cols 8–9   Power Factor gauge (inside Zone 2)
+          cols 10–12 System Health  ← spans rows 1–3
+
+   Row 2  cols 1–9   Hero numbers: V / A / W / Freq
+          cols 10–12 (System Health continues — no elements placed here)
+
+   Row 3  cols 1–9   Sparklines: Temperature / Frequency / Power Factor
+          cols 10–12 (System Health continues — no elements placed here)
+
+   Row 4  cols 1–7   Energy Flow
+          cols 8–9   Relay Control + Energy Counter (stacked)
+          cols 10–12 Fault Flags
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page content: 12-column grid ────────────────────────────────────────── */
+
+/* The shell sets padding: 0 var(--space-xl) on .dashboard.
+   Override it here so the page stretches edge-to-edge.
+   Status bar and page grid keep their own internal padding. */
+.dashboard {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .p1-active {
   display: grid !important;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: auto auto auto auto;
   grid-template-areas:
-    "z2  z3b"
-    "z3a z4";
+    "z2  z2  z2  z2  z2  z2  z2  z2  z2  z3b z3b z3b"
+    "z2  z2  z2  z2  z2  z2  z2  z2  z2  z3b z3b z3b"
+    "z3a z3a z3a z3a z3a z3a z3a z3a z3a z3b z3b z3b"
+    "z4  z4  z4  z4  z4  z4  z4  z4  z4  z4  z4  z4";
   gap: var(--space-md);
-  padding: var(--space-lg) var(--space-xl);
+  padding: var(--space-md) var(--space-xl) var(--space-xl);
+  align-items: start;
 }
-.p1-active #zone-main-metrics { grid-area: z2;  min-height: 0; padding: 0; }
-.p1-active #zone-charts       { grid-area: z3a; min-height: 0; padding: 0; }
-.p1-active #zone-health-grid  { grid-area: z3b; min-height: 0; padding: 0; }
-.p1-active #zone-sidebar      { grid-area: z4;  min-height: 0; padding: 0; }
 
-/* ─── Card base ─── */
+/* Zone assignments to grid areas */
+.p1-active #zone-main-metrics {
+  grid-area: z2;
+  min-height: 0;
+  padding: 0;
+}
+.p1-active #zone-charts {
+  grid-area: z3a;
+  min-height: 0;
+  padding: 0;
+}
+.p1-active #zone-health-grid {
+  grid-area: z3b;
+  min-height: 0;
+  padding: 0;
+}
+.p1-active #zone-sidebar {
+  grid-area: z4;
+  min-height: 0;
+  padding: 0;
+}
+
+/* ── Card base ────────────────────────────────────────────────────────────── */
 .p1-card {
   background: var(--bg-card-dark);
   border-radius: var(--radius-md);
@@ -70,7 +121,9 @@ const PAGE1_CSS = `
   margin-bottom: var(--space-sm);
 }
 
-/* ─── Zone 1: status bar items ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Zone 1 — System Status Bar (sticky, full width — outside the grid)
+   ═══════════════════════════════════════════════════════════════════════════ */
 .p1-z1-uptime {
   font-family: var(--font-mono);
   font-size: var(--text-label);
@@ -158,41 +211,59 @@ const PAGE1_CSS = `
   transition: background-color 300ms ease;
 }
 
-/* ─── Zone 2: Main Metrics ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Zone 2 — Main Metrics  (grid area: z2, cols 1–9, row 1)
+
+   Inner layout is itself a mini 9-unit flex row:
+     Waveform  → takes all remaining space (flex: 1)
+     PF gauge  → fixed 160px right column
+
+   Hero numbers (V / A / W / Frequency) row 2, full width.
+   ═══════════════════════════════════════════════════════════════════════════ */
 .p1-z2-grid {
   display: grid;
-  grid-template-columns: 1fr 172px;
-  grid-template-rows: 150px auto;
-  gap: var(--space-sm);
+  /* 7 equal units for waveform, 2 equal units for PF gauge column */
+  grid-template-columns: 7fr 2fr;
+  grid-template-rows: 210px auto;
+  /* Match the page grid gap exactly so all row spacings are equal */
+  gap: var(--space-md);
 }
+
+/* Waveform — cols 1–7 equivalent (7fr) */
 .p1-z2-waveform {
   grid-column: 1;
   grid-row: 1;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-card-dark);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
 }
+
+/* PF gauge column — cols 8–9 equivalent (2fr), row 1 only */
 .p1-z2-right {
   grid-column: 2;
-  grid-row: 1 / 3;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
 }
+
+/* Hero + Frequency row — spans full width beneath waveform + PF column */
 .p1-z2-heroes {
-  grid-column: 1;
+  grid-column: 1 / -1;
   grid-row: 2;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: var(--space-sm);
 }
+
 .p1-hero {
   background: var(--bg-card-dark);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 .p1-hero-lbl {
   font-size: var(--text-micro);
@@ -201,7 +272,7 @@ const PAGE1_CSS = `
   letter-spacing: 0.08em;
 }
 .p1-hero-val {
-  font-size: clamp(22px, 3vw, 38px);
+  font-size: clamp(22px, 2.6vw, 38px);
   font-family: var(--font-mono);
   font-weight: 300;
   color: var(--text-primary);
@@ -212,7 +283,22 @@ const PAGE1_CSS = `
 .p1-hero-unit {
   font-size: var(--text-label);
   color: var(--text-muted);
+  margin-top: 1px;
 }
+
+/* PF gauge — fills available height, pushes freq card to bottom */
+.p1-pf-wrap {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card-dark);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Frequency card — compact, anchored at bottom of PF column */
 .p1-freq-card {
   background: var(--bg-card-dark);
   border-radius: var(--radius-md);
@@ -259,17 +345,11 @@ const PAGE1_CSS = `
   flex-shrink: 0;
   transition: background-color 300ms ease;
 }
-.p1-pf-wrap {
-  flex: 1 1 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card-dark);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
 
-/* ─── Zone 3A: Charts ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Zone 3A — Signal Condition Sparklines  (cols 1–9, row 3)
+   Temperature | Frequency | Power Factor  — three equal columns
+   ═══════════════════════════════════════════════════════════════════════════ */
 .p1-z3a-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -284,7 +364,7 @@ const PAGE1_CSS = `
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .p1-spark-lbl {
   font-size: var(--text-micro);
@@ -302,24 +382,32 @@ const PAGE1_CSS = `
   display: block;
   font-size: 10px;
   color: var(--text-faint);
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
-/* ─── Zone 3B: Health Grid ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Zone 3B — System Health  (cols 10–12, rows 1–3)
+   Spans all three content rows on the right side.
+   Inner layout: overall ArcGauge card on top, hex grid below.
+   ═══════════════════════════════════════════════════════════════════════════ */
 .p1-z3b-inner {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
   position: relative;
+  height: 100%;
 }
+
+/* Overall ArcGauge card */
 .p1-z3b-top {
   background: var(--bg-card-dark);
   border-radius: var(--radius-md);
-  padding: var(--space-sm);
+  padding: var(--space-md) var(--space-sm) var(--space-sm);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 .p1-z3b-gauge-hdr {
   font-size: var(--text-micro);
@@ -335,29 +423,77 @@ const PAGE1_CSS = `
   align-items: center;
   width: 100%;
 }
+
+/* 3×2 Hex health cell grid — grows to fill remaining vertical space */
 .p1-hex-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 6px;
   justify-items: center;
+  background: var(--bg-card-dark);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  flex: 1 1 0;
+  align-content: center;
 }
 .p1-hex-cell {
   width: 100%;
   display: flex;
   justify-content: center;
+  overflow: hidden;
+}
+/* Scale the fixed-size SVG down to fit the available column width.
+   The viewBox ensures aspect ratio is preserved automatically. */
+.p1-hex-cell svg {
+  width: 100%;
+  height: auto;
+  max-width: 100px;
 }
 
-/* ─── Zone 4: Sidebar ─── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Zone 4 — Bottom Row  (cols 1–12, row 4)
+   Inner layout mirrors the 12-column spec:
+     Energy Flow   → cols 1–7  (7fr)
+     Relay+Energy  → cols 8–9  (2fr), stacked vertically
+     Fault Flags   → cols 10–12 (3fr)
+   ═══════════════════════════════════════════════════════════════════════════ */
 .p1-z4-stack {
+  display: grid;
+  grid-template-columns: 7fr 2fr 3fr;
+  gap: var(--space-sm);
+  align-items: start;
+}
+
+/* Energy Flow — dominant left block */
+.p1-z4-left {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
 }
-.p1-relay-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+
+/* Energy flow card needs extra vertical room so the SVG value overlay
+   label (rendered above the node row) is never clipped by the card edge */
+.p1-z4-left .p1-card {
+  overflow: visible;
+  padding-top: var(--space-lg);
+  min-height: 160px;
+}
+.p1-z4-left .p1-card > div {
+  overflow: visible;
+}
+
+/* Relay + Energy stacked vertically in the centre column */
+.p1-z4-right {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-sm);
-  align-items: start;
+}
+
+/* Relay and energy each fill full width of their column, stacked */
+.p1-relay-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 .p1-relay-card {
   background: var(--bg-card-dark);
@@ -367,10 +503,12 @@ const PAGE1_CSS = `
 .p1-energy-card {
   background: var(--bg-card-green);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 0;
 }
 .p1-energy-lbl {
   font-size: var(--text-micro);
@@ -380,40 +518,59 @@ const PAGE1_CSS = `
   opacity: 0.8;
 }
 .p1-energy-val {
-  font-size: clamp(18px, 2vw, 24px);
+  font-size: clamp(22px, 2.5vw, 32px);
   font-weight: 300;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 .p1-energy-unit {
   font-size: var(--text-label);
   color: var(--health-excellent);
   opacity: 0.7;
 }
+
+/* Fault flags — right-most column, 2-up grid */
 .p1-fault-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px;
+  gap: 4px;
 }
 
-/* ─── Mobile: single-column stack ─── */
+/* Fault flags third column in z4 */
+.p1-z4-faults {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Mobile — single-column stack (≤ 767px)
+   ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 767px) {
   .p1-active {
     display: flex !important;
     flex-direction: column;
     padding: var(--space-sm);
+    gap: var(--space-sm);
+    grid-template-areas: none;
   }
   .p1-z2-grid {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
+    grid-template-rows: 160px auto;
   }
-  .p1-z2-right { grid-column: 1; grid-row: auto; flex-direction: row; flex-wrap: wrap; }
-  .p1-z2-heroes { grid-column: 1; grid-row: auto; }
-  .p1-z3a-grid { grid-template-columns: 1fr; }
+  .p1-z2-right {
+    grid-column: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .p1-pf-wrap  { min-height: 140px; }
+  .p1-z2-heroes { grid-template-columns: 1fr 1fr; }
+  .p1-z3a-grid  { grid-template-columns: 1fr; }
   .p1-hex-grid  { grid-template-columns: repeat(2, 1fr); }
-  .p1-relay-row { grid-template-columns: 1fr; }
+  .p1-z4-stack  { grid-template-columns: 1fr; }
+  .p1-relay-row { flex-direction: row; }
 }
 `;
 
@@ -871,7 +1028,7 @@ export class Page1Status {
 
     const grid = _el('div', 'p1-z2-grid');
 
-    // ── Waveform card ────────────────────────────────────────────────
+    // ── Waveform card (cols 1–7 equivalent inside z2-grid) ───────────
     const waveWrap = _el('div', 'p1-z2-waveform');
     const waveCard = new WaveformCard(waveWrap, {
       showVoltage: true,
@@ -883,10 +1040,9 @@ export class Page1Status {
     this._waveformCard = waveCard;
     this._allComponents.push(waveCard);
 
-    // ── Right column: PF gauge + frequency ───────────────────────────
+    // ── Right column: PF gauge only (cols 8–9, row 1) ───────────────
     const rightCol = _el('div', 'p1-z2-right');
 
-    // Power Factor ArcGauge
     const pfWrap = _el('div', 'p1-pf-wrap');
     const arcPF = new ArcGauge(pfWrap, {
       field:     'pf',
@@ -900,39 +1056,42 @@ export class Page1Status {
     rightCol.appendChild(pfWrap);
     this._arcGaugePF = arcPF;
     this._allComponents.push(arcPF);
-
-    // Frequency card
-    const freqCard = _el('div', 'p1-freq-card');
-    const freqLbl  = _el('span', 'p1-freq-lbl', 'FREQUENCY');
-    const freqRow  = _el('div', 'p1-freq-row');
-    this._freqValEl    = _el('span', 'p1-freq-val', '–');
-    freqRow.append(this._freqValEl, _el('span', 'p1-freq-hz', 'Hz'));
-    const tolRow  = _el('div', 'p1-freq-tol');
-    this._freqTolDotEl = _el('span', 'p1-freq-tol-dot');
-    this._freqTolDotEl.style.backgroundColor = 'var(--text-faint)';
-    const tolTxt  = _el('span', null, '\u00B10.02\u202FHz');
-    tolRow.append(this._freqTolDotEl, tolTxt);
-    freqCard.append(freqLbl, freqRow, tolRow);
-    rightCol.appendChild(freqCard);
     grid.appendChild(rightCol);
 
-    // ── Hero numbers row ─────────────────────────────────────────────
+    // ── Hero numbers row: V | A | W | Frequency (Row 2, full width) ─
+    // Frequency sits here as the 4th metric tile per the layout spec.
     const heroRow = _el('div', 'p1-z2-heroes');
 
+    // Voltage, Current, Power
     const heroes = [
-      { id: 'v', label: 'VOLTAGE', unit: 'V',  ref: '_heroVEl' },
-      { id: 'i', label: 'CURRENT', unit: 'A',  ref: '_heroAEl' },
-      { id: 'p', label: 'POWER',   unit: 'W',  ref: '_heroWEl' },
+      { label: 'VOLTAGE', unit: 'V', ref: '_heroVEl' },
+      { label: 'CURRENT', unit: 'A', ref: '_heroAEl' },
+      { label: 'POWER',   unit: 'W', ref: '_heroWEl' },
     ];
     for (const { label, unit, ref } of heroes) {
       const card = _el('div', 'p1-hero');
-      const lbl  = _el('span', 'p1-hero-lbl', label);
-      const val  = _el('span', 'p1-hero-val', '–');
-      const un   = _el('span', 'p1-hero-unit', unit);
-      card.append(lbl, val, un);
+      card.append(
+        _el('span', 'p1-hero-lbl', label),
+        _el('span', 'p1-hero-val', '–'),
+        _el('span', 'p1-hero-unit', unit),
+      );
       heroRow.appendChild(card);
-      this[ref] = val;  // store DOM ref for direct update
+      this[ref] = card.children[1];
     }
+
+    // Frequency — 4th tile in the hero row
+    const freqCard = _el('div', 'p1-hero');
+    const freqHdrLbl = _el('span', 'p1-hero-lbl', 'FREQUENCY');
+    const freqValRow = _el('div', 'p1-freq-row');
+    this._freqValEl    = _el('span', 'p1-freq-val', '–');
+    freqValRow.append(this._freqValEl, _el('span', 'p1-freq-hz', 'Hz'));
+    const tolRow       = _el('div', 'p1-freq-tol');
+    this._freqTolDotEl = _el('span', 'p1-freq-tol-dot');
+    this._freqTolDotEl.style.backgroundColor = 'var(--text-faint)';
+    tolRow.append(this._freqTolDotEl, _el('span', null, '\u00B10.02\u202FHz'));
+    freqCard.append(freqHdrLbl, freqValRow, tolRow);
+    heroRow.appendChild(freqCard);
+
     grid.appendChild(heroRow);
 
     z.appendChild(grid);
@@ -1070,20 +1229,25 @@ export class Page1Status {
 
     const stack = _el('div', 'p1-z4-stack');
 
-    // ── Energy Flow Map ──────────────────────────────────────────────
+    // ── Left column: Energy Flow Map (centerpiece — needs full width) ─
+    const leftCol = _el('div', 'p1-z4-left');
+
     const efmCard = _el('div', 'p1-card');
     efmCard.appendChild(_el('div', 'p1-card-hdr', 'ENERGY FLOW'));
     const efmContainer = _el('div');
     efmCard.appendChild(efmContainer);
     const efm = new EnergyFlowMap(efmContainer, { showValueOverlay: true });
-    stack.appendChild(efmCard);
+    leftCol.appendChild(efmCard);
+    stack.appendChild(leftCol);
     this._energyFlowMap = efm;
     this._allComponents.push(efm);
 
-    // ── Relay toggle + Energy kWh ────────────────────────────────────
+    // ── Right column: Relay + Energy + Fault flags ───────────────────
+    const rightCol = _el('div', 'p1-z4-right');
+
+    // Relay toggle + Energy kWh side by side
     const relayEnergyRow = _el('div', 'p1-relay-row');
 
-    // Relay toggle card
     const relayCard = _el('div', 'p1-relay-card');
     relayCard.appendChild(_el('div', 'p1-card-hdr', 'RELAY'));
     const relay = new RelayToggle(relayCard, {
@@ -1094,16 +1258,17 @@ export class Page1Status {
     this._relayToggle = relay;
     this._allComponents.push(relay);
 
-    // Energy kWh card
     const energyCard = _el('div', 'p1-energy-card');
     energyCard.appendChild(_el('span', 'p1-energy-lbl', 'ENERGY'));
     this._energyValEl = _el('span', 'p1-energy-val', '0.000');
     energyCard.appendChild(this._energyValEl);
     energyCard.appendChild(_el('span', 'p1-energy-unit', 'kWh'));
     relayEnergyRow.appendChild(energyCard);
-    stack.appendChild(relayEnergyRow);
+    rightCol.appendChild(relayEnergyRow);
+    stack.appendChild(rightCol);
 
-    // ── Fault indicators ─────────────────────────────────────────────
+    // ── Right column (cols 10–12): Fault Flags ───────────────────────
+    const faultCol = _el('div', 'p1-z4-faults');
     const faultCard = _el('div', 'p1-card');
     faultCard.appendChild(_el('div', 'p1-card-hdr', 'FAULT FLAGS'));
     const faultGrid = _el('div', 'p1-fault-grid');
@@ -1136,7 +1301,8 @@ export class Page1Status {
     }
 
     faultCard.appendChild(faultGrid);
-    stack.appendChild(faultCard);
+    faultCol.appendChild(faultCard);
+    stack.appendChild(faultCol);
 
     z.appendChild(stack);
   }

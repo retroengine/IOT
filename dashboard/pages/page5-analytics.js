@@ -164,6 +164,8 @@ class ChartPanel {
     const exportBtn = document.createElement('button');
     exportBtn.textContent = 'CSV ↓';
     exportBtn.style.cssText = [
+      'appearance: none',
+      '-webkit-appearance: none',
       'background: var(--bg-week-pill)',
       'border: 1px solid var(--border-pill)',
       'border-radius: var(--radius-pill)',
@@ -374,6 +376,7 @@ export class Page5Analytics {
 
   mount(containerEl) {
     this._container = containerEl;
+    containerEl.innerHTML = '';       // clear static zone-placeholder and any residual content
     this._panels    = [];        // ChartPanel instances — for cleanup
     this._listeners = [];        // [element, type, handler] tuples — for cleanup
     this._abortCtrl = null;      // AbortController for pending fetch group
@@ -439,6 +442,9 @@ export class Page5Analytics {
         }
         // Fallback clear
         this._container.innerHTML = '';
+        // Reset inline style — without this, display:flex overrides
+        // .page { display:none } and the container stays visible as a ghost.
+        this._container.removeAttribute('style');
       }
     }
   }
@@ -862,6 +868,8 @@ export class Page5Analytics {
 
   _stylePill(el, isActive) {
     el.style.cssText = [
+      'appearance: none',
+      '-webkit-appearance: none',
       'border: 1px solid var(--border-pill)',
       'border-radius: var(--radius-pill)',
       'padding: 5px 14px',

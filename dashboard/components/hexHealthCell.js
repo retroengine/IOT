@@ -71,6 +71,7 @@ export class HexHealthCell {
       'flex-direction: column',
       'align-items: center',
       'gap: 6px',
+      'padding: 30px',          // equal breathing zone on all sides between cells
       // Load animation start state
       'opacity: 0',
       'transform: translateY(8px)',

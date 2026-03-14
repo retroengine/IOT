@@ -32,7 +32,7 @@ const LAYOUT_CLS = 'p3-active';
 const PAGE3_CSS = `
 /* ─── Page 3 root layout ─── */
 .p3-active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   gap: var(--space-md);
   padding: var(--space-lg) var(--space-xl);
@@ -67,9 +67,20 @@ const PAGE3_CSS = `
 /* ─── Row 2: Radar + Sensor Detail side by side ─── */
 .p3-row2 {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: var(--space-md);
-  align-items: start;
+  grid-template-columns: 340px 1fr;  /* wider radar column */
+  gap: 0;                            /* cards touch — no gap */
+  align-items: stretch;
+}
+
+/* Flatten the shared inner edges so the two cards merge seamlessly */
+.p3-row2 > .p3-card:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: 1px solid var(--border-subtle);  /* single hairline divider */
+}
+.p3-row2 > .p3-card:last-child {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 /* ─── SVG Radar chart ─── */
@@ -82,6 +93,8 @@ const PAGE3_CSS = `
 .p3-sensor-groups {
   display: flex;
   flex-direction: column;
+  flex: 1;                          /* grow to fill the card's remaining height */
+  justify-content: space-between;  /* equal vertical space between channel groups */
   gap: var(--space-sm);
 }
 .p3-sensor-group-title {
@@ -390,6 +403,7 @@ export class Page3Diagnostics {
     // Config polling
     this._configData     = null;
     this._configFetched  = false;
+    this._fetchAbortCtrl = null;   // AbortController for in-flight /api/config fetch
   }
 
   // ── mount ──────────────────────────────────────────────────────────────
@@ -446,6 +460,11 @@ export class Page3Diagnostics {
 
 // ── destroy ───────────────────────────────────────────────────────────
   destroy() {
+    // 0. Abort any in-flight /api/config fetch so its callback never
+    //    touches detached DOM nodes after we clear the container below.
+    this._fetchAbortCtrl?.abort();
+    this._fetchAbortCtrl = null;
+
     // 1. Destroy all child components
     if (this._allComponents) {
       for (const c of this._allComponents) {
@@ -537,10 +556,10 @@ export class Page3Diagnostics {
   // ── Radar chart (SVG pentagon) ────────────────────────────────────────
 
   _buildRadar(parent) {
-    const SIZE = 260;
+    const SIZE = 320;
     const CX   = SIZE / 2;
     const CY   = SIZE / 2;
-    const R    = 90;        // outer radius
+    const R    = 112;       // outer radius — scaled up with wider column
     const AXES = [
       'Volt. Stability',
       'Sag Resistance',
@@ -657,7 +676,7 @@ export class Page3Diagnostics {
     ];
 
     const N = scores.length;
-    const CX = 130, CY = 130, R = 90;
+    const CX = 160, CY = 160, R = 112;
 
     const pts = scores.map((score, i) => {
       const angle = (2 * Math.PI * i) / N - Math.PI / 2;
@@ -1182,14 +1201,28 @@ export class Page3Diagnostics {
 
   async _fetchConfig() {
     if (this._configFetched) return;
+
+    // Create a controller so destroy() can abort this fetch mid-flight.
+    // A 5-second local timeout is applied alongside it.
+    const ctrl = new AbortController();
+    this._fetchAbortCtrl = ctrl;
+    const timeoutId = setTimeout(() => ctrl.abort(), 5000);
+
     try {
       const host = window.location.host || 'localhost';
       const res  = await fetch(`http://${host}/api/config`, {
         headers: { Accept: 'application/json' },
-        signal:  AbortSignal.timeout(5000),
+        signal:  ctrl.signal,
       });
+      clearTimeout(timeoutId);
+
+      // Guard: destroy() may have aborted and nulled the controller while
+      // we were awaiting — if so, the DOM is already cleared; bail out.
+      if (!this._fetchAbortCtrl) return;
+
       if (res.ok) {
         const cfg = await res.json();
+        if (!this._fetchAbortCtrl) return;   // destroyed during json parse
         this._configData = cfg;
         this._applyConfig(cfg);
         if (this._paramNoteEl) {
@@ -1203,6 +1236,8 @@ export class Page3Diagnostics {
         }
       }
     } catch (_) {
+      clearTimeout(timeoutId);
+      if (!this._fetchAbortCtrl) return;   // destroyed — DOM already gone
       if (this._paramNoteEl) {
         this._paramNoteEl.textContent =
           'Config endpoint not reachable — showing firmware defaults.';
@@ -1241,11 +1276,11 @@ function _pentagonPoints(cx, cy, r, n = 5) {
 }
 
 function _injectStyle(id, css) {
-  if (document.getElementById(id)) return;
-  const el = document.createElement('style');
-  el.id = id;
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('style');
+    el.id = id;
+    document.head.appendChild(el);
+  }
   el.textContent = css;
-  document.head.appendChild(el);
 }
-
-

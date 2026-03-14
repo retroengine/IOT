@@ -19,6 +19,12 @@
  *   always  — FaultMatrix, AlarmLog, IDMT arc, relay state
  *   1 Hz    — FSM badge, trip counter, reset guard, reclose countdown
  *   0.5 Hz  — ArcGauge (protection curve)
+ *
+ * Layout refactor (Phase 4 layout pass):
+ *   TOP GRID   — fault list (left) | fault timeline / alarm log (right)
+ *   MID GRID   — FSM diagram | IDMT + reclose | reset guard
+ *   BOTTOM ROW — relay control (left) | protection ArcGauge (right)
+ *   Spacing and proportions tightened; all existing class names preserved.
  */
 
 import { FaultMatrix }  from '../components/faultMatrix.js';
@@ -34,10 +40,10 @@ const LAYOUT_CLS = 'p2-active';
 const PAGE2_CSS = `
 /* ─── Page 2 root layout ─── */
 .p2-active {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
-  gap: var(--space-md);
-  padding: var(--space-lg) var(--space-xl);
+  gap: 24px;
+  padding: 24px 32px;
   min-height: 0;
 }
 
@@ -45,14 +51,14 @@ const PAGE2_CSS = `
 .p2-card {
   background: var(--bg-card-dark);
   border-radius: var(--radius-md);
-  padding: var(--space-md);
+  padding: 20px 24px;
 }
 .p2-card-hdr {
   font-size: var(--text-micro);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: var(--space-sm);
+  margin-bottom: 14px;
 }
 
 /* ─── Page header row ─── */
@@ -61,6 +67,8 @@ const PAGE2_CSS = `
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .p2-page-title {
   font-size: var(--text-section);
@@ -70,27 +78,69 @@ const PAGE2_CSS = `
   flex: 1;
 }
 
-/* ─── Top grid: two equal columns ─── */
+/* ─── TOP GRID: fault list (left) | alarm log / timeline (right) ─── */
 .p2-top-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-  min-height: 0;
+  gap: 20px;
+  align-items: stretch;
+  min-height: 280px;
 }
 
-/* ─── Mid grid: three columns ─── */
+/* Cards inside grid rows grow to fill row height */
+.p2-top-grid > .p2-card,
+.p2-mid-grid > .p2-card {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fault list card inner layout */
+.p2-fault-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 16px;
+}
+
+/* Fault summary strip below fault matrix */
+.p2-fault-summary-strip {
+  display: flex;
+  gap: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 14px;
+}
+
+/* Alarm log card inner layout */
+.p2-alarm-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 16px;
+}
+.p2-alarm-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+/* ─── MID GRID: FSM diagram · IDMT + reclose ─── */
 .p2-mid-grid {
   display: grid;
-  grid-template-columns: 1.6fr 1.2fr 1fr;
-  gap: var(--space-md);
-  min-height: 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+  min-height: 240px;
 }
 
-/* ─── Bottom row ─── */
+/* ─── BOTTOM ROW: reset guard · relay control · protection gauge ─── */
 .p2-bottom-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  align-items: stretch;
 }
 
 /* ─── Mute toggle button ─── */
@@ -145,7 +195,7 @@ const PAGE2_CSS = `
   align-items: center;
   gap: 0;
   justify-content: center;
-  margin-top: 14px;
+  margin-top: 22px;
 }
 .p2-trip-circle {
   width: 30px;
@@ -220,7 +270,7 @@ const PAGE2_CSS = `
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 24px;
 }
 .p2-reclose-svg {
   width: 88px;
@@ -238,7 +288,7 @@ const PAGE2_CSS = `
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 7px 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--border-subtle);
 }
 .p2-guard-row:last-of-type { border-bottom: none; }
@@ -263,12 +313,13 @@ const PAGE2_CSS = `
 .p2-reset-actions {
   display: flex;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: auto;
+  padding-top: 16px;
   flex-wrap: wrap;
 }
 .p2-reset-btn {
   flex: 1;
-  padding: 8px 4px;
+  padding: 9px 4px;
   border-radius: var(--radius-sm);
   border: none;
   font-size: var(--text-micro);
@@ -292,7 +343,7 @@ const PAGE2_CSS = `
   border-left: 3px solid var(--state-warning);
   font-size: var(--text-micro);
   color: var(--state-warning);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   display: none;
 }
 .p2-relay-banner.visible { display: block; }
@@ -300,7 +351,8 @@ const PAGE2_CSS = `
 .p2-relay-last-change {
   font-size: var(--text-micro);
   color: var(--text-faint);
-  margin-top: 8px;
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 /* ─── Confirm modal overlay ─── */
@@ -508,7 +560,6 @@ export class Page2Faults {
     // 0.5 Hz: protection arc gauge
     if (this._tickCount % 4 === 0) {
       const idmtPct = _estimateIdmt(telemetryData);
-      // Feed as a synthetic telemetry-compatible object
       this._arcGauge?.update({ protection_idmt: idmtPct * 100 });
     }
   }
@@ -524,7 +575,14 @@ export class Page2Faults {
     this._components = [];
 
     this._container?.classList.remove(LAYOUT_CLS);
-    this._container?.querySelectorAll('[data-p2-confirm]').forEach(el => el.remove());
+
+    this._confirmOverlay?.remove();
+    this._confirmOverlay = null;
+
+    if (this._confirmKeyHandler) {
+      document.removeEventListener('keydown', this._confirmKeyHandler);
+      this._confirmKeyHandler = null;
+    }
 
     const styleEl = document.getElementById(STYLE_ID);
     styleEl?.remove();
@@ -542,14 +600,11 @@ export class Page2Faults {
     title.className      = 'p2-page-title';
     title.textContent    = 'Faults & Control';
 
-    // FSM state badge (using Phase 3 StateBadge component)
     const badgeWrap = document.createElement('div');
     this._stateBadge = new StateBadge(badgeWrap, {});
     this._components.push(this._stateBadge);
-    // Seed with BOOT state until first update
     this._stateBadge.update({ state: 'BOOT' });
 
-    // Sound mute toggle
     const muteBtn = document.createElement('button');
     muteBtn.className   = 'p2-mute-btn';
     muteBtn.innerHTML   = '🔔 Sound on';
@@ -577,49 +632,57 @@ export class Page2Faults {
     parent.appendChild(hdr);
   }
 
-  // ── Top grid: FaultMatrix (left) + AlarmLog (right) ──────────────────────
+  // ── Top grid ─────────────────────────────────────────────────────────────
 
   _buildTopGrid(parent) {
     const grid = document.createElement('div');
     grid.className = 'p2-top-grid';
 
-    // Left: fault matrix
+    // ── LEFT: fault list ───────────────────────────────────────────────
     const leftCard = document.createElement('div');
     leftCard.className = 'p2-card';
+
+    const faultHdr = document.createElement('div');
+    faultHdr.className   = 'p2-card-hdr';
+    faultHdr.textContent = 'Fault List';
+    leftCard.appendChild(faultHdr);
+
+    const faultCol = document.createElement('div');
+    faultCol.className = 'p2-fault-col';
 
     const faultMatrixWrap = document.createElement('div');
     this._faultMatrix = new FaultMatrix(faultMatrixWrap, { showWarnings: true });
     this._components.push(this._faultMatrix);
-    leftCard.appendChild(faultMatrixWrap);
+    faultCol.appendChild(faultMatrixWrap);
 
-    // Active/total counts summary
     this._faultSummaryEl = document.createElement('div');
-    this._faultSummaryEl.style.cssText = [
-      'margin-top: 12px',
-      'padding-top: 10px',
-      'border-top: 1px solid var(--border-subtle)',
-      'display: flex',
-      'gap: 20px',
-    ].join(';');
+    this._faultSummaryEl.className = 'p2-fault-summary-strip';
 
     this._activeCountEl = _statItem('Active', '0');
     this._totalCountEl  = _statItem('Total (session)', '0');
     this._faultSummaryEl.appendChild(this._activeCountEl.el);
     this._faultSummaryEl.appendChild(this._totalCountEl.el);
-    leftCard.appendChild(this._faultSummaryEl);
+    faultCol.appendChild(this._faultSummaryEl);
 
+    leftCard.appendChild(faultCol);
     this._totalFaultCount = 0;
 
-    // Right: alarm log
+    // ── RIGHT: alarm log / fault timeline ─────────────────────────────
     const rightCard = document.createElement('div');
     rightCard.className = 'p2-card';
-    rightCard.style.cssText += '; display: flex; flex-direction: column; gap: 10px;';
+
+    const alarmHdr = document.createElement('div');
+    alarmHdr.className   = 'p2-card-hdr';
+    alarmHdr.textContent = 'Fault Timeline';
+    rightCard.appendChild(alarmHdr);
+
+    const alarmCol = document.createElement('div');
+    alarmCol.className = 'p2-alarm-col';
 
     const alarmWrap = document.createElement('div');
     this._alarmLog = new AlarmLog(alarmWrap, {
       maxEntries: 200,
       onNewEvent: (entry) => {
-        // Keep active/total counts in sync
         if (entry.severity === 'FAULT' || entry.severity === 'WARNING') {
           this._totalFaultCount++;
           this._totalCountEl.valueEl.textContent = this._totalFaultCount.toString();
@@ -627,15 +690,10 @@ export class Page2Faults {
       },
     });
     this._components.push(this._alarmLog);
-    rightCard.appendChild(alarmWrap);
+    alarmCol.appendChild(alarmWrap);
 
-    // Action buttons
     const actions = document.createElement('div');
-    actions.style.cssText = [
-      'display: flex',
-      'gap: 8px',
-      'flex-wrap: wrap',
-    ].join(';');
+    actions.className = 'p2-alarm-actions';
 
     const ackAllBtn = document.createElement('button');
     ackAllBtn.className   = 'p2-action-btn';
@@ -653,7 +711,9 @@ export class Page2Faults {
 
     actions.appendChild(ackAllBtn);
     actions.appendChild(clearBtn);
-    rightCard.appendChild(actions);
+    alarmCol.appendChild(actions);
+
+    rightCard.appendChild(alarmCol);
 
     grid.appendChild(leftCard);
     grid.appendChild(rightCard);
@@ -676,7 +736,7 @@ export class Page2Faults {
     }
   }
 
-  // ── Mid grid: FSM diagram · IDMT + reclose · Reset guard ─────────────────
+  // ── Mid grid ──────────────────────────────────────────────────────────────
 
   _buildMidGrid(parent) {
     const grid = document.createElement('div');
@@ -684,7 +744,6 @@ export class Page2Faults {
 
     this._buildFsmCard(grid);
     this._buildIdmtCard(grid);
-    this._buildResetGuardCard(grid);
 
     parent.appendChild(grid);
   }
@@ -700,19 +759,17 @@ export class Page2Faults {
     hdr.textContent = 'FSM State Flow';
     card.appendChild(hdr);
 
-    // Build SVG
     this._fsmSvg = this._buildFsmSvg();
     card.appendChild(this._fsmSvg);
 
-    // Trip counter below the diagram
     const tripHdr = document.createElement('div');
     tripHdr.style.cssText = [
       'font-size: 9px',
       'color: var(--text-faint)',
       'text-transform: uppercase',
       'letter-spacing: 0.08em',
-      'margin-top: 14px',
-      'margin-bottom: 2px',
+      'margin-top: 16px',
+      'margin-bottom: 4px',
     ].join(';');
     tripHdr.textContent = 'Trip Counter';
     card.appendChild(tripHdr);
@@ -731,45 +788,31 @@ export class Page2Faults {
     svg.setAttribute('class', 'p2-fsm-svg');
     svg.setAttribute('aria-label', 'FSM state flow diagram');
 
-    // Arrow marker
     const defs   = _svgEl('defs');
     const marker = _svgEl('marker', {
-      id:           'fsm-arrow',
-      viewBox:      '0 0 6 6',
-      refX:         '5',
-      refY:         '3',
-      markerWidth:  '4',
-      markerHeight: '4',
-      orient:       'auto',
+      id: 'fsm-arrow', viewBox: '0 0 6 6', refX: '5', refY: '3',
+      markerWidth: '4', markerHeight: '4', orient: 'auto',
     });
     marker.appendChild(_svgEl('path', { d: 'M 0 0 L 6 3 L 0 6 Z', fill: 'var(--border-subtle)' }));
     defs.appendChild(marker);
 
-    // Red arrow marker for LOCKOUT path
     const markerRed = _svgEl('marker', {
-      id:           'fsm-arrow-red',
-      viewBox:      '0 0 6 6',
-      refX:         '5',
-      refY:         '3',
-      markerWidth:  '4',
-      markerHeight: '4',
-      orient:       'auto',
+      id: 'fsm-arrow-red', viewBox: '0 0 6 6', refX: '5', refY: '3',
+      markerWidth: '4', markerHeight: '4', orient: 'auto',
     });
     markerRed.appendChild(_svgEl('path', { d: 'M 0 0 L 6 3 L 0 6 Z', fill: 'var(--fault-active)' }));
     defs.appendChild(markerRed);
     svg.appendChild(defs);
 
-    // ── Transition arrows ──────────────────────────────────────────────────
     const transitions = [
-      // [fromId, toId, style] style: 'normal' | 'red' | 'dashed'
       ['BOOT',     'NORMAL',   'normal'],
       ['NORMAL',   'WARNING',  'normal'],
-      ['WARNING',  'NORMAL',   'normal'],   // clears
-      ['WARNING',  'FAULT',    'normal'],   // escalates
+      ['WARNING',  'NORMAL',   'normal'],
+      ['WARNING',  'FAULT',    'normal'],
       ['FAULT',    'RECOVERY', 'normal'],
-      ['FAULT',    'LOCKOUT',  'red'],      // direct lockout
-      ['RECOVERY', 'NORMAL',   'dashed'],  // re-entry
-      ['RECOVERY', 'FAULT',    'dashed'],  // re-trip
+      ['FAULT',    'LOCKOUT',  'red'],
+      ['RECOVERY', 'NORMAL',   'dashed'],
+      ['RECOVERY', 'FAULT',    'dashed'],
     ];
 
     for (const [fromId, toId, style] of transitions) {
@@ -777,15 +820,14 @@ export class Page2Faults {
       const to   = FSM_NODES.find(n => n.id === toId);
       if (!from || !to) continue;
 
-      // Mid-right of source, mid-left of dest
       const x1 = from.x + FSM_NODE_W;
       const y1 = from.y + FSM_NODE_H / 2;
       const x2 = to.x;
       const y2 = to.y + FSM_NODE_H / 2;
 
       const attrs = {
-        d:            `M ${x1} ${y1} L ${x2} ${y2}`,
-        fill:         'none',
+        d: `M ${x1} ${y1} L ${x2} ${y2}`,
+        fill: 'none',
         'stroke-width': style === 'red' ? '1.5' : '1',
         'marker-end': style === 'red' ? 'url(#fsm-arrow-red)' : 'url(#fsm-arrow)',
       };
@@ -803,41 +845,29 @@ export class Page2Faults {
       svg.appendChild(_svgEl('path', attrs));
     }
 
-    // ── State node boxes ──────────────────────────────────────────────────
     this._fsmNodeEls = new Map();
 
     for (const node of FSM_NODES) {
       const g = _svgEl('g');
 
       const rect = _svgEl('rect', {
-        x:              node.x,
-        y:              node.y,
-        width:          FSM_NODE_W,
-        height:         FSM_NODE_H,
-        rx:             5,
-        ry:             5,
-        fill:           node.muted,
-        stroke:         node.muted,
-        'stroke-width': '1',
-        style:          'transition: fill 600ms ease-in-out, stroke 600ms ease-in-out, filter 600ms ease-in-out;',
+        x: node.x, y: node.y, width: FSM_NODE_W, height: FSM_NODE_H,
+        rx: 5, ry: 5, fill: node.muted, stroke: node.muted, 'stroke-width': '1',
+        style: 'transition: fill 600ms ease-in-out, stroke 600ms ease-in-out, filter 600ms ease-in-out;',
       });
 
       const text = _svgEl('text', {
-        x:               node.x + FSM_NODE_W / 2,
-        y:               node.y + FSM_NODE_H / 2 + 4,
-        'text-anchor':   'middle',
-        fill:            'var(--text-faint)',
-        'font-size':     '9',
-        'font-family':   'var(--font-primary)',
-        'letter-spacing':'0.05em',
-        style:           'transition: fill 600ms ease-in-out; pointer-events: none;',
+        x: node.x + FSM_NODE_W / 2, y: node.y + FSM_NODE_H / 2 + 4,
+        'text-anchor': 'middle', fill: 'var(--text-faint)',
+        'font-size': '9', 'font-family': 'var(--font-primary)',
+        'letter-spacing': '0.05em',
+        style: 'transition: fill 600ms ease-in-out; pointer-events: none;',
       });
       text.textContent = node.label;
 
       g.appendChild(rect);
       g.appendChild(text);
       svg.appendChild(g);
-
       this._fsmNodeEls.set(node.id, { rect, text });
     }
 
@@ -848,8 +878,8 @@ export class Page2Faults {
     const wrap = document.createElement('div');
     wrap.className = 'p2-trip-steps';
 
-    const circles  = [];
-    const lines    = [];
+    const circles = [];
+    const lines   = [];
 
     for (let i = 0; i < 3; i++) {
       if (i > 0) {
@@ -858,7 +888,6 @@ export class Page2Faults {
         wrap.appendChild(line);
         lines.push(line);
       }
-
       const circle = document.createElement('div');
       circle.className = 'p2-trip-circle';
       circle.textContent = String(i + 1);
@@ -868,7 +897,6 @@ export class Page2Faults {
 
     parent.appendChild(wrap);
 
-    // Label below
     this._tripLabelEl = document.createElement('div');
     this._tripLabelEl.className   = 'p2-trip-label';
     this._tripLabelEl.textContent = 'Trip 0 of 3';
@@ -883,22 +911,16 @@ export class Page2Faults {
     const card = document.createElement('div');
     card.className = 'p2-card';
 
-    // IDMT section
     const idmtHdr = document.createElement('div');
     idmtHdr.className   = 'p2-card-hdr';
     idmtHdr.textContent = 'IDMT Accumulator — IEC 60255';
     card.appendChild(idmtHdr);
 
     const idmtSubLabel = document.createElement('div');
-    idmtSubLabel.style.cssText = [
-      'font-size: 9px',
-      'color: var(--text-faint)',
-      'margin-bottom: 8px',
-    ].join(';');
+    idmtSubLabel.style.cssText = 'font-size:9px;color:var(--text-faint);margin-bottom:10px;';
     idmtSubLabel.textContent = 'Thermal memory — decays below pickup';
     card.appendChild(idmtSubLabel);
 
-    // Track bar
     const idmtTrack = document.createElement('div');
     idmtTrack.className = 'p2-idmt-track';
 
@@ -907,7 +929,6 @@ export class Page2Faults {
     idmtTrack.appendChild(this._idmtFillEl);
     card.appendChild(idmtTrack);
 
-    // Tick marks
     const ticks = document.createElement('div');
     ticks.className = 'p2-idmt-ticks';
     ['0.00', '0.25', '0.50', '0.75', '1.00'].forEach(t => {
@@ -917,28 +938,22 @@ export class Page2Faults {
     });
     card.appendChild(ticks);
 
-    // TRIPPED label (hidden unless at 1.0)
     this._idmtTrippedEl = document.createElement('div');
     this._idmtTrippedEl.style.cssText = [
       'font-size: var(--text-micro)',
       'color: var(--fault-active)',
       'font-weight: 600',
       'text-align: right',
-      'margin-top: 3px',
+      'margin-top: 4px',
       'display: none',
     ].join(';');
     this._idmtTrippedEl.textContent = '⚡ TRIPPED';
     card.appendChild(this._idmtTrippedEl);
 
-    // Divider
     const divider = document.createElement('div');
-    divider.style.cssText = [
-      'border-top: 1px solid var(--border-subtle)',
-      'margin: 14px 0',
-    ].join(';');
+    divider.style.cssText = 'border-top:1px solid var(--border-subtle);margin:16px 0;';
     card.appendChild(divider);
 
-    // Reclose section
     const recloseHdr = document.createElement('div');
     recloseHdr.className   = 'p2-card-hdr';
     recloseHdr.textContent = 'Auto-Reclose Countdown';
@@ -950,16 +965,8 @@ export class Page2Faults {
     const rcSvg = this._buildRecloseRingSvg();
     this._recloseWrap.appendChild(rcSvg);
 
-    const recloseLabel = document.createElement('div');
-    recloseLabel.className = 'p2-reclose-label';
-
     this._recloseSubLabel = document.createElement('div');
-    this._recloseSubLabel.style.cssText = [
-      'font-size: 9px',
-      'color: var(--text-faint)',
-      'text-align: center',
-      'margin-top: 2px',
-    ].join(';');
+    this._recloseSubLabel.style.cssText = 'font-size:9px;color:var(--text-faint);text-align:center;margin-top:4px;';
     this._recloseSubLabel.textContent = 'Visible during FAULT state only';
 
     card.appendChild(this._recloseWrap);
@@ -980,50 +987,32 @@ export class Page2Faults {
     svg.setAttribute('class', 'p2-reclose-svg');
     svg.setAttribute('aria-label', 'Reclose countdown ring');
 
-    // Track
     svg.appendChild(_svgEl('circle', {
-      cx, cy, r,
-      fill:            'none',
-      stroke:          'var(--progress-track)',
-      'stroke-width':  '6',
+      cx, cy, r, fill: 'none', stroke: 'var(--progress-track)', 'stroke-width': '6',
     }));
 
-    // Fill (depletes as time passes)
     this._recloseRingFill = _svgEl('circle', {
-      cx, cy, r,
-      fill:               'none',
-      stroke:             'var(--state-recovery)',
-      'stroke-width':     '6',
-      'stroke-linecap':   'round',
-      transform:          `rotate(-90 ${cx} ${cy})`,
-      'stroke-dasharray': circ,
-      'stroke-dashoffset': 0,
-      style:              'transition: stroke-dashoffset 100ms linear;',
+      cx, cy, r, fill: 'none', stroke: 'var(--state-recovery)',
+      'stroke-width': '6', 'stroke-linecap': 'round',
+      transform: `rotate(-90 ${cx} ${cy})`,
+      'stroke-dasharray': circ, 'stroke-dashoffset': 0,
+      style: 'transition: stroke-dashoffset 100ms linear;',
     });
     this._recloseCircumference = circ;
     svg.appendChild(this._recloseRingFill);
 
-    // Center text
     this._recloseTimerText = _svgEl('text', {
-      x:                   cx,
-      y:                   cy + 5,
-      'text-anchor':       'middle',
-      fill:                'var(--text-primary)',
-      'font-size':         '18',
-      'font-weight':       '300',
-      'font-family':       'var(--font-primary)',
+      x: cx, y: cy + 5, 'text-anchor': 'middle',
+      fill: 'var(--text-primary)', 'font-size': '18',
+      'font-weight': '300', 'font-family': 'var(--font-primary)',
     });
     this._recloseTimerText.textContent = '–';
     svg.appendChild(this._recloseTimerText);
 
-    // Sub-text
     this._recloseSubText = _svgEl('text', {
-      x:               cx,
-      y:               cy + 16,
-      'text-anchor':   'middle',
-      fill:            'var(--text-faint)',
-      'font-size':     '7',
-      'font-family':   'var(--font-primary)',
+      x: cx, y: cy + 16, 'text-anchor': 'middle',
+      fill: 'var(--text-faint)', 'font-size': '7',
+      'font-family': 'var(--font-primary)',
     });
     this._recloseSubText.textContent = '';
     svg.appendChild(this._recloseSubText);
@@ -1061,9 +1050,7 @@ export class Page2Faults {
       this._recloseRingFill.style.strokeDashoffset = offset;
     }
 
-    if (remaining <= 0) {
-      this._stopRecloseTimer();
-    }
+    if (remaining <= 0) this._stopRecloseTimer();
   }
 
   _updateRecloseVisibility(state) {
@@ -1087,28 +1074,28 @@ export class Page2Faults {
     hdr.textContent = 'Reset Guard';
     card.appendChild(hdr);
 
-    // Guard rows (3 checks)
     this._guardRows = [];
+
     const guardDefs = [
-      { key: 'temp',    label: 'Temperature',   unit: '°C' },
-      { key: 'sensor',  label: 'DS18B20 Sensor', unit: ''  },
-      { key: 'nofault', label: 'No Sensor Fault', unit: '' },
+      { key: 'temp',    label: 'Temperature',    unit: '°C' },
+      { key: 'sensor',  label: 'DS18B20 Sensor',  unit: ''  },
+      { key: 'nofault', label: 'No Sensor Fault', unit: ''  },
     ];
 
     for (const def of guardDefs) {
       const row = document.createElement('div');
       row.className = 'p2-guard-row';
 
-      const icon    = document.createElement('div');
-      icon.className = 'p2-guard-icon';
+      const icon = document.createElement('div');
+      icon.className   = 'p2-guard-icon';
       icon.textContent = '–';
 
-      const name    = document.createElement('div');
-      name.className = 'p2-guard-name';
+      const name = document.createElement('div');
+      name.className   = 'p2-guard-name';
       name.textContent = def.label;
 
-      const val     = document.createElement('div');
-      val.className = 'p2-guard-value';
+      const val = document.createElement('div');
+      val.className   = 'p2-guard-value';
       val.textContent = '–';
 
       row.appendChild(icon);
@@ -1119,14 +1106,13 @@ export class Page2Faults {
       this._guardRows.push({ icon, val, key: def.key, unit: def.unit });
     }
 
-    // Action buttons
     const actions = document.createElement('div');
     actions.className = 'p2-reset-actions';
 
     this._resetBtn = document.createElement('button');
-    this._resetBtn.className = 'p2-reset-btn p2-reset-btn--reset';
+    this._resetBtn.className   = 'p2-reset-btn p2-reset-btn--reset';
     this._resetBtn.textContent = 'RESET';
-    this._resetBtn.disabled   = true;
+    this._resetBtn.disabled    = true;
     this._resetBtn.setAttribute('aria-label', 'Reset FSM state');
     this._resetBtn.addEventListener('click', () => this._doReset());
 
@@ -1150,13 +1136,16 @@ export class Page2Faults {
     parent.appendChild(card);
   }
 
-  // ── Bottom row: Relay + ArcGauge ──────────────────────────────────────────
+  // ── Bottom row: Reset Guard + Relay + ArcGauge ────────────────────────────
 
   _buildBottomRow(parent) {
     const row = document.createElement('div');
     row.className = 'p2-bottom-row';
 
-    // Left: relay control panel
+    // First: reset guard
+    this._buildResetGuardCard(row);
+
+    // Second: relay control panel
     const relayCard = document.createElement('div');
     relayCard.className = 'p2-card';
 
@@ -1165,47 +1154,31 @@ export class Page2Faults {
     relayHdr.textContent = 'Relay Control';
     relayCard.appendChild(relayHdr);
 
-    // Override warning banner (hidden until manual override detected)
     this._relayBanner = document.createElement('div');
-    this._relayBanner.className = 'p2-relay-banner';
+    this._relayBanner.className   = 'p2-relay-banner';
     this._relayBanner.textContent =
       '⚠ Manual override active — relay state may differ from FSM recommendation';
     relayCard.appendChild(this._relayBanner);
 
-    // Relay toggle wrapper — intercept pointerdown for confirmation dialog
     const relayWrap = document.createElement('div');
     relayWrap.style.position = 'relative';
 
-    // Transparent click-interceptor overlay (intercepts → confirm before passing through)
     const interceptor = document.createElement('div');
-    interceptor.style.cssText = [
-      'position: absolute',
-      'inset: 0',
-      'z-index: 1',
-      'cursor: pointer',
-    ].join(';');
+    interceptor.style.cssText = 'position:absolute;inset:0;z-index:1;cursor:pointer;';
 
     interceptor.addEventListener('pointerdown', (evt) => {
       const d = this._lastTelemetry;
-      // Only intercept when relay is currently CLOSED and we'd be opening it
-      if (d?.relay !== true) return; // relay already open — no confirmation needed
-
+      if (d?.relay !== true) return;
       evt.preventDefault();
       evt.stopPropagation();
       this._showConfirmDialog(
         'Open Relay?',
         'Opening the relay will disconnect the load immediately. The protection system may re-trip if fault conditions persist. Are you sure?',
         () => {
-          // User confirmed — forward the click to the underlying toggle button
           interceptor.style.pointerEvents = 'none';
           const toggleBtn = relayWrap.querySelector('button[role="switch"]');
           toggleBtn?.click();
-          // Re-enable interceptor after a tick
-          requestAnimationFrame(() => {
-            interceptor.style.pointerEvents = '';
-          });
-
-          // Record the manual override
+          requestAnimationFrame(() => { interceptor.style.pointerEvents = ''; });
           this._relayChangeTs     = Date.now();
           this._relayChangeReason = 'Manual override via dashboard';
           this._relayBanner.classList.add('visible');
@@ -1215,11 +1188,12 @@ export class Page2Faults {
     }, { capture: true });
 
     this._relayToggle = new RelayToggle(relayWrap, {
-      label:    'Protection Relay',
-      apiPath:  '/api/relay',
+      label:   'Protection Relay',
+      apiPath: '/api/relay',
       onToggle: (newState) => {
         this._relayChangeTs     = Date.now();
-        this._relayChangeReason = newState ? 'Relay closed via dashboard' : 'Relay opened via dashboard';
+        this._relayChangeReason = newState
+          ? 'Relay closed via dashboard' : 'Relay opened via dashboard';
         this._updateLastRelayChange();
       },
     });
@@ -1228,7 +1202,6 @@ export class Page2Faults {
     relayWrap.appendChild(interceptor);
     relayCard.appendChild(relayWrap);
 
-    // Last relay change info
     this._lastRelayChangeEl = document.createElement('div');
     this._lastRelayChangeEl.className   = 'p2-relay-last-change';
     this._lastRelayChangeEl.textContent = 'Last change: —';
@@ -1236,7 +1209,7 @@ export class Page2Faults {
 
     row.appendChild(relayCard);
 
-    // Right: protection ArcGauge (IDMT overcurrent accumulation)
+    // Third: protection ArcGauge
     const arcCard = document.createElement('div');
     arcCard.className = 'p2-card';
 
@@ -1246,12 +1219,7 @@ export class Page2Faults {
     arcCard.appendChild(arcHdr);
 
     const arcWrap = document.createElement('div');
-    arcWrap.style.cssText = [
-      'display: flex',
-      'justify-content: center',
-      'align-items: center',
-      'padding: 8px 0',
-    ].join(';');
+    arcWrap.style.cssText = 'display:flex;justify-content:center;align-items:center;padding:12px 0;';
 
     this._arcGauge = new ArcGauge(arcWrap, {
       field:     'protection_idmt',
@@ -1270,14 +1238,8 @@ export class Page2Faults {
     this._components.push(this._arcGauge);
     arcCard.appendChild(arcWrap);
 
-    // Accumulation note
     const arcNote = document.createElement('div');
-    arcNote.style.cssText = [
-      'font-size: 9px',
-      'color: var(--text-faint)',
-      'text-align: center',
-      'margin-top: 4px',
-    ].join(';');
+    arcNote.style.cssText = 'font-size:9px;color:var(--text-faint);text-align:center;margin-top:6px;';
     arcNote.textContent = 'Estimated — resets on relay open or NORMAL state';
     arcCard.appendChild(arcNote);
 
@@ -1297,10 +1259,10 @@ export class Page2Faults {
     const dialog = document.createElement('div');
     dialog.className = 'p2-confirm-dialog';
 
-    this._confirmTitle  = document.createElement('div');
+    this._confirmTitle = document.createElement('div');
     this._confirmTitle.className = 'p2-confirm-title';
 
-    this._confirmBody   = document.createElement('div');
+    this._confirmBody = document.createElement('div');
     this._confirmBody.className = 'p2-confirm-body';
 
     const actions = document.createElement('div');
@@ -1316,23 +1278,19 @@ export class Page2Faults {
 
     actions.appendChild(this._confirmCancelBtn);
     actions.appendChild(this._confirmOkBtn);
-
     dialog.appendChild(this._confirmTitle);
     dialog.appendChild(this._confirmBody);
     dialog.appendChild(actions);
     this._confirmOverlay.appendChild(dialog);
 
-    // Close on backdrop click
     this._confirmOverlay.addEventListener('click', (e) => {
       if (e.target === this._confirmOverlay) this._hideConfirmDialog();
     });
 
-    // Keyboard: Escape cancels
     this._confirmKeyHandler = (e) => {
       if (e.key === 'Escape') this._hideConfirmDialog();
     };
     document.addEventListener('keydown', this._confirmKeyHandler);
-
     document.body.appendChild(this._confirmOverlay);
   }
 
@@ -1340,16 +1298,9 @@ export class Page2Faults {
     this._confirmTitle.textContent = title;
     this._confirmBody.textContent  = body;
 
-    // Wire up one-shot handlers
-    const handleOk = () => {
-      this._hideConfirmDialog();
-      onConfirm();
-    };
-    const handleCancel = () => {
-      this._hideConfirmDialog();
-    };
+    const handleOk     = () => { this._hideConfirmDialog(); onConfirm(); };
+    const handleCancel = () => { this._hideConfirmDialog(); };
 
-    // Clone and replace buttons to remove old listeners
     const newOk     = this._confirmOkBtn.cloneNode(true);
     const newCancel = this._confirmCancelBtn.cloneNode(true);
     newOk.textContent     = 'Confirm';
@@ -1397,7 +1348,7 @@ export class Page2Faults {
     const trips = telemetryData?.faults?.trip_count ?? 0;
     if (!this._tripSteps) return;
 
-    const tripColors = ['#EF9F27', '#D85A30', '#E24B4A'];
+    const tripColors       = ['#EF9F27', '#D85A30', '#E24B4A'];
     const { circles, lines } = this._tripSteps;
 
     for (let i = 0; i < 3; i++) {
@@ -1405,19 +1356,18 @@ export class Page2Faults {
       const circle = circles[i];
 
       if (filled) {
-        circle.style.background   = tripColors[i];
-        circle.style.borderColor  = tripColors[i];
-        circle.style.color        = '#000';
+        circle.style.background  = tripColors[i];
+        circle.style.borderColor = tripColors[i];
+        circle.style.color       = '#000';
       } else {
-        circle.style.background   = 'var(--bg-card-dark-2, var(--bg-card-dark))';
-        circle.style.borderColor  = 'var(--border-subtle)';
-        circle.style.color        = 'var(--text-faint)';
+        circle.style.background  = 'var(--bg-card-dark-2, var(--bg-card-dark))';
+        circle.style.borderColor = 'var(--border-subtle)';
+        circle.style.color       = 'var(--text-faint)';
       }
 
       if (i < lines.length) {
         lines[i].style.background = i < trips - 1
-          ? tripColors[i]
-          : 'var(--border-subtle)';
+          ? tripColors[i] : 'var(--border-subtle)';
       }
     }
 
@@ -1432,7 +1382,8 @@ export class Page2Faults {
       } else {
         this._tripLabelEl.textContent =
           `Trip ${trips} of 3 — ${remaining} remaining before lockout`;
-        this._tripLabelEl.style.color = trips >= 2 ? 'var(--state-warning)' : 'var(--text-muted)';
+        this._tripLabelEl.style.color =
+          trips >= 2 ? 'var(--state-warning)' : 'var(--text-muted)';
       }
     }
   }
@@ -1453,15 +1404,15 @@ export class Page2Faults {
   _updateResetGuard(telemetryData) {
     if (!this._guardRows) return;
 
-    const temp          = telemetryData?.t ?? 0;
-    const sensorFault   = (telemetryData?.faults?.active ?? 'NONE') === 'SENSOR_FAIL';
-    // Derive sensor present from sys health (proxy — no direct sensor_present in canonical)
-    const sensorPresent = !sensorFault && (telemetryData?.sys?.health_status !== 'CRITICAL' || temp > 0);
+    const temp        = telemetryData?.t ?? 0;
+    const sensorFault = (telemetryData?.faults?.active ?? 'NONE') === 'SENSOR_FAIL';
+    const sensorPresent = !sensorFault &&
+      (telemetryData?.sys?.health_status !== 'CRITICAL' || temp > 0);
 
     const guards = [
-      { pass: temp < 85,      value: `${temp.toFixed(1)}°C`,  failMsg: '≥85°C' },
-      { pass: sensorPresent,  value: sensorPresent ? 'OK' : 'DISCONNECTED', failMsg: 'Disconnected' },
-      { pass: !sensorFault,   value: sensorFault ? 'SENSOR_FAIL' : 'Clear',  failMsg: 'Fault active' },
+      { pass: temp < 85,     value: `${temp.toFixed(1)}°C` },
+      { pass: sensorPresent, value: sensorPresent ? 'OK' : 'DISCONNECTED' },
+      { pass: !sensorFault,  value: sensorFault ? 'SENSOR_FAIL' : 'Clear' },
     ];
 
     let allPass = true;
@@ -1488,12 +1439,11 @@ export class Page2Faults {
     this._relayToggle?.update(telemetryData);
     this._updateActiveFaultCount(telemetryData);
 
-    // Show override banner when relay state contradicts FSM recommendation
-    const state    = telemetryData?.state ?? 'NORMAL';
-    const relay    = telemetryData?.relay ?? true;
+    const state          = telemetryData?.state ?? 'NORMAL';
+    const relay          = telemetryData?.relay ?? true;
     const fsmWantsClosed = state !== 'FAULT' && state !== 'LOCKOUT';
+    const override       = fsmWantsClosed !== relay;
 
-    const override = fsmWantsClosed !== relay;
     if (this._relayBanner) {
       if (override && relay === false) {
         this._relayBanner.classList.add('visible');
@@ -1514,16 +1464,15 @@ export class Page2Faults {
 
   async _doReset() {
     if (!this._guardsPassing) return;
-    const btn = this._resetBtn;
+    const btn       = this._resetBtn;
     btn.disabled    = true;
     btn.textContent = '…';
 
     try {
       const res = await fetch('/api/reset', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cmd: 'reset' }),
-        signal:  AbortSignal.timeout(5000),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cmd: 'reset' }),
+        signal: AbortSignal.timeout(5000),
       });
       btn.textContent = res.ok ? '✓ RESET' : '✗ FAILED';
     } catch (err) {
@@ -1540,10 +1489,9 @@ export class Page2Faults {
   async _doReboot() {
     try {
       await fetch('/api/reset', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cmd: 'reboot' }),
-        signal:  AbortSignal.timeout(5000),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cmd: 'reboot' }),
+        signal: AbortSignal.timeout(5000),
       });
     } catch (err) {
       console.warn('[page2] reboot error:', err.message);
@@ -1557,10 +1505,9 @@ export class Page2Faults {
 
     try {
       const res = await fetch('/api/reset', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ cmd: 'ping' }),
-        signal:  AbortSignal.timeout(3000),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cmd: 'ping' }),
+        signal: AbortSignal.timeout(3000),
       });
       btn.textContent = res.ok ? '✓ PONG' : '✗';
     } catch (_) {
@@ -1578,11 +1525,7 @@ export class Page2Faults {
 
 function _statItem(label, value) {
   const el = document.createElement('div');
-  el.style.cssText = [
-    'display: flex',
-    'flex-direction: column',
-    'gap: 2px',
-  ].join(';');
+  el.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
 
   const lbl = document.createElement('div');
   lbl.style.cssText = [
@@ -1609,9 +1552,11 @@ function _statItem(label, value) {
 }
 
 function _injectStyle(id, css) {
-  if (document.getElementById(id)) return;
-  const el    = document.createElement('style');
-  el.id       = id;
-  el.textContent = css;
-  document.head.appendChild(el);
+  let el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('style');
+    el.id = id;
+    document.head.appendChild(el);
+  }
+  el.textContent = css;  // always overwrite — never bail early
 }

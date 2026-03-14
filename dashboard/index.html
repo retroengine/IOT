@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=JetBrains+Mono:wght@400;500&family=Syne:wght@700;800&display=swap"
     rel="stylesheet"
   />
 
@@ -53,15 +53,13 @@
     /* The dashboard is a rounded card on the grey outer page */
 .dashboard {
       position: relative;
-      /* Change max-width to 100% so it fills the screen */
       max-width: 100%;
       min-height: 100vh;
       margin: 0 auto;
       background-color: var(--bg-dashboard);
-      /* Change this to 0 to remove the curved edges */
-      border-radius: 0;             
+      border-radius: 0;
       box-shadow: var(--shadow-dashboard);
-      padding: 0 var(--space-xl);
+      padding: 0;
       overflow: hidden;
     }
 
@@ -99,29 +97,57 @@
       gap: var(--space-lg);           /* 24px gap between logo and links */
     }
 
-    /* Logo mark — white geometric SVG placeholder, 32px */
+    /* Logo mark */
     .nav__logo {
       display: flex;
       align-items: center;
       flex-shrink: 0;
       color: var(--text-primary);
       text-decoration: none;
-      gap: var(--space-xs);
+      gap: 10px;
+      position: relative;
+    }
+    .nav__logo:hover .nav__logo-icon {
+      filter: drop-shadow(0 0 8px rgba(200, 16, 46, 0.75));
+      transform: scale(1.05);
+    }
+    .nav__logo:hover .nav__logo-text {
+      letter-spacing: 0.22em;
     }
 
     .nav__logo-icon {
       width: 32px;
       height: 32px;
       flex-shrink: 0;
+      object-fit: contain;
+      transition: filter 300ms ease, transform 300ms ease;
     }
 
+    /* SGS wordmark — Syne 800, gradient + glow */
     .nav__logo-text {
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.04em;
+      font-family: 'Syne', var(--font-primary);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
       text-transform: uppercase;
-      color: var(--text-primary);
       white-space: nowrap;
+      background: linear-gradient(135deg, #ffffff 40%, #C8102E 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      transition: letter-spacing 300ms ease;
+      position: relative;
+    }
+    /* Crimson underline accent */
+    .nav__logo-text::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      width: 100%;
+      height: 1.5px;
+      background: linear-gradient(90deg, #C8102E, transparent);
+      border-radius: 2px;
     }
 
     /* Nav link list */
@@ -295,11 +321,6 @@
     ::-webkit-scrollbar       { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg-dashboard); }
     ::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 3px; }
-
-    /* Hide rogue buttons that spawn outside the dashboard */ 
-    body > button {
-      display: none !important;
-    }
   </style>
 </head>
 
@@ -320,19 +341,7 @@
 
         <!-- Logo mark — white geometric SVG (Phase 1 inline placeholder) -->
         <a class="nav__logo" href="#" aria-label="Smart Grid Sentinel home">
-          <svg class="nav__logo-icon" viewBox="0 0 32 32" fill="none"
-               xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <!-- Geometric grid sentinel icon — white, minimalist -->
-            <rect x="3" y="3" width="11" height="11" rx="2"
-                  fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="18" y="3" width="11" height="11" rx="2"
-                  fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="3" y="18" width="11" height="11" rx="2"
-                  fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <!-- Active/live indicator — bottom-right quad filled -->
-            <rect x="18" y="18" width="11" height="11" rx="2"
-                  fill="currentColor" opacity="0.8"/>
-          </svg>
+          <img src="Sentinels_logo.svg" class="nav__logo-icon" alt="" aria-hidden="true" />
           <span class="nav__logo-text">SGS</span>
         </a>
 
