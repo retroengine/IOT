@@ -207,7 +207,7 @@ function _initTelemetry() {
       // Future: update connectivity indicator in Zone 1
     });
 
-    telemetryPoller.connect('10.177.189.199');
+    telemetryPoller.connect();
   }
 }
 
