@@ -28,14 +28,17 @@
  *   getLatest()                 → last parsed canonical telemetry object | null
  *   getConnectionState()        → current state string
  *
- * Requires mqtt.js — imported directly as ESM:
- *   import mqtt from 'https://unpkg.com/mqtt@4.3.7/dist/mqtt.esm.js'
- *   No <script> tag needed in index.html.
+ * Requires mqtt.js UMD browser bundle loaded via <script> tag in index.html
+ * BEFORE main.js. This sets window.mqtt which is read lazily in _openMqtt().
+ * ESM imports of mqtt@4.x are not used — all CDN ESM builds include Node.js
+ * internals that fail in browsers (net.createConnection / CORS errors).
+ *
+ * index.html script tag (must come before main.js):
+ *   <script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
  */
 
 import { parse }                        from './telemetryParser.js';
 import { push as bufferPush }           from './telemetryBuffer.js';
-import mqtt                             from 'https://unpkg.com/mqtt@4.3.7/dist/mqtt.esm.js';
 
 // ── Connection state constants (unchanged) ────────────────────────────────
 export const CONNECTION_STATE = {
@@ -50,7 +53,7 @@ export const CONNECTION_STATE = {
 // ── MQTT WSS config — fill these in ──────────────────────────────────────
 // Your HiveMQ Cloud cluster WSS endpoint (port 8884).
 // Find it in: HiveMQ Cloud console → Cluster → Connection Settings
-const MQTT_BROKER_URL  = 'wss://e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt';
+const MQTT_BROKER_URL  = 'e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt';
 const MQTT_USERNAME    = 'sgs-device-01';
 const MQTT_PASSWORD    = 'Chicken@65';
 
@@ -140,7 +143,18 @@ function _processFrame(raw) {
 function _openMqtt() {
   _setState(CONNECTION_STATE.CONNECTING);
 
-  _mqttClient = mqtt.connect(MQTT_BROKER_URL, {
+  // Inside an ES module, bare globals set by <script> tags are not directly
+  // visible as identifiers. Access via window.mqtt instead — this works
+  // regardless of whether the script tag loaded before or after module eval,
+  // as long as connect() is called after DOMContentLoaded (which main.js ensures).
+  const mqttLib = window.mqtt;
+  if (!mqttLib) {
+    console.error('[telemetryPoller] window.mqtt not found — ensure index.html loads mqtt.min.js via <script> tag before main.js');
+    _setState(CONNECTION_STATE.DISCONNECTED, { error: 'mqtt_lib_missing' });
+    return;
+  }
+
+  _mqttClient = mqttLib.connect(MQTT_BROKER_URL, {
     username        : MQTT_USERNAME,
     password        : MQTT_PASSWORD,
     clientId        : 'sgs-dashboard-' + Math.random().toString(16).slice(2, 8),
