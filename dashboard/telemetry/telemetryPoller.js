@@ -28,12 +28,14 @@
  *   getLatest()                 → last parsed canonical telemetry object | null
  *   getConnectionState()        → current state string
  *
- * Requires mqtt.js loaded before this module:
- *   <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+ * Requires mqtt.js — imported directly as ESM:
+ *   import mqtt from 'https://unpkg.com/mqtt@4.3.7/dist/mqtt.esm.js'
+ *   No <script> tag needed in index.html.
  */
 
 import { parse }                        from './telemetryParser.js';
 import { push as bufferPush }           from './telemetryBuffer.js';
+import mqtt                             from 'https://unpkg.com/mqtt@4.3.7/dist/mqtt.esm.js';
 
 // ── Connection state constants (unchanged) ────────────────────────────────
 export const CONNECTION_STATE = {
@@ -48,7 +50,7 @@ export const CONNECTION_STATE = {
 // ── MQTT WSS config — fill these in ──────────────────────────────────────
 // Your HiveMQ Cloud cluster WSS endpoint (port 8884).
 // Find it in: HiveMQ Cloud console → Cluster → Connection Settings
-const MQTT_BROKER_URL  = 'e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt';
+const MQTT_BROKER_URL  = 'wss://e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt';
 const MQTT_USERNAME    = 'sgs-device-01';
 const MQTT_PASSWORD    = 'Chicken@65';
 
@@ -137,13 +139,6 @@ function _processFrame(raw) {
 
 function _openMqtt() {
   _setState(CONNECTION_STATE.CONNECTING);
-
-  // mqtt is the global exposed by mqtt.min.js loaded via <script> tag
-  if (typeof mqtt === 'undefined') {
-    console.error('[telemetryPoller] mqtt.js not loaded — add the <script> tag for mqtt.min.js');
-    _setState(CONNECTION_STATE.DISCONNECTED, { error: 'mqtt_lib_missing' });
-    return;
-  }
 
   _mqttClient = mqtt.connect(MQTT_BROKER_URL, {
     username        : MQTT_USERNAME,
