@@ -1,0 +1,107 @@
+/* ================================================================
+   tokens.css — Smart Grid Sentinel Design Tokens
+   Source of truth: DESIGN.md v3.3, Section 2
+   FROZEN after Phase 1. Do not modify without explicit approval.
+   ================================================================ */
+
+:root {
+
+  /* ── Backgrounds ── */
+  --bg-page:           #d8dbd5;   /* outer page bg — light grey-green, visible behind dashboard */
+  --bg-dashboard:      #0d0f0d;   /* main dashboard container */
+  --bg-card-dark:      #131613;   /* standard dark card (most cards) */
+  --bg-card-dark-2:    #171b17;   /* slightly lighter dark card variant */
+  --bg-card-green:     #1a2e1a;   /* green-tinted card — used for Available Energy / health hero */
+  --bg-card-light:     #e8ebe5;   /* light contrast card — max 2 per layout */
+  --bg-rec-item:       #1c201c;   /* recommendation / event log item background */
+  --bg-week-pill:      #252825;   /* pill button background (dark) */
+  --bg-bar-inactive:   #252825;   /* inactive bar in sparkline charts */
+
+  /* ── Text ── */
+  --text-primary:      #ffffff;   /* large numbers, headings — on dark */
+  --text-muted:        #8a8e8a;   /* labels, units, sub-labels — on dark */
+  --text-faint:        #5a5e5a;   /* timestamps, footnotes, three-dot menus — on dark */
+  --text-on-light:     #0d0f0d;   /* primary text on light cards */
+  --text-muted-light:  #4a4e4a;   /* secondary text on light cards */
+
+  /* ── Borders & Dividers ── */
+  --border-subtle:     rgba(255, 255, 255, 0.08);
+  --border-pill:       rgba(255, 255, 255, 0.18);
+  --border-light-pill: rgba(0, 0, 0, 0.15);
+
+  /* ── Progress & Fill ── */
+  --progress-track:    #2a2e2a;
+  --progress-fill:     #ffffff;
+  --bar-active:        #e8ebe5;   /* active sparkline bar */
+  --bar-inactive:      #252825;   /* inactive sparkline bar */
+  --bar-width:         3px;
+  --bar-gap:           2px;
+
+  /* ── Toggle ── */
+  --toggle-track-on:   #4a7a4a;
+  --toggle-track-off:  #3a3e3a;
+  --toggle-thumb:      #ffffff;
+
+  /* ── FSM State Colors ── */
+  --state-boot:        #3B8BD4;   /* blue */
+  --state-normal:      #1D9E75;   /* green */
+  --state-warning:     #EF9F27;   /* amber */
+  --state-fault:       #E24B4A;   /* red */
+  --state-recovery:    #1D9E75;   /* teal — same hue as normal but animated */
+  --state-lockout:     #A32D2D;   /* dark red — solid, no pulse */
+
+  /* ── Health Score Ramp ── */
+  --health-excellent:  #1D9E75;   /* 90–100 */
+  --health-good:       #0F6E56;   /* 70–89 */
+  --health-degraded:   #EF9F27;   /* 50–69 */
+  --health-poor:       #D85A30;   /* 30–49 */
+  --health-critical:   #E24B4A;   /* 0–29 */
+
+  /* ── Fault / Warning Colors ── */
+  --fault-active:      #E24B4A;   /* active fault — red */
+  --fault-inactive:    #2a2e2a;   /* inactive — dark grey */
+  --warn-active:       #EF9F27;   /* active warning — amber */
+  --warn-inactive:     #2a2e2a;
+
+  /* ── Waveform Colors ── */
+  --wave-voltage:      #1D9E75;   /* green */
+  --wave-current:      #5DCAA5;   /* teal/cyan */
+  --wave-fault:        #E24B4A;   /* red — on fault condition */
+
+  /* ── Spacing ── */
+  --space-xs:          8px;
+  --space-sm:          12px;
+  --space-md:          16px;
+  --space-lg:          24px;
+  --space-xl:          32px;
+  --space-2xl:         40px;
+
+  /* ── Border Radius ── */
+  --radius-sm:         8px;
+  --radius-md:         12px;
+  --radius-lg:         16px;
+  --radius-xl:         20px;
+  --radius-pill:       100px;
+
+  /* ── Typography ── */
+  --font-primary:      'DM Sans', 'Syne', 'Space Grotesk', system-ui, sans-serif;
+  --font-mono:         'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+
+  /* ── Type Scale (fluid) ── */
+  --text-hero:         clamp(40px, 5vw, 64px);   /* sensor values, large numbers */
+  --text-large:        clamp(28px, 3vw, 40px);   /* section headers, page titles */
+  --text-section:      clamp(18px, 2vw, 24px);   /* card section headers */
+  --text-card-title:   16px;
+  --text-label:        13px;
+  --text-micro:        11px;
+
+  /* ── Shadows ── */
+  --shadow-card:       0 2px 12px rgba(0, 0, 0, 0.4);
+  --shadow-dashboard:  0 20px 60px rgba(0, 0, 0, 0.5);
+
+  /* ── Z-Index Stack ── */
+  --z-base:            1;
+  --z-card:            10;
+  --z-nav:             100;
+  --z-modal:           1000;
+}

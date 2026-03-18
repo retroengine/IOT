@@ -406,6 +406,9 @@
 #define MQTT_TOPIC_STATE        "sgs/state"
 // #define MQTT_SKIP_CERT_VERIFY   // Uncomment ONLY for development
 
+// ─── WebSocket Push Server ───────────────────────────────────────────────────
+#define WS_PUSH_INTERVAL_MS     100   // push telemetry to browser every 100ms (10Hz)
+
 // ─── HTTP API ─────────────────────────────────────────────────────────────────
 #define API_PORT                80
 #define API_KEY_LENGTH          16

@@ -175,6 +175,13 @@ namespace FSM {
                 if (adc_ready && temp_ready) {
                     Serial.printf("[FSM] BOOT complete — T=%.1f°C  V=%.1fV\n",
                                   temp_c, voltage_v);
+                    // Flush any fault bits accumulated during the ADC IIR settling
+                    // and DS18B20 boot-sentinel window. Without this, a UV_INSTANT
+                    // at raw=0 (before IIR converges) survives into NORMAL and causes
+                    // an immediate nuisance trip before the inrush blank can arm on
+                    // the first relay close. clearLatched() (not clearAll()) is used
+                    // so hysteresis state is preserved for signals genuinely out-of-range.
+                    FaultEngine::clearLatched();
                     transition(FSM_NORMAL);
                 }
                 break;

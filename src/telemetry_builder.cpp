@@ -1,7 +1,12 @@
 // ============================================================
 //  telemetry_builder.cpp — Centralized Telemetry JSON Assembler
 //
-//  SCHEMA VERSION: 1.3
+//  SCHEMA VERSION: 1.3-local
+//
+//  BUILD VARIANT: LOCAL
+//    MQTT transport diagnostics removed from "network" section.
+//    For cloud build with full MQTT diagnostics, see
+//    final/mqtt/mqtt_client.cpp and reintroduce mqtt_client.h.
 //
 //  CHANGES FROM v1.2:
 //    1. New "diagnostics" top-level object containing:
@@ -12,13 +17,7 @@
 //         - power_quality          (sag, swell, ripple, flicker, score)
 //         - system                 (overall health score, heap, uptime)
 //
-//    2. MQTT transport diagnostics added to "network" section:
-//         - connect_attempts, connect_successes
-//         - publish_total, publish_failed
-//         - tls_cert_verified
-//         - ms_since_last_connect
-//
-//    3. Schema version bumped to "1.3"
+//    2. Schema version: "1.3-local"
 //
 //  PRESERVED (unchanged from v1.2):
 //    - sensors, power, loads, alerts, prediction, actuators
@@ -33,7 +32,7 @@
 #include "ds18b20.h"
 #include "fault_engine.h"
 #include "relay_control.h"
-#include "mqtt_client.h"
+// mqtt_client.h intentionally excluded — LOCAL build
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <esp_system.h>
@@ -166,7 +165,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
 
     doc["device"]   = getDeviceId();
     doc["ts"]       = r.ts_ms;        // dashboard contract requires "ts" (not "timestamp")
-    doc["schema_v"] = "1.3";
+    doc["schema_v"] = "1.3-local";
 
     // ── sensors (unchanged from v1.2) ─────────────────────────────────────
     JsonObject sensors = doc["sensors"].to<JsonObject>();
@@ -242,17 +241,14 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
                     ctx.state == FSM_FAULT   ||
                     ctx.state == FSM_LOCKOUT);
 
-    // ── network — expanded with MQTT transport diagnostics ────────────────
+    // ── network — LOCAL build: WiFi only, no MQTT transport fields ───────────
+    // For MQTT diagnostics (connect_attempts, publish_total, tls_cert_verified,
+    // etc.) enable the MQTT build variant in final/mqtt/mqtt_client.cpp.
     JsonObject net = doc["network"].to<JsonObject>();
-    net["wifi_rssi"]              = rssi;
-    net["wifi_connected"]         = (WiFi.status() == WL_CONNECTED);
-    net["mqtt_connected"]         = MQTTClient::isConnected();
-    net["mqtt_tls_verified"]      = MQTTClient::isCertVerified();
-    net["mqtt_connect_attempts"]  = MQTTClient::getConnectAttempts();
-    net["mqtt_connect_successes"] = MQTTClient::getConnectSuccesses();
-    net["mqtt_publish_total"]     = MQTTClient::getPublishTotal();
-    net["mqtt_publish_failed"]    = MQTTClient::getPublishFailed();
-    net["ip"]                     = WiFi.localIP().toString();
+    net["wifi_rssi"]      = rssi;
+    net["wifi_connected"] = (WiFi.status() == WL_CONNECTED);
+    net["mqtt_connected"] = false;   // LOCAL build — MQTT not active
+    net["ip"]             = WiFi.localIP().toString();
 
     // ── system (unchanged) ────────────────────────────────────────────────
     JsonObject sys = doc["system"].to<JsonObject>();

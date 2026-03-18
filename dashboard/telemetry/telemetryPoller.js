@@ -28,24 +28,26 @@
  *   getConnectionState()        → current state string
  *
  * ─────────────────────────────────────────────────────────────────────────
- * NEXT PHASE — MQTT WSS transport
+ * MQTT WSS transport (Phase 7 — implemented)
  * ─────────────────────────────────────────────────────────────────────────
  * The WS+HTTP transport works only on the local network (direct ESP32 LAN IP).
- * The MQTT WSS upgrade connects via HiveMQ Cloud and works from any network,
- * eliminating the Mixed Content errors on the HTTPS-hosted dashboard.
+ * The MQTT WSS transport connects via HiveMQ Cloud and works from any network —
+ * the dashboard can be hosted on Netlify/GitHub Pages and receive live data.
  *
- * Blocked by: mqtt.js v4 has no true ESM browser build. All CDN paths either
- * fail with CORS (unpkg ESM) or pull in Node.js net.createConnection (UMD).
- * Resolution options being evaluated:
- *   a) Use mqtt.js v5 which has a proper browser ESM export
- *   b) Bundle mqtt via Vite/Rollup as part of a build step
- *   c) Use a lightweight alternative (e.g. MQTT over native WebSocket without library)
+ * Implementation: native WebSocket with MQTT 3.1.1 binary framing.
+ * No external library. No bundler. Pure ES module — drops straight into the
+ * existing project with zero build-step changes.
  *
- * Config values ready when transport is implemented:
- *   MQTT_BROKER_URL = 'wss://e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt'
- *   MQTT_USERNAME   = 'sgs-device-01'
- *   MQTT_PASSWORD   = 'Chicken@65'
- *   DEVICE_ID       = 'sgs-XXXXXX'  ← replace with ESP32 MAC suffix from serial output
+ * Public API additions (see bottom of this file):
+ *   connectMqtt(config)     — start MQTT WSS transport
+ *   disconnectMqtt()        — stop MQTT WSS transport
+ *   getMqttState()          — current MQTT connection state string
+ *   onMqttStateChange(cb)   — register listener for MQTT state transitions
+ *
+ * Called by: pages/page4-cloud.js credential form (user supplies credentials)
+ * Credentials are NOT hardcoded — user enters them in the Page 4 UI.
+ * Broker URL, username, and topic filter are persisted in localStorage.
+ * Password is session-only (never stored).
  * ─────────────────────────────────────────────────────────────────────────
  */
 
@@ -357,3 +359,382 @@ export const EVENT = {
   DISCONNECTED: CONNECTION_STATE.DISCONNECTED,
   ERROR:        CONNECTION_STATE.RECONNECTING,
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+// MQTT WSS Transport — Phase 7
+// Native MQTT 3.1.1 over WebSocket (subscribe-only, no external library)
+//
+// This section is purely additive. All existing WS/HTTP transport code
+// above is unchanged. Both transports share _processFrame() and all
+// registered _messageListeners — same data pipeline, different source.
+//
+// Called by: pages/page4-cloud.js (credential form UI)
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── MQTT state constants ──────────────────────────────────────────────────
+export const MQTT_STATE = {
+  IDLE:         'IDLE',
+  CONNECTING:   'CONNECTING',
+  CONNECTED:    'CONNECTED',
+  RECONNECTING: 'RECONNECTING',
+  DISCONNECTED: 'DISCONNECTED',
+  ERROR:        'ERROR',
+};
+
+// ── MQTT internal state ───────────────────────────────────────────────────
+let _mqttWs              = null;
+let _mqttState           = MQTT_STATE.IDLE;
+let _mqttConfig          = null;       // { brokerUrl, username, password, topicFilter }
+let _mqttListeners       = [];
+let _mqttPingTimer       = null;
+let _mqttReconnectTimer  = null;
+let _mqttBackoffMs       = 2000;
+let _mqttRxBuffer        = new Uint8Array(0);
+let _mqttPacketIdCounter = 1;
+
+const MQTT_KEEPALIVE_S   = 30;
+const MQTT_BACKOFF_MAX   = 60000;
+
+// ── MQTT state transition ─────────────────────────────────────────────────
+function _mqttSetState(newState, detail = {}) {
+  if (_mqttState === newState) return;
+  _mqttState = newState;
+  for (const cb of _mqttListeners) _callSafe(cb, newState, detail);
+}
+
+// ── Binary encoding helpers ───────────────────────────────────────────────
+
+const _utf8Enc = new TextEncoder();
+const _utf8Dec = new TextDecoder();
+
+/** Encode a UTF-8 string with a 2-byte big-endian length prefix. */
+function _mqttStr(str) {
+  const bytes = _utf8Enc.encode(str);
+  const out   = new Uint8Array(2 + bytes.length);
+  out[0] = (bytes.length >> 8) & 0xff;
+  out[1] =  bytes.length       & 0xff;
+  out.set(bytes, 2);
+  return out;
+}
+
+/** Encode a remaining-length value (MQTT variable-length encoding). */
+function _mqttRemLen(len) {
+  const bytes = [];
+  do {
+    let b = len % 128;
+    len   = Math.floor(len / 128);
+    if (len > 0) b |= 0x80;
+    bytes.push(b);
+  } while (len > 0);
+  return new Uint8Array(bytes);
+}
+
+/** Concatenate multiple Uint8Arrays into one. */
+function _mqttConcat(arrays) {
+  const total = arrays.reduce((s, a) => s + a.length, 0);
+  const out   = new Uint8Array(total);
+  let offset  = 0;
+  for (const a of arrays) { out.set(a, offset); offset += a.length; }
+  return out;
+}
+
+/** Build a complete MQTT packet: fixed header byte + remaining length + payload. */
+function _mqttPacket(fixedByte, payload) {
+  return _mqttConcat([
+    new Uint8Array([fixedByte]),
+    _mqttRemLen(payload.length),
+    payload,
+  ]);
+}
+
+// ── Packet builders ───────────────────────────────────────────────────────
+
+function _buildConnect(clientId, username, password) {
+  const protoName  = _mqttStr('MQTT');
+  const protoLevel = new Uint8Array([0x04]);     // MQTT 3.1.1
+
+  let flags = 0x02; // clean session
+  if (username) flags |= 0x80;
+  if (password) flags |= 0x40;
+
+  const varHeader = _mqttConcat([
+    protoName,
+    protoLevel,
+    new Uint8Array([flags]),
+    new Uint8Array([(MQTT_KEEPALIVE_S >> 8) & 0xff, MQTT_KEEPALIVE_S & 0xff]),
+  ]);
+
+  const payloadParts = [_mqttStr(clientId)];
+  if (username) payloadParts.push(_mqttStr(username));
+  if (password) payloadParts.push(_mqttStr(password));
+
+  return _mqttPacket(0x10, _mqttConcat([varHeader, _mqttConcat(payloadParts)]));
+}
+
+function _buildSubscribe(packetId, topicFilter, qos = 0) {
+  const payload = _mqttConcat([
+    new Uint8Array([(packetId >> 8) & 0xff, packetId & 0xff]),
+    _mqttStr(topicFilter),
+    new Uint8Array([qos]),
+  ]);
+  return _mqttPacket(0x82, payload);
+}
+
+function _buildPingreq()   { return new Uint8Array([0xC0, 0x00]); }
+function _buildDisconnect(){ return new Uint8Array([0xE0, 0x00]); }
+
+// ── Incoming packet parser ────────────────────────────────────────────────
+
+/** Append newly received bytes to the reassembly buffer, then drain packets. */
+function _mqttOnData(data) {
+  const incoming  = new Uint8Array(data);
+  const combined  = new Uint8Array(_mqttRxBuffer.length + incoming.length);
+  combined.set(_mqttRxBuffer, 0);
+  combined.set(incoming, _mqttRxBuffer.length);
+  _mqttRxBuffer = combined;
+  _mqttDrainBuffer();
+}
+
+/** Extract and dispatch all complete packets from the receive buffer. */
+function _mqttDrainBuffer() {
+  while (_mqttRxBuffer.length >= 2) {
+    // Decode variable remaining-length starting at byte 1
+    let remLen     = 0;
+    let multiplier = 1;
+    let offset     = 1;
+
+    while (offset < _mqttRxBuffer.length) {
+      const byte = _mqttRxBuffer[offset++];
+      remLen    += (byte & 0x7F) * multiplier;
+      multiplier *= 128;
+      if ((byte & 0x80) === 0) break;
+      if (multiplier > 128 * 128 * 128) {
+        // Malformed remaining length — reset buffer
+        _mqttRxBuffer = new Uint8Array(0);
+        return;
+      }
+    }
+
+    const totalLen = offset + remLen;
+    if (_mqttRxBuffer.length < totalLen) break; // incomplete — wait for more
+
+    const packet      = _mqttRxBuffer.slice(0, totalLen);
+    _mqttRxBuffer     = _mqttRxBuffer.slice(totalLen);
+    const packetType  = (packet[0] & 0xF0) >> 4;
+
+    _mqttDispatch(packetType, packet, offset);
+  }
+}
+
+/** Dispatch a fully assembled packet to the correct handler. */
+function _mqttDispatch(type, packet, varHeaderOffset) {
+  switch (type) {
+    case 2:  _mqttOnConnack(packet, varHeaderOffset); break; // CONNACK
+    case 3:  _mqttOnPublish(packet, varHeaderOffset); break; // PUBLISH
+    case 9:  _mqttOnSuback (packet, varHeaderOffset); break; // SUBACK
+    case 13: /* PINGRESP — keepalive acknowledged */  break;
+    default: /* ignore other packet types */          break;
+  }
+}
+
+function _mqttOnConnack(packet, offset) {
+  const returnCode = packet[offset + 1];
+  if (returnCode !== 0) {
+    const msg = [
+      'unspecified', 'unacceptable protocol',
+      'id rejected', 'server unavailable',
+      'bad credentials', 'not authorized',
+    ][returnCode] || `code ${returnCode}`;
+    console.error(`[MQTT] CONNACK refused: ${msg}`);
+    _mqttSetState(MQTT_STATE.ERROR, { reason: msg });
+    _mqttCleanup();
+    _mqttScheduleReconnect();
+    return;
+  }
+
+  console.info('[MQTT] CONNACK accepted — subscribing to', _mqttConfig.topicFilter);
+  _mqttSetState(MQTT_STATE.CONNECTED, { broker: _mqttConfig.brokerUrl });
+  _mqttBackoffMs = 2000;
+
+  // Subscribe to device telemetry topic
+  const packetId = _mqttPacketIdCounter++;
+  _mqttWs.send(_buildSubscribe(packetId, _mqttConfig.topicFilter, 0));
+
+  // Start keepalive pings
+  _mqttStartPing();
+}
+
+function _mqttOnPublish(packet, offset) {
+  // Read topic string (2-byte length prefix)
+  const topicLen   = (packet[offset] << 8) | packet[offset + 1];
+  // payload starts after topic (QoS 0 has no packet ID)
+  const payloadOff = offset + 2 + topicLen;
+  const payloadStr = _utf8Dec.decode(packet.slice(payloadOff));
+
+  // Feed into the shared frame processing pipeline
+  _processFrame(payloadStr);
+}
+
+function _mqttOnSuback(packet, offset) {
+  const returnCode = packet[offset + 2];
+  if (returnCode === 0x80) {
+    console.error('[MQTT] SUBACK: subscription refused');
+  } else {
+    console.info(`[MQTT] SUBACK: subscribed at QoS ${returnCode}`);
+  }
+}
+
+// ── Keepalive ping ────────────────────────────────────────────────────────
+
+function _mqttStartPing() {
+  _mqttStopPing();
+  _mqttPingTimer = setInterval(() => {
+    if (_mqttWs && _mqttWs.readyState === WebSocket.OPEN) {
+      _mqttWs.send(_buildPingreq());
+    }
+  }, MQTT_KEEPALIVE_S * 1000);
+}
+
+function _mqttStopPing() {
+  clearInterval(_mqttPingTimer);
+  _mqttPingTimer = null;
+}
+
+// ── Connection lifecycle ──────────────────────────────────────────────────
+
+function _mqttOpen() {
+  _mqttSetState(MQTT_STATE.CONNECTING);
+  _mqttRxBuffer = new Uint8Array(0);
+
+  try {
+    // 'mqtt' is the IANA-registered WebSocket subprotocol for MQTT
+    _mqttWs = new WebSocket(_mqttConfig.brokerUrl, ['mqtt']);
+    _mqttWs.binaryType = 'arraybuffer';
+  } catch (err) {
+    console.error('[MQTT] WebSocket construction failed:', err);
+    _mqttSetState(MQTT_STATE.ERROR, { reason: err.message });
+    _mqttScheduleReconnect();
+    return;
+  }
+
+  _mqttWs.onopen = () => {
+    console.info('[MQTT] WebSocket open — sending CONNECT');
+    // Derive a unique client ID (random suffix prevents collisions)
+    const clientId = `sgs-dash-${Math.random().toString(36).slice(2, 8)}`;
+    _mqttWs.send(_buildConnect(
+      clientId,
+      _mqttConfig.username || null,
+      _mqttConfig.password || null,
+    ));
+  };
+
+  _mqttWs.onmessage = (ev) => {
+    _mqttOnData(ev.data);
+  };
+
+  _mqttWs.onerror = (ev) => {
+    console.warn('[MQTT] WebSocket error', ev);
+    _mqttSetState(MQTT_STATE.ERROR, { reason: 'ws_error' });
+  };
+
+  _mqttWs.onclose = (ev) => {
+    _mqttStopPing();
+    if (_mqttState === MQTT_STATE.DISCONNECTED) return; // deliberate close
+    console.warn(`[MQTT] WebSocket closed (code ${ev.code}) — reconnecting`);
+    _mqttCleanup();
+    _mqttScheduleReconnect();
+  };
+}
+
+function _mqttCleanup() {
+  _mqttStopPing();
+  if (_mqttWs) {
+    _mqttWs.onopen = null;
+    _mqttWs.onmessage = null;
+    _mqttWs.onerror = null;
+    _mqttWs.onclose = null;
+    try { _mqttWs.close(); } catch (_) { /* ignore */ }
+    _mqttWs = null;
+  }
+}
+
+function _mqttScheduleReconnect() {
+  if (_mqttState === MQTT_STATE.DISCONNECTED || !_mqttConfig) return;
+  _mqttSetState(MQTT_STATE.RECONNECTING, { delayMs: _mqttBackoffMs });
+  clearTimeout(_mqttReconnectTimer);
+  _mqttReconnectTimer = setTimeout(() => {
+    if (_mqttConfig && _mqttState !== MQTT_STATE.DISCONNECTED) _mqttOpen();
+  }, _mqttBackoffMs);
+  _mqttBackoffMs = Math.min(_mqttBackoffMs * 2, MQTT_BACKOFF_MAX);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MQTT Public API
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Start the MQTT WSS transport.
+ * Disconnects any running WS/HTTP transport first.
+ * The same _messageListeners pipeline receives PUBLISH frames.
+ *
+ * @param {object} config
+ *   @param {string} config.brokerUrl    — WSS URL, e.g. 'wss://host:8884/mqtt'
+ *   @param {string} [config.username]   — MQTT username
+ *   @param {string} [config.password]   — MQTT password (not stored)
+ *   @param {string} [config.topicFilter]— MQTT topic, e.g. 'sgs/device/+/telemetry'
+ */
+export function connectMqtt(config) {
+  if (!config?.brokerUrl) {
+    console.error('[MQTT] connectMqtt: brokerUrl is required');
+    return;
+  }
+
+  // Stop existing LAN transport — MQTT takes over as the data source
+  disconnect();
+
+  // Stop any previous MQTT session
+  if (_mqttState !== MQTT_STATE.IDLE && _mqttState !== MQTT_STATE.DISCONNECTED) {
+    disconnectMqtt();
+  }
+
+  _mqttConfig    = { ...config };
+  _mqttBackoffMs = 2000;
+  _mqttOpen();
+}
+
+/**
+ * Stop the MQTT WSS transport gracefully.
+ * Sends MQTT DISCONNECT before closing the WebSocket.
+ */
+export function disconnectMqtt() {
+  clearTimeout(_mqttReconnectTimer);
+  _mqttReconnectTimer = null;
+  _mqttConfig = null;
+
+  _mqttSetState(MQTT_STATE.DISCONNECTED);
+
+  if (_mqttWs && _mqttWs.readyState === WebSocket.OPEN) {
+    try { _mqttWs.send(_buildDisconnect()); } catch (_) { /* ignore */ }
+  }
+  _mqttCleanup();
+  console.info('[MQTT] Disconnected');
+}
+
+/**
+ * @returns {string} current MQTT state (one of MQTT_STATE values)
+ */
+export function getMqttState() { return _mqttState; }
+
+/**
+ * Register a listener for MQTT state transitions.
+ * Callback receives (newState: string, detail: object).
+ * @param {function} callback
+ * @returns {function} unsubscribe
+ */
+export function onMqttStateChange(callback) {
+  if (typeof callback !== 'function') {
+    throw new TypeError('[MQTT] onMqttStateChange() requires a function');
+  }
+  _mqttListeners.push(callback);
+  return () => { _mqttListeners = _mqttListeners.filter(cb => cb !== callback); };
+}

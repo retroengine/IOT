@@ -165,8 +165,18 @@ namespace {
     }
 
     void checkSaturation(int raw_v, int raw_i) {
+        // Voltage channel: flag both low-rail (V=0 on live mains = sensor failure)
+        // and high-rail (>300V clamped at ADC ceiling).
         bool v_sat = (raw_v <= 5 || raw_v >= ADC_MAX_RAW - 5);
-        bool i_sat = (raw_i <= 5 || raw_i >= ADC_MAX_RAW - 5);
+
+        // Current channel: raw=0 is normal no-load / CURR_DEADBAND condition.
+        // Flagging low-rail as saturation causes false EC-06 triggers every time
+        // the load is off (produces spurious [ADC] CURRENT SATURATION: raw=0 logs
+        // and penalises SensorDiagnostics ADCHealth score for a healthy sensor).
+        // True saturation for current is ONLY at the HIGH rail — ADC clipped
+        // because instantaneous current exceeded CURRENT_FULL_SCALE.
+        bool i_sat = (raw_i >= ADC_MAX_RAW - 5);
+
         if (v_sat && !v_saturated) {
             v_saturated = true;
             sat_count++;
@@ -177,10 +187,9 @@ namespace {
             sat_count++;
             Serial.printf("[ADC] CURRENT SATURATION: raw=%d\n", raw_i);
         }
-        // Clear saturation flag if we've moved away from rail for 5 samples
-        // (flag is latched — only cleared if reading is comfortably mid-range)
+        // Clear saturation flag once reading moves comfortably away from rail
         if (!v_sat && raw_v > 50 && raw_v < ADC_MAX_RAW - 50) v_saturated = false;
-        if (!i_sat && raw_i > 50 && raw_i < ADC_MAX_RAW - 50) i_saturated = false;
+        if (!i_sat && raw_i < ADC_MAX_RAW - 50)                i_saturated = false;
     }
 
     void updateSampleRate() {

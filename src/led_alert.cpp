@@ -25,15 +25,18 @@ namespace {
 namespace LedAlert {
 
     void init() {
-        // Alert LED
+        // Alert LED: drive LOW (off) before OUTPUT to prevent boot glitch.
+        // Matches the relay safe-first init pattern.
+        digitalWrite(PIN_ALERT_LED, LOW);
         pinMode(PIN_ALERT_LED, OUTPUT);
-        set(false);
 
-        // Load indicator LEDs — start OFF
-        pinMode(PIN_LED_LOAD1, OUTPUT);
-        pinMode(PIN_LED_LOAD2, OUTPUT);
+        // Load indicator LEDs — start OFF (LOW = LED off = load disconnected at boot)
+        // LED logic tracks the logical relay state (r1_closed bool), not relay pin voltage.
+        // active-LOW relay: pin LOW = relay closed = load on → LED HIGH = on. Correct.
         digitalWrite(PIN_LED_LOAD1, LOW);
         digitalWrite(PIN_LED_LOAD2, LOW);
+        pinMode(PIN_LED_LOAD1, OUTPUT);
+        pinMode(PIN_LED_LOAD2, OUTPUT);
 
         Serial.println("[LED] init — alert + load indicators ready");
     }

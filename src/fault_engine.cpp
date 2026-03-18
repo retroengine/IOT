@@ -75,7 +75,14 @@ namespace {
 
     // ── Debounce counters ──────────────────────────────────────────────────
     int cnt_ov          = 0;
-    int cnt_uv          = 0;
+    int cnt_uv          = 0;   // Stage 4: sustained UV fault debounce
+    int cnt_uv_instant  = 0;   // Stage 3: UV_INSTANT (<150V) — separate from cnt_uv.
+    // BUG FIX: Previously shared cnt_uv between Stage 3 (UV_INSTANT) and Stage 4
+    // (sustained UV). Because both debounce() calls increment the same counter in
+    // a single evaluate() call, Stage 4 can reach its threshold (fault_thresh) before
+    // Stage 3 reaches FAULT_DEBOUNCE_INSTANT, causing Stage 4's log message to print
+    // for what is actually a UV_INSTANT condition and preventing the instant path from
+    // correctly attributing ANSI 27 vs near-collapse. Separate counters fix this.
     int cnt_oc_idmt_arm = 0;   // arms IDMT accumulator (consecutive above pickup)
     int cnt_temp_fault  = 0;
     int cnt_ov_w        = 0;
@@ -396,7 +403,7 @@ namespace FaultEngine {
         iir_i            = 0.0f;
 
         // Reset all counters
-        cnt_ov = cnt_uv = cnt_oc_idmt_arm = cnt_temp_fault = 0;
+        cnt_ov = cnt_uv = cnt_uv_instant = cnt_oc_idmt_arm = cnt_temp_fault = 0;
         cnt_ov_w = cnt_uv_w = cnt_oc_w = cnt_temp_w = 0;
 
         // Reset hysteresis state
@@ -512,7 +519,7 @@ namespace FaultEngine {
         }
 
         // UV_INSTANT <150V — near supply collapse, always trip (EC-09 exception)
-        if (debounce(v <= VOLT_UV_INSTANT_V, cnt_uv, FAULT_DEBOUNCE_INSTANT)) {
+        if (debounce(v <= VOLT_UV_INSTANT_V, cnt_uv_instant, FAULT_DEBOUNCE_INSTANT)) {
             if (!(fault_bits & FAULT_BIT_UV)) {
                 fault_bits |= FAULT_BIT_UV;
                 Serial.printf("[FAULT] UV_INSTANT: V=%.1fV ≤ %.0fV — supply collapse\n",
@@ -706,7 +713,7 @@ namespace FaultEngine {
         // Sensor fault and thermal fault NOT cleared here —
         // they require physical inspection (done by FSM LOCKOUT reset path)
         idmt_accumulator  = 0.0f;
-        cnt_ov = cnt_uv = cnt_oc_idmt_arm = 0;
+        cnt_ov = cnt_uv = cnt_uv_instant = cnt_oc_idmt_arm = 0;
         // Reset hysteresis state for cleared faults
         hyst_ov_active = hyst_uv_active = hyst_oc_active = false;
         Serial.println("[FAULT_ENG] latched faults cleared — IDMT accumulator reset");
@@ -717,7 +724,7 @@ namespace FaultEngine {
         fault_bits       = FAULT_BIT_NONE;
         warn_bits        = WARN_NONE;
         idmt_accumulator = 0.0f;
-        cnt_ov = cnt_uv = cnt_oc_idmt_arm = cnt_temp_fault = 0;
+        cnt_ov = cnt_uv = cnt_uv_instant = cnt_oc_idmt_arm = cnt_temp_fault = 0;
         cnt_ov_w = cnt_uv_w = cnt_oc_w = cnt_temp_w = 0;
         hyst_ov_active = hyst_uv_active =
         hyst_oc_active = hyst_temp_active = false;

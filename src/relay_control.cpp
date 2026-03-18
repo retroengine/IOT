@@ -1,8 +1,19 @@
 // ============================================================
 //  relay_control.cpp
-//  Active-LOW relay modules (HIGH = OPEN = safe).
-//  IMPORTANT: pin set HIGH *before* pinMode(OUTPUT) to
-//  prevent glitch on pin direction change (bootloader guard fix).
+//  Active-LOW relay modules (LOW = CLOSED = load connected,
+//                             HIGH = OPEN  = safe/disconnected).
+//
+//  GPIO HIGH = relay coil de-energized = contacts open = SAFE.
+//  GPIO HIGH is NOT the ESP32 power-on default — GPIOs float low
+//  until explicitly driven. For active-LOW relays this means a
+//  brief closure glitch is possible between reset and firmware
+//  driving the pin. CRITICAL FIX: pre-set HIGH before pinMode so
+//  the output driver powers up into the safe (OPEN) state:
+//    digitalWrite(pin, HIGH);  ← pre-set BEFORE OUTPUT mode
+//    pinMode(pin, OUTPUT);
+//
+//  User convention: pin HIGH = "off" = disconnected = safe state.
+//                   pin LOW  = "on"  = connected = normal state.
 // ============================================================
 #include "relay_control.h"
 #include "config.h"
@@ -21,6 +32,8 @@ namespace {
     volatile bool api_override_state  = false;
 
     // Active-LOW helpers
+    // LOW  = coil energized = relay contacts CLOSED = load connected
+    // HIGH = coil de-energized = relay contacts OPEN  = load disconnected (safe)
     inline void relayClose(uint8_t pin) { digitalWrite(pin, LOW);  }
     inline void relayOpen (uint8_t pin) { digitalWrite(pin, HIGH); }
 }
@@ -28,15 +41,17 @@ namespace {
 namespace RelayControl {
 
     void init() {
-        // Drive pins HIGH (safe/open) BEFORE setting as OUTPUT
-        // This prevents the ~200 ms bootloader glitch (Fix 3 from documentation)
-        digitalWrite(PIN_RELAY_LOAD1, HIGH);
+        // Active-LOW modules: HIGH = relay open = safe.
+        // ESP32 GPIO power-on default is LOW (input), which would energize
+        // an active-LOW relay immediately. Pre-set HIGH before switching to
+        // OUTPUT mode so the coil is never energized during init.
+        digitalWrite(PIN_RELAY_LOAD1, HIGH);  // pre-set OPEN before OUTPUT
         digitalWrite(PIN_RELAY_LOAD2, HIGH);
         pinMode(PIN_RELAY_LOAD1, OUTPUT);
         pinMode(PIN_RELAY_LOAD2, OUTPUT);
         r1_closed = false;
         r2_closed = false;
-        Serial.println("[RELAY] init — both OPEN (safe)");
+        Serial.println("[RELAY] init — both OPEN (HIGH/safe, active-LOW convention)");
     }
 
     void update(FSMState state) {

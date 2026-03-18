@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Smart Grid Sentinel — Industrial IoT Monitoring Dashboard" />
+  <title>Smart Grid Sentinel</title>
+
+  <!-- ── Google Fonts ── -->
+  <!-- DM Sans: primary UI font (DESIGN.md §3 — preferred) -->
+  <!-- JetBrains Mono: monospace font for payload inspector (Page 4) -->
+  <link
+    rel="stylesheet"
+  />
+
+  <!-- ── Design Tokens & Effects (Phase 1 — FROZEN) ── -->
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="effects.css" />
+
+  <style>
+    /* ──────────────────────────────────────────────────────────────
+       Phase 1 Shell Layout Styles
+       Structural layout only — no component styling here.
+       All color values reference tokens.css variables.
+    ────────────────────────────────────────────────────────────── */
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font-primary);
+      font-size: 14px;
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      /* Prevent horizontal scroll at any viewport width */
+      overflow-x: hidden;
+    }
+
+    /* Tabular numbers globally — DESIGN.md §3 rule 1 */
+    body {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Dashboard Container (DESIGN.md §4 Dashboard Container) ── */
+    /* The dashboard is a rounded card on the grey outer page */
+.dashboard {
+      position: relative;
+      max-width: 100%;
+      min-height: 100vh;
+      margin: 0 auto;
+      background-color: var(--bg-dashboard);
+      border-radius: 0;
+      box-shadow: var(--shadow-dashboard);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* On very wide viewports the page bg peeks around the rounded dashboard */
+    @media (min-width: 1400px) {
+      body {
+        padding: var(--space-lg) 0;
+      }
+      .dashboard {
+        min-height: calc(100vh - var(--space-lg) * 2);
+      }
+    }
+
+    /* ── Navigation Bar (DESIGN.md §13) ── */
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      padding: 0 var(--space-xl);
+      /* Sticky top — always visible (DESIGN.md §13) */
+      position: sticky;
+      top: 0;
+      z-index: var(--z-nav);
+      /* Inherits dashboard bg; subtle blur on scroll applied via JS class */
+      background-color: var(--bg-dashboard);
+      /* Bottom separator: 1px border-subtle (DESIGN.md §5.15) */
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* Nav: logo + links group on the left */
+    .nav__left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);           /* 24px gap between logo and links */
+    }
+
+    /* Logo mark */
+    .nav__logo {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      color: var(--text-primary);
+      text-decoration: none;
+      gap: 10px;
+      position: relative;
+    }
+    .nav__logo:hover .nav__logo-icon {
+      filter: drop-shadow(0 0 8px rgba(200, 16, 46, 0.75));
+      transform: scale(1.05);
+    }
+    .nav__logo:hover .nav__logo-text {
+      letter-spacing: 0.22em;
+    }
+
+    .nav__logo-icon {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      object-fit: contain;
+      transition: filter 300ms ease, transform 300ms ease;
+    }
+
+    /* SGS wordmark — Syne 800, gradient + glow */
+    .nav__logo-text {
+      font-family: 'Syne', var(--font-primary);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      background: linear-gradient(135deg, #ffffff 40%, #C8102E 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      transition: letter-spacing 300ms ease;
+      position: relative;
+    }
+    /* Crimson underline accent */
+    .nav__logo-text::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      width: 100%;
+      height: 1.5px;
+      background: linear-gradient(90deg, #C8102E, transparent);
+      border-radius: 2px;
+    }
+
+    /* Nav link list */
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);           /* 24px per DESIGN.md §13 */
+      list-style: none;
+    }
+
+    .nav__link {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--text-primary);
+      opacity: 0.70;
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity 200ms ease;
+      white-space: nowrap;
+    }
+
+    /* Active page tab — full opacity (DESIGN.md §13) */
+    .nav__link.active,
+    .nav__link:hover {
+      opacity: 1.00;
+    }
+
+    /* Nav right: FSM badge + optional account */
+    .nav__right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    /* ── FSM State Badge (DESIGN.md §5.2 / §13) ── */
+    /* Persistent across every page — most critical system signal */
+    #fsm-state-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 80px;
+      height: 24px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      /* Default BOOT state — JS will update data-state and inline styles */
+      background-color: var(--state-boot);
+      color: var(--text-primary);
+    }
+
+    /* ── Page Content Area ── */
+    /* Wraps all zone containers — zones stack vertically */
+    .page-content {
+      /* Phase 1: no display grid yet — zones stack as block elements */
+      padding-bottom: var(--space-2xl);
+    }
+
+    /* Active page shown, inactive pages hidden */
+    .page {
+      display: none;
+    }
+    .page.active {
+      display: block;
+    }
+
+    /* ── Zone Base Styles (DESIGN.md §4 Zone-Based Layout Model) ── */
+    /* Each zone is an empty placeholder in Phase 1 */
+    .zone {
+      width: 100%;
+    }
+
+    /* ── Zone 1 — System Status Bar ── */
+    /* Height: 50–70px fixed, full width, bottom border */
+    #zone-system-status {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-xl);
+      gap: var(--space-lg);
+      border-bottom: 1px solid var(--border-subtle);
+      background-color: var(--bg-dashboard);
+      /* Sticky below the nav so it's always visible */
+      position: sticky;
+      top: 56px;                      /* nav height */
+      z-index: calc(var(--z-nav) - 1);
+    }
+
+    /* ── Zone 2 — Main Metrics (Live Telemetry Gauges) ── */
+    /* ~200px height, arc gauges + waveforms */
+    #zone-main-metrics {
+      min-height: 200px;
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    /* ── Zone 3A / 3B — Charts (split column) ── */
+    /* 3A: Energy Flow Map (~280px) | 3B: GPU Status Panels (~280px) */
+    #zone-charts {
+      min-height: 280px;
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    /* ── Zone 4 — Health Grid (Hex Health Grid) ── */
+    /* ~180px — honeycomb health scores */
+    #zone-health-grid {
+      min-height: 180px;
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    /* ── Zone 5 — Sidebar ── */
+    /* Waveform + relay + energy sidebar */
+    #zone-sidebar {
+      min-height: 160px;
+      padding: var(--space-lg) var(--space-xl);
+    }
+
+    /* ── Phase 1 Empty State Placeholders ── */
+    /* Faint placeholder text so empty zones are visually distinct */
+    .zone-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: inherit;
+      color: var(--text-faint);
+      font-size: var(--text-label);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius-md);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ── Mobile Nav (DESIGN.md §14) ── */
+/* On very wide viewports the page bg peeks around the rounded dashboard */
+    @media (min-width: 1400px) {
+      body {
+        /* Change this from var(--space-lg) 0 to just 0 */
+        padding: 0; 
+      }
+      .dashboard {
+        min-height: 100vh;
+      }
+    }
+
+    /* ── Mobile menu button (hidden on desktop) ── */
+    .nav__mobile-menu-btn {
+      display: none;                  /* shown only on mobile via media query above */
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-week-pill);
+      border: 1px solid var(--border-pill);
+      border-radius: var(--radius-pill);
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    /* ── Accessibility: focus rings ── */
+    :focus-visible {
+      outline: 2px solid var(--state-normal);
+      outline-offset: 2px;
+    }
+
+    /* ── Scrollbar (minimal, respects dark theme) ── */
+    ::-webkit-scrollbar       { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dashboard); }
+    ::-webkit-scrollbar-thumb { background: var(--text-faint); border-radius: 3px; }
+  </style>
+</head>
+
+<body>
+  <!-- ════════════════════════════════════════════════════════════════
+       Smart Grid Sentinel — Phase 1 Shell
+       All zone containers are empty. Content injected by page modules
+       in Phase 4 (page1-status.js) and subsequent phases.
+  ════════════════════════════════════════════════════════════════ -->
+
+  <div class="dashboard" id="dashboard">
+
+    <!-- ── Navigation Bar (DESIGN.md §5.1 / §13) ── -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+
+      <!-- Left: Logo + page links -->
+      <div class="nav__left">
+
+        <!-- Logo mark — white geometric SVG (Phase 1 inline placeholder) -->
+        <a class="nav__logo" href="#" aria-label="Smart Grid Sentinel home">
+          <img src="Sentinels_logo.svg" class="nav__logo-icon" alt="" aria-hidden="true" />
+          <span class="nav__logo-text">SGS</span>
+        </a>
+
+        <!-- Page navigation links (DESIGN.md §13) -->
+        <ul class="nav__links" role="list">
+          <li>
+            <a class="nav__link active"
+               href="#"
+               data-page="status"
+               role="tab"
+               aria-selected="true"
+               aria-controls="page-status">
+              Status
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="faults"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-faults">
+              Faults &amp; Control
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="diagnostics"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-diagnostics">
+              Diagnostics
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="cloud"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-cloud">
+              Cloud/MQTT
+            </a>
+          </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="analytics"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-analytics">
+              Analytics
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Right: FSM State Badge (persistent — DESIGN.md §5.2) -->
+      <div class="nav__right">
+        <!-- Mobile: "Menu" pill button (hidden on desktop) -->
+        <button class="nav__mobile-menu-btn"
+                type="button"
+                aria-label="Open navigation menu"
+                aria-expanded="false">
+          Menu
+        </button>
+
+        <!-- FSM State Badge — always visible, updates via JS in Phase 4 -->
+        <!-- data-state drives the glow rules in effects.css -->
+        <span id="fsm-state-badge"
+              role="status"
+              aria-live="polite"
+              aria-label="System state: Boot"
+              data-state="BOOT">
+          BOOT
+        </span>
+      </div>
+    </nav>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         Page Containers
+         Each page is a full-content slot. Only the active page is shown.
+         Page modules (Phase 4+) inject into these containers.
+    ════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Page 1: Status (primary live-monitoring view) ── -->
+    <main id="page-status"
+          class="page active"
+          role="main"
+          aria-label="Status page">
+
+      <!--
+        Zone 1 — System Status Bar (DESIGN.md §4 / §5.15)
+        50–70px fixed height · FSM badge · alerts · connection · clock
+        Populated by: components/fsmBadge.js + pages/statusPage.js (Phase 4)
+      -->
+      <section id="zone-system-status"
+               class="zone"
+               aria-label="System status bar">
+        <!-- Phase 1: empty — content injected in Phase 4 -->
+      </section>
+
+      <!-- Page content wrapper — zones stack below status bar -->
+      <div class="page-content">
+
+        <!--
+          Zone 2 — Main Metrics / Live Telemetry Gauges (DESIGN.md §4)
+          ~200px · Arc gauges · hero numbers · waveform card
+          Populated by: pages/statusPage.js (Phase 4)
+        -->
+        <section id="zone-main-metrics"
+                 class="zone"
+                 aria-label="Main telemetry metrics">
+          <div class="zone-placeholder">Zone 2 — Main Metrics</div>
+        </section>
+
+        <!--
+          Zone 3 — Charts (DESIGN.md §4: Zone 3A + Zone 3B side by side)
+          3A: Energy Flow Map (~280px SVG node diagram)
+          3B: GPU Status Panels (compact metric strips)
+          Populated by: components/energyFlowMap.js + components/gpuStatusPanel.js (Phase 4)
+        -->
+        <section id="zone-charts"
+                 class="zone"
+                 aria-label="Charts and energy flow">
+          <div class="zone-placeholder">Zone 3 — Charts / Energy Flow / GPU Panels</div>
+        </section>
+
+        <!--
+          Zone 4 — Health Grid (DESIGN.md §4 Zone 5 — Hex Health Grid)
+          ~180px · Honeycomb hex cells for subsystem health scores
+          Populated by: components/hexHealthGrid.js (Phase 4)
+        -->
+        <section id="zone-health-grid"
+                 class="zone"
+                 aria-label="System health grid">
+          <div class="zone-placeholder">Zone 4 — Hex Health Grid</div>
+        </section>
+
+        <!--
+          Zone 5 — Sidebar (DESIGN.md §4 Zone 4 Waveform + sidebar content)
+          Oscilloscope waveform · Relay toggle · Energy consumed · Fault indicators
+          Populated by: pages/statusPage.js (Phase 4)
+        -->
+        <section id="zone-sidebar"
+                 class="zone"
+                 aria-label="Sidebar — waveform and relay">
+          <div class="zone-placeholder">Zone 5 — Sidebar / Waveform / Relay</div>
+        </section>
+
+      </div><!-- /.page-content -->
+    </main>
+
+    <!-- ── Page 2: Faults & Control ── -->
+    <main id="page-faults"
+          class="page"
+          role="main"
+          aria-label="Faults and control page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 2 — Faults &amp; Control (Phase 6)
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Page 3: Diagnostics ── -->
+    <main id="page-diagnostics"
+          class="page"
+          role="main"
+          aria-label="Diagnostics page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 3 — Diagnostics (Phase 7)
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Page 4: Cloud / MQTT ── -->
+    <main id="page-cloud"
+          class="page"
+          role="main"
+          aria-label="Cloud and MQTT page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 4 — Cloud / MQTT (Phase 7)
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Page 5: Analytics ── -->
+    <main id="page-analytics"
+          class="page"
+          role="main"
+          aria-label="Analytics page">
+      <div class="page-content">
+        <div class="zone-placeholder" style="min-height:400px;">
+          Page 5 — Analytics (Phase 5) — Connect a time-series backend to enable.
+        </div>
+      </div>
+    </main>
+
+  </div><!-- /.dashboard -->
+
+  <!-- ════════════════════════════════════════════════════════════════
+       Phase 1 — rendering engine singletons (FROZEN)
+       Loaded here so they are available before main.js runs.
+  ════════════════════════════════════════════════════════════════ -->
+
+
+  <!-- ════════════════════════════════════════════════════════════════
+       Phase 4 — Page router & telemetry bootstrap
+       main.js imports Page1Status, telemetryPoller, and mockData.
+       All page mounting, tab routing, and data flow originate here.
+  ════════════════════════════════════════════════════════════════ -->
+<script type="module" src="./main.js"></script>
+</body>
+</html>
