@@ -38,8 +38,9 @@
 17. [Telemetry & Diagnostics](#17-telemetry--diagnostics)
 18. [REST API Reference](#18-rest-api-reference)
 19. [MQTT Architecture](#19-mqtt-architecture)
-20. [Standards Compliance Matrix](#20-standards-compliance-matrix)
-21. [Configuration Reference](#21-configuration-reference)
+20. [Dashboard & Relay Server](#20-dashboard--relay-server)
+21. [Standards Compliance Matrix](#21-standards-compliance-matrix)
+22. [Configuration Reference](#22-configuration-reference)
 
 ---
 
@@ -58,11 +59,12 @@ It does what a commercial MCB cannot:
 | Thermal monitoring | ✗ | ✓ (DS18B20, enclosure temp) |
 | Auto-reclose with validation | ✗ | ✓ (3-attempt, escalating delay) |
 | Sensor self-test | ✗ | ✓ (saturation, frozen, physics cross-check) |
-| IoT telemetry | ✗ | ✓ (MQTT TLS, REST API) |
+| IoT telemetry | ✗ | ✓ (MQTT TLS, REST API, WebSocket push) |
 | Remote reset / control | ✗ | ✓ (MQTT commands, Web API) |
 | Event log (survives reboot) | ✗ | ✓ (NVS ring buffer, 50 events) |
 | Load shedding on overload | ✗ | ✓ (auxiliary relay shed at WARNING) |
 | Power quality metrics | ✗ | ✓ (ripple, sag, swell, flicker index) |
+| Live browser dashboard | ✗ | ✓ (5-page industrial UI, 100ms refresh) |
 
 ---
 
@@ -119,15 +121,22 @@ SGS intercepts all of them.
                         │                             │
   1-Wire Bus ──[DS18B20]┤ GPIO4               GPIO2  ├──[LED]    (Alert)
               (temp)    │                             │
+                        │ GPIO17              GPIO17 ├──[LED]    (Load1 green)
+                        │ GPIO16              GPIO16 ├──[LED]    (Load2 yellow)
+                        │                             │
                         │ GPIO21 (SDA)                │
   [SSD1306 OLED] ───────┤ GPIO22 (SCL)                │
   128×64 px             │                             │
                         └──────────────────┬──────────┘
                                            │ Wi-Fi
-                                    ┌──────┴──────┐
-                           MQTT TLS │  HiveMQ      │  REST API
-                           ─────────► Cloud Broker ◄──── Web Dashboard
-                                    └─────────────┘
+                              ┌────────────┴────────────┐
+                     WS push  │     relay-server          │  MQTT TLS
+                    (100ms)   │     (Node.js, LAN PC)     │  (5s, HiveMQ)
+                    ◄─────────┤                           ├─────────────►
+                              └────────────┬────────────┘
+                                           │ WebSocket
+                                    Browser Dashboard
+                                    http://localhost:3000
 ```
 
 ### Sensor Selection Rationale
@@ -161,6 +170,8 @@ GPIO25      OUTPUT      LEDC Buzzer PWM             Channel 0, 8-bit resolution
 GPIO26      OUTPUT      Relay Load 1 (active-LOW)   HIGH before pinMode (boot fix)
 GPIO27      OUTPUT      Relay Load 2 (active-LOW)   HIGH before pinMode (boot fix)
 GPIO2       OUTPUT      Alert LED                   Built-in LED on most DevKit C
+GPIO16      OUTPUT      Load 2 indicator (yellow)   HIGH = relay closed
+GPIO17      OUTPUT      Load 1 indicator (green)    HIGH = relay closed
 ```
 
 > **Why GPIO34/35 for ADC?** ADC2 channels are shared with Wi-Fi and become unusable
@@ -187,20 +198,18 @@ work deliberately so that a slow MQTT broker, OLED render, or HTTP request can
 │  ║  1. ADCSampler::tick()      ║  ║  1. OLEDDisplay::update()     ║ │
 │  ║  2. DS18B20::tick()         ║  ║  2. Buzzer::tick()            ║ │
 │  ║  3. FaultEngine::evaluate() ║  ║  3. MQTTClient::tick()        ║ │
-│  ║  4. FSM::tick()             ║  ║                               ║ │
-│  ║  5. RelayControl::update()  ║  ║  + ESPAsyncWebServer (async   ║ │
-│  ║  6. LedAlert::tick()        ║  ║    callbacks, event-driven)   ║ │
-│  ║  7. Pack SensorReading      ║  ║                               ║ │
-│  ║     under mutex             ║  ╚═══════════════════════════════╝ │
-│  ║  8. xQueueOverwrite()       ║                                     │
-│  ╚══════════════════════════════╝  ╔═══════════════════════════════╗ │
-│                │                   ║  CORE 1 — task_health         ║ │
-│          g_state_mutex             ║  Priority: 1  Stack: 2048w    ║ │
-│         SemaphoreHandle_t          ║  Tick rate: 0.1Hz (10s)       ║ │
-│                │                   ║                               ║ │
-│                └───────────────────║  Stack HWM monitoring         ║ │
-│                                    ║  Heap usage monitoring        ║ │
-│                                    ║  WDT feed                     ║ │
+│  ║  4. FSM::tick()             ║  ║  4. WSServer::tick()  ← NEW   ║ │
+│  ║  5. RelayControl::update()  ║  ║                               ║ │
+│  ║  6. LedAlert::tick()        ║  ║  + ESPAsyncWebServer (async   ║ │
+│  ║  7. Pack SensorReading      ║  ║    callbacks, event-driven)   ║ │
+│  ║     under mutex             ║  ║                               ║ │
+│  ╚══════════════════════════════╝  ╚═══════════════════════════════╝ │
+│                │                                                      │
+│          g_state_mutex             ╔═══════════════════════════════╗ │
+│         SemaphoreHandle_t          ║  CORE 1 — task_health         ║ │
+│                │                   ║  Priority: 1  Stack: 2048w    ║ │
+│                └───────────────────║  Tick rate: 0.1Hz (10s)       ║ │
+│                                    ║  Stack HWM + heap monitoring  ║ │
 │                                    ╚═══════════════════════════════╝ │
 │                                                                      │
 │  Watchdog: esp_task_wdt — 10s timeout — panic on miss               │
@@ -400,15 +409,11 @@ trip during normal load switching.
   │  Short Circuit (P2): I ≥ 27A                                  │
   │    During inrush blank window:                                │
   │      → Only trips if slope is RISING (not decaying inrush)    │
-  │      → Genuine SC always has rising or flat current            │
-  │      → Inrush current decays exponentially from peak          │
   │    Outside blank window: unconditional trip                   │
   │    → FAULT_BIT_SC → LOCKOUT (no reclose)                      │
   │                                                               │
   │  Severe Overvoltage (P3): V ≥ 270V                            │
   │    Never blanked. Never debounced. 2-sample confirmation only. │
-  │    At 270V the MOV clamps hard — every ms of exposure          │
-  │    degrades semiconductor junctions and MOV lifetime           │
   │    → FAULT_BIT_OV_INSTANT                                      │
   └────────────────────────────┬──────────────────────────────────┘
                                │
@@ -420,21 +425,9 @@ trip during normal load switching.
   │  At 100Hz: N=3 → 30ms confirmation window                    │
   │                                                               │
   │  OV Sustained (P5): V ≥ 253V for N samples                   │
-  │    Clears via hysteresis: only when V < 245V                  │
-  │                                                               │
   │  IDMT Overcurrent (P6): accumulator ≥ 1.0                    │
-  │    Accumulates when I > 21A (blanked during inrush window)    │
-  │    Decays at 0.995×/tick below pickup (thermal memory)        │
-  │    Clears when accumulator < 0.05 AND I < 16.5A               │
-  │                                                               │
-  │  Thermal Fault (P4): T ≥ 85°C for N samples                  │
-  │    → FAULT_BIT_THERMAL → LOCKOUT (no reclose — fire risk)     │
-  │    Clears via hysteresis: only when T < 70°C                  │
-  │                                                               │
+  │  Thermal Fault (P4): T ≥ 85°C → LOCKOUT (fire risk)          │
   │  UV Sustained (P7): V ≤ 207V for N samples                   │
-  │    Suppressed during inrush blank (EC-09: motor sag)          │
-  │    UV_INSTANT (V < 150V) is never suppressed                  │
-  │    Clears via hysteresis: only when V > 215V                  │
   └────────────────────────────┬──────────────────────────────────┘
                                │
                                ▼
@@ -446,7 +439,6 @@ trip during normal load switching.
   │  OC_WARN  : I ≥ 18A and I < 21A   (suppressed during inrush)  │
   │  THERMAL  : T ≥ 70°C and T < 85°C                            │
   │  CURR_RISING: slope > 0.05 AND I > 0.5A AND I < 21A          │
-  │               (predictive — current trending upward)          │
   └────────────────────────────┬──────────────────────────────────┘
                                │
                                ▼
@@ -456,9 +448,6 @@ trip during normal load switching.
   │  Active faults DO NOT self-clear when threshold is no longer  │
   │  exceeded. They clear only when the signal crosses the        │
   │  corresponding hysteresis dropout threshold.                  │
-  │                                                               │
-  │  This prevents chattering at threshold boundaries and         │
-  │  matches the behavior expected from utility relay protection.  │
   └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -501,36 +490,11 @@ trip time inversely proportional to how far above the pickup the current is:
     This is the IEC "thermal memory" — partial heating is
     remembered. Two 30-second overloads separated by 1 minute
     are more dangerous than one isolated overload.
-
-  Trip time curve (SGS, TMS=0.10, Is=21A):
-  ──────────────────────────────────────────────────────────
-  Time (s)
-  │
-  15 ┤ ●  22.0A
-     │
-  10 ┤
-     │  ●  23.0A
-   6 ┤
-     │     ●  24.0A
-   4 ┤
-     │        ●  25.0A
-   2 ┤
-     │              ●  26.0A
-   1 ┤
-     │                    SC bypass → 27A trips in <30ms
-   0 └─────────────────────────────────── Current (A)
 ```
 
 ---
 
 ## 10. Inrush Blanking — Handling Indian Loads
-
-The single most common cause of nuisance tripping in any protection relay is
-**inrush current** — the brief overcurrent that occurs when any load with a
-magnetic core, motor, or large capacitor is switched on.
-
-SGS uses a 3500ms inrush blank window after every relay close. This window was
-derived from field measurements of Indian household loads:
 
 ```
   Indian Load Inrush Profile (SGS blanking rationale):
@@ -549,8 +513,6 @@ derived from field measurements of Indian household loads:
 
   3500ms window = worst-case water pump start (EC-01/02/03 all covered)
 
-  ═══════════════════════════════════════════════════════════════════
-
   What IS suppressed during blank window:
     ✓ IDMT overcurrent accumulator (frozen at 0)
     ✓ OC warning (WARN_OC bit)
@@ -559,17 +521,9 @@ derived from field measurements of Indian household loads:
 
   What is NEVER suppressed:
     ✗ SC_INSTANT (>27A) — genuine short circuits must trip immediately
-    ✗ OV_INSTANT (>270V) — overvoltage has nothing to do with load start
+    ✗ OV_INSTANT (>270V) — overvoltage unrelated to load start
     ✗ OV_FAULT (>253V) — same reasoning
     ✗ Sensor faults — hardware failures must always trip
-
-  SC inside blank window — slope discrimination (EC-11):
-  ─────────────────────────────────────────────────────
-  After 300ms into blank window, current should be decaying (inrush
-  peak has passed). If current is still RISING at that point, it is
-  not inrush — it is a genuine short circuit developing.
-  SGS checks: slope > 0.5A/tick AND I > SC_INSTANT → trips regardless
-  of blank window being active.
 ```
 
 ---
@@ -589,163 +543,66 @@ derived from field measurements of Indian household loads:
   │         ┌───►│          NORMAL              │◄──────────────┐   │
   │         │    └──────────────┬───────────────┘               │   │
   │         │                   │                                │   │
-  │  faults │     any_warn      │                   clean        │   │
-  │  clear  │         ▼         │ any_fault        recovery      │   │
+  │  faults │     any_warn      │ any_fault          clean       │   │
+  │  clear  │         ▼         │                  recovery      │   │
   │         │    ┌─────────┐    │                               │   │
   │         └────│ WARNING │    │                               │   │
   │              └────┬────┘    │                               │   │
   │                   │         │                               │   │
   │            fault  │         │                               │   │
-  │            escalate│        │                               │   │
   │                   ▼         ▼                               │   │
   │              ┌─────────────────────────────────┐            │   │
   │              │             FAULT               │            │   │
   │              │  trip_count++                   │            │   │
-  │              │  fault_ts_ms = now              │            │   │
   │              └──────────────┬──────────────────┘            │   │
   │                             │                                │   │
   │         ┌───────────────────┼──────────────────┐            │   │
   │         │                   │                  │            │   │
   │  lockout-class         auto-reclose        API reset        │   │
-  │  or trips>3      (escalating dead time)   (temp guard)      │   │
-  │         │                   │                  │            │   │
-  │         │              trip1=5s                │            │   │
-  │         │              trip2=15s               │            │   │
-  │         │              trip3=30s               │            │   │
-  │         │                   │                  │            │   │
+  │  or trips>3        trip1=5s/trip2=15s/    (temp guard)      │   │
+  │         │          trip3=30s→LOCKOUT           │            │   │
   │         │                   └──────────────────┘            │   │
   │         │                            │                       │   │
   │         │                            ▼                       │   │
   │         │              ┌─────────────────────────────┐       │   │
   │         │              │          RECOVERY           │───────┘   │
-  │         │              │  1. Wait 500ms settle        │           │
-  │         │              │  2. Voltage must hold        │           │
-  │         │              │     218.5–241.5V for         │           │
-  │         │              │     50 consecutive samples   │           │
-  │         │              │     (500ms of stable grid)   │           │
+  │         │              │  Voltage holds 218.5–241.5V │           │
+  │         │              │  for 50 consecutive samples │           │
   │         │              └──────────────┬──────────────┘           │
-  │         │                             │ fault                     │
-  │         │                             │ re-asserts               │
-  │         │                             ▼ trip++                    │
-  │         │              ┌─────────────────────────────┐           │
-  │         └─────────────►│           LOCKOUT           │           │
+  │         │                             │ fault re-asserts          │
+  │         │                             ▼                           │
+  │         └─────────────►┌─────────────────────────────┐           │
+  │                        │           LOCKOUT           │           │
   │                        │  Only API reset exits here  │           │
   │                        │  Temperature guard: T < 60°C│           │
   │                        └─────────────────────────────┘           │
   └──────────────────────────────────────────────────────────────────┘
 ```
 
-### State Descriptions
-
-**BOOT** — Sensors are warming up. DS18B20 has a 2-second boot sentinel window (EC-04).
-ADC IIR filter needs ~10 samples to converge. FSM waits minimum 1s and until
-`DS18B20::isReady()` returns true before trusting any readings.
-
-**NORMAL** — Both relays closed. Full load energised. Fault and warning detection active.
-Any warning flags → WARNING. Any fault → FAULT (or direct LOCKOUT for lockout-class faults).
-
-**WARNING** — Relay 1 remains closed (main load). Relay 2 opens (auxiliary load shed).
-Buzzer: 1kHz, 50ms/450ms pattern. LED: 1Hz blink. If all warning flags clear → NORMAL.
-If a fault escalates → FAULT.
-
-**FAULT** — Both relays open. Load disconnected. Trip counter incremented.
-Two exit paths:
-1. **Auto-reclose** after escalating dead time (5s / 15s / 30s depending on trip count)
-2. **API reset** (POST /api/reset or MQTT `reset` command)
-
-Both paths are blocked if temperature ≥ 60°C.
-
-**RECOVERY** — Relays re-close (or will close, RelayControl reads state). 500ms settle
-wait, then voltage must be stable within ±5% (218.5–241.5V) for 50 consecutive
-samples before declaring NORMAL. This prevents re-closing into an ongoing sag or swell.
-
-**LOCKOUT** — Terminal state. Both relays open. Buzzer: 500Hz continuous. LED: solid.
-Only exits via API reset AND temperature guard passed. Requires physical investigation
-before reset by design.
-
-### Why Escalating Reclose Delays?
-
-```
-  First trip  (trip=1) → 5s dead time
-    Rationale: Most grid disturbances are transient (capacitor switching,
-    lightning, nearby fault clearance). 5s is usually long enough for the
-    source disturbance to clear while minimising service interruption.
-
-  Second trip (trip=2) → 15s dead time
-    Rationale: First reclose failed. The fault may be semi-permanent (a
-    loose connection arcing intermittently). Longer dead time gives arc
-    products time to de-ionise and lets the user investigate.
-
-  Third trip  (trip=3) → 30s dead time → then LOCKOUT
-    Rationale: Two reclosures failed. This is a persistent fault.
-    Auto-reclosing into a persistent fault causes progressive damage.
-    30s is the last attempt; failure → LOCKOUT for manual intervention.
-```
-
 ---
 
 ## 12. Edge Cases Catalogue — EC-01 through EC-15
-
-Every numbered edge case in the codebase represents a failure scenario that was
-explicitly analysed and handled. None are theoretical — all occur in real Indian
-residential/commercial installations.
 
 ```
   ┌────┬────────────────────────────────┬──────────────────────────────────────────┐
   │ EC │ Scenario                       │ How SGS Handles It                       │
   ├────┼────────────────────────────────┼──────────────────────────────────────────┤
   │ 01 │ Motor/compressor inrush        │ 3500ms inrush blank window post-close.   │
-  │    │ 5–8× rated, 500ms–3s          │ IDMT accumulator frozen. UV suppressed.  │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 02 │ SMPS capacitive inrush         │ Same blank window. SC slope check at     │
-  │    │ 10–40×, 1–10ms                │ 300ms catches genuine SC (not decay).    │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
+  │ 02 │ SMPS capacitive inrush         │ SC slope check catches genuine SC.       │
   │ 03 │ Resistive cold inrush          │ Covered by 3500ms blank window.          │
-  │    │ 10–15×, 50ms                  │ Well within window — no nuisance trip.   │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 04 │ DS18B20 +85°C power-on default │ First 2s of boot, any 85.0°C reading     │
-  │    │ scratchpad not yet converted   │ is silently discarded. After 2s, 85°C   │
-  │    │                                │ is a real reading and IS acted upon.     │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 05 │ DS18B20 -127°C disconnect      │ Debounced: 3 consecutive -127°C required │
-  │    │ unplugged / bus shorted        │ (2.4s). Reconnect does not auto-clear   │
-  │    │                                │ LOCKOUT. API reset required.             │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 06 │ ADC saturation                 │ Raw integer ≤5 or ≥4090 for >50ms →     │
-  │    │ open wire / op-amp clamp       │ FAULT_BIT_SENSOR → LOCKOUT.             │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 07 │ Frozen ADC (variance = 0)      │ Last 20 raw integer values checked.     │
-  │    │ ADC mux hang / IC lockup       │ AC mains always has ≥1-2 LSB jitter.    │
-  │    │                                │ Zero variance = stuck → SENSOR_FAIL.    │
-  │    │                                │ Must use raw int, not IIR output.        │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 08 │ Physics impossibility          │ I > 2A with V < 5V simultaneously.      │
-  │    │ cross-channel sanity fail      │ Impossible on live AC → sensor failed.  │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 09 │ Motor-induced UV sag           │ UV fault and UV warn suppressed during   │
-  │    │ (load's own inrush sags grid)  │ inrush blank. UV_INSTANT never blanked. │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
+  │ 04 │ DS18B20 +85°C boot sentinel    │ Ignored for 2s after init().             │
+  │ 05 │ DS18B20 -127°C disconnect      │ 3 consecutive readings → LOCKOUT.        │
+  │ 06 │ ADC saturation                 │ Raw ≤5 or ≥4090 for >50ms → SENSOR_FAIL.│
+  │ 07 │ Frozen ADC (variance=0)        │ 20 raw samples, zero variance → LOCKOUT. │
+  │ 08 │ Physics impossibility          │ I>2A with V<5V simultaneously → LOCKOUT. │
+  │ 09 │ Motor-induced UV sag           │ UV suppressed during inrush blank.       │
   │ 10 │ OV instantaneous >270V         │ Zero debounce, 2-sample minimum.         │
-  │    │ MOV protection zone            │ Never blanked. Clamp degradation starts  │
-  │    │                                │ immediately at this level.               │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 11 │ Short circuit inside           │ Slope discrimination: if current rising  │
-  │    │ inrush blank window            │ at >0.5A/tick AND I>27A → SC trip.      │
-  │    │                                │ Inrush decays; SC does not.              │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 12 │ Thermal fault (T > 85°C)       │ Routes directly to LOCKOUT. No          │
-  │    │ enclosure overheating          │ auto-reclose. Fire risk — physical       │
-  │    │                                │ inspection before reset mandatory.       │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 13 │ Short circuit trip escalation  │ SC routes directly to LOCKOUT. Possible  │
-  │    │                                │ wiring damage — inspect before reset.    │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 14 │ Voltage threshold chattering   │ Full hysteresis bands on all thresholds. │
-  │    │ (voltage hovering at 253V)     │ Fault clears only at 245V (8V band).    │
-  ├────┼────────────────────────────────┼──────────────────────────────────────────┤
-  │ 15 │ IDMT thermal memory            │ Accumulator decays at 0.995×/tick (not  │
-  │    │ (repeated brief overloads)     │ instant reset). Two 30s overloads in     │
-  │    │                                │ succession are more dangerous than one.  │
+  │ 11 │ SC inside inrush blank window  │ Slope discrimination: rising=SC, not     │
+  │    │                                │ inrush. Current >27A + rising → trips.   │
+  │ 12 │ Thermal fault (T>85°C)         │ Direct LOCKOUT. No auto-reclose.         │
+  │ 13 │ Short circuit trip escalation  │ Direct LOCKOUT after SC.                 │
+  │ 14 │ Voltage threshold chattering   │ 8V hysteresis bands on all thresholds.   │
+  │ 15 │ IDMT thermal memory            │ Accumulator decays at 0.995×/tick.       │
   └────┴────────────────────────────────┴──────────────────────────────────────────┘
 ```
 
@@ -760,52 +617,18 @@ itself. This is the difference between a protection relay and a protection relay
 that can be trusted.
 
 ```
-  Sensor Validation Architecture:
-
-  ADCSampler::tick()                  FaultEngine::evaluate()
-  ─────────────────────               ─────────────────────────────────
-  4× oversample                       receives:
-  IIR filter                 ──────►    v       (filtered voltage)
-  Rolling average            ──────►    raw_i   (filtered current)
-  Expose getLastRawV()       ──────►    t       (temperature)
-  Expose getLastRawI()       ──────►    raw_v_int (raw ADC int)
-                                        raw_i_int (raw ADC int)
-
   raw_v_int / raw_i_int are the last oversampled ADC integer values,
   BEFORE any IIR filtering. They are used exclusively for hardware
   fault detection because:
 
   - Saturation (EC-06): IIR-filtered value can appear "normal"
-    while the raw ADC is railing. A filtered 270V could be a genuine
-    reading OR it could be a stuck-high ADC. Only the raw value reveals
+    while the raw ADC is railing. Only the raw value reveals
     whether the ADC is physically saturated.
 
   - Frozen sensor (EC-07): IIR filtered values have near-zero variance
     even on a healthy AC signal (the filter collapses variance by design).
-    Checking variance on IIR output would produce 100% false positives.
     Checking variance on raw integers works because real AC mains always
     produces ≥1–2 LSB of thermal and quantisation noise.
-```
-
-### ADC Calibration Quality
-
-```
-  Level 0 (no calibration): ADC uses factory defaults.
-           Nonlinearity up to ±5% at ADC extremes.
-           Acceptable for approximate monitoring only.
-
-  Level 1 (eFuse Vref): Factory-measured Vref stored in eFuse.
-           Corrects gain error. Nonlinearity ±2–3%.
-           Available on most ESP32 chips.
-
-  Level 2 (eFuse Two-Point): Both low and high reference voltages
-           stored in eFuse. Best accuracy, ±1% typical.
-           Available only on chips with two-point calibration burned.
-
-  getCalibrationQuality() returns 0, 1, or 2.
-  Reported in /api/diagnostics and telemetry payload.
-  The confidence score for each channel is adjusted downward
-  when calibration quality is 0.
 ```
 
 ---
@@ -816,46 +639,27 @@ that can be trusted.
   Raw ADC (GPIO34/35)
        │
        │  4× oversample (average) → +1 effective bit
-       │  Reduces quantisation noise from ±0.5 LSB to ±0.25 LSB
        ▼
   Oversampled integer (0–4095)
        │
-       ├──────────────────────────────────────────────────────────────►
+       ├─────────────────────────────────────────────────────────────►
        │  (stored as last_raw_v / last_raw_i for sensor HW checks)
        │
        │  IIR low-pass filter
-       │    Voltage: α = 0.20 (responds to changes over ~5 samples)
-       │    Current: α = 0.30 (slightly faster — current changes faster)
-       │    Formula: iir = α × new_raw + (1 - α) × prev_iir
+       │    Voltage: α = 0.20
+       │    Current: α = 0.30
        ▼
   IIR-filtered float
        │
        │  Current deadband: if I < 0.10A → force to 0.00A
-       │  (eliminates noise-floor current reading at idle)
-       │
        │  Rolling average (window = 10 samples)
-       │  Final display smoothing — eliminates sample-to-sample jitter
        ▼
   Final filtered value (getVoltage() / getCurrent())
-
-  Parallel diagnostics tracked continuously:
-  ┌───────────────────────────────────────────────────────────────────┐
-  │  Noise floor : EMA of (raw - filtered)² → RMS noise in V or A    │
-  │  Min/Max     : all-time extremes of filtered output since boot    │
-  │  Drift rate  : (fast EMA α=0.10) - (slow EMA α=0.005) per second │
-  │  Variance    : Welford online algorithm on rolling window         │
-  │  SNR (dB)    : 20 × log10(mean / noise_rms)                      │
-  │  Saturation  : raw hit 0 or 4095 → set flag + increment counter  │
-  │  Sample rate : measured from real tick() wall-clock timing        │
-  └───────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 15. Fault Priority System
-
-Multiple faults can be simultaneously active. SGS uses a 16-bit bitmask to track all
-of them, and a priority resolver to determine the FSM action.
 
 ```
   FAULT_BIT_* Priority Map (highest → lowest destructive potential):
@@ -869,22 +673,6 @@ of them, and a priority resolver to determine the FSM action.
   0x0010 OV      Sustained OV      P5     FAULT → auto-reclose eligible
   0x0020 OC_IDMT IDMT overcurrent  P6     FAULT → auto-reclose eligible
   0x0040 UV      Undervoltage      P7     FAULT → auto-reclose eligible
-
-  Example multi-fault scenario — stalled motor:
-  ─────────────────────────────────────────────
-  Motor stalls → draws locked rotor current (~8× FLA)
-  → I > 21A → FAULT_BIT_OC_IDMT set (P6)
-  → Load depresses line voltage → V < 207V → FAULT_BIT_UV set (P7)
-  → getActiveFaultBits() = 0x0060 (both set)
-  → getActiveFault() returns FAULT_OVERCURRENT (highest priority = P6)
-  → FSM trips to FAULT state
-  → Both fault bits visible in telemetry JSON fault_bits field
-  → Dashboard can display "OVERCURRENT + UNDERVOLTAGE" simultaneously
-
-  Lockout-class detection:
-  ─────────────────────────
-  isLockoutClass() = (THERMAL set) OR (SC set)
-  When true, FSM routes directly to LOCKOUT, skipping auto-reclose.
 ```
 
 ---
@@ -902,147 +690,37 @@ of them, and a priority resolver to determine the FSM action.
   LOCKOUT      →   OPEN             OPEN            Terminal protection
 
   Active-LOW relay note:
-  ─────────────────────────────────────────────────────────────────
-  The relay modules used are active-LOW (common in Chinese relay boards).
-  Energising the coil requires driving the pin LOW.
-  The firmware drives pins HIGH BEFORE calling pinMode(OUTPUT).
-  This prevents the brief LOW glitch that occurs when the ESP32
-  boot ROM initialises GPIOs, which would cause a relay click on
-  every boot and power cycle.
-
-  API Override:
-  ─────────────────────────────────────────────────────────────────
-  POST /api/relay allows an operator to manually force relays.
-  The override is accepted only in NORMAL or WARNING states.
-  On any FAULT / LOCKOUT / BOOT transition, the override is
-  automatically cleared by the protection task.
-  The override flag is declared volatile — written from Core-1
-  async handler, read from Core-0 protection task. Single bool
-  write is atomic on Xtensa LX6.
+  GPIO HIGH before pinMode(OUTPUT) prevents boot-time relay click.
+  Single bool write for API override is atomic on Xtensa LX6.
+  Override is cleared automatically on FAULT/LOCKOUT/BOOT.
 ```
 
 ---
 
 ## 17. Telemetry & Diagnostics
 
-### JSON Schema v1.3
+The firmware publishes schema v1.3 JSON via three transports simultaneously:
 
-```json
-{
-  "schema_version": "1.3",
-  "device_id": "sgs-a1b2c3",
-  "ts": 1234567890,
+| Transport | Path | Rate | Range |
+|---|---|---|---|
+| WebSocket push | `ws://<ip>/ws/telemetry` | 100ms | LAN only |
+| HTTP REST | `GET /api/telemetry` | on-demand | LAN only |
+| MQTT TLS | `sgs/device/<id>/telemetry` | 5s | Internet |
 
-  "sensors": {
-    "voltage": { "pin": 34, "raw": 2987, "filtered": 229.8,
-                 "unit": "V", "confidence": 91 },
-    "current": { "pin": 35, "raw": 112,  "filtered": 0.82,
-                 "unit": "A", "confidence": 88 },
-    "temperature": { "pin": 4, "raw": 0, "filtered": 34.5,
-                     "unit": "C", "confidence": 95 }
-  },
+The relay server (Node.js) sits between the ESP32 and browser:
+- Connects to ESP32 WebSocket as a client
+- Forwards every frame instantly to connected browsers
+- Falls back to MQTT when ESP32 WebSocket is unreachable
+- Falls back to synthetic mock data when both are offline
 
-  "power": {
-    "real_power_w": 160.2,
-    "apparent_power_va": 188.5,
-    "power_factor": 0.85,
-    "energy_wh": 1234.5
-  },
-
-  "state": {
-    "fsm": "NORMAL",
-    "fault": "NONE",
-    "warn_flags": 0,
-    "trip_count": 0,
-    "risk_level": "LOW",
-    "fault_bits": 0
-  },
-
-  "actuators": {
-    "relay1": true,
-    "relay2": true
-  },
-
-  "diagnostics": {
-    "sensor_health": {
-      "voltage":     { "noise_floor_v": 0.8, "snr_db": 49.2,
-                       "drift_v_per_s": 0.02, "score": 94,
-                       "label": "EXCELLENT" },
-      "current":     { "noise_floor_a": 0.04, "snr_db": 26.1,
-                       "score": 88, "label": "GOOD" },
-      "temperature": { "success_rate_pct": 100, "disconnect_count": 0,
-                       "score": 100, "label": "EXCELLENT" }
-    },
-    "adc": {
-      "calibration": "EFUSE_VREF",
-      "linearity_error_pct": 1.2,
-      "actual_sample_rate_hz": 99.4,
-      "saturation_events": 0
-    },
-    "power_quality": {
-      "ripple_pct": 0.34,
-      "flicker_index": 0.0012,
-      "sag_depth_v": 0.0,
-      "swell_height_v": 0.0,
-      "score": 96,
-      "label": "EXCELLENT"
-    },
-    "system": {
-      "overall_health_score": 93,
-      "health_status": "HEALTHY",
-      "uptime_s": 7234,
-      "uptime_quality": "STABLE",
-      "free_heap_bytes": 187432,
-      "cpu_load_estimate_pct": 0.6
-    }
-  },
-
-  "network": {
-    "rssi_dbm": -58,
-    "mqtt_connected": true,
-    "connect_attempts": 1,
-    "connect_successes": 1,
-    "publish_total": 1446,
-    "publish_failed": 0,
-    "tls_cert_verified": true
-  }
-}
-```
-
-### Health Scoring Methodology
-
-```
-  Each sub-score is 0–100 (100 = perfect).
-  Deductions are additive penalties from 100 base.
-  Final score clamped to [0, 100].
-
-  Voltage health score deductions:
-    noise_floor_v > 2V   → -20
-    noise_floor_v > 1V   → -10
-    saturated            → -40
-    snr_db < 30          → -20
-    drift_rate_abs > 1/s → -15
-    variance > threshold → -10
-
-  Overall health score = weighted average:
-    Voltage score   × 0.30
-    Current score   × 0.30
-    Thermal score   × 0.25
-    ADC score       × 0.15
-
-  Health status labels:
-    HEALTHY   : score ≥ 80
-    DEGRADED  : score ≥ 50
-    CRITICAL  : score < 50
-```
+Health scoring weights: Voltage 30% + Current 30% + Thermal 25% + ADC 15%
 
 ---
 
 ## 18. REST API Reference
 
 All endpoints require `X-API-Key: <key>` header.  
-API key is randomly generated at first boot, stored in NVS, printed to Serial.  
-CORS is fully open (`*`) for local dashboard use.
+Key is randomly generated at first boot, stored in NVS, printed to Serial.
 
 ```
   Method  Path                  Description
@@ -1057,19 +735,13 @@ CORS is fully open (`*`) for local dashboard use.
   GET     /api/wifi/scan        Nearby Wi-Fi networks scan results
   GET     /api/key-hint         First 4 chars of API key (recovery hint)
   ──────────────────────────────────────────────────────────────────────
-  POST    /api/reset            Request FSM reset (FAULT/LOCKOUT → RECOVERY)
-  POST    /api/reboot           Reboot ESP32 (2s delay, scheduled task)
+  POST    /api/reset            FSM reset (FAULT/LOCKOUT → RECOVERY)
+  POST    /api/reboot           Reboot ESP32 (2s delay)
   POST    /api/factory-reset    Clear NVS + reboot (Wi-Fi reprovisioning)
   POST    /api/wifi             {"ssid":"...","pass":"..."} update creds
   POST    /api/relay            {"state":true/false} operator override
   POST    /api/log/clear        Clear NVS event log
   ──────────────────────────────────────────────────────────────────────
-
-  Notes:
-  • /api/reset is blocked if temperature ≥ 60°C
-  • /api/relay override is cleared on any FAULT/LOCKOUT/BOOT
-  • /api/health is suitable for uptime monitors (minimal payload)
-  • All responses include Access-Control-Allow-Origin: *
 ```
 
 ---
@@ -1078,96 +750,123 @@ CORS is fully open (`*`) for local dashboard use.
 
 ```
   Device (ESP32)                    HiveMQ Cloud (TLS 1.2+)
-  ───────────────────────────────   ─────────────────────────────────
-  TLS handshake using ISRG Root X1 certificate
-  Port 8883
-  Username / password authentication
+  Port 8883 · ISRG Root X1 cert · Username/password auth
   Client ID: sgs-{MAC lower 3 bytes}
-  Socket timeout: 30s (allows for slow TLS handshake)
   Reconnect: exponential backoff 5s → 60s
 
-  PUBLISH topics (device → broker):
-  ┌─────────────────────────────────────┬─────────────────────────────┐
-  │ Topic                               │ Trigger                     │
-  ├─────────────────────────────────────┼─────────────────────────────┤
-  │ sgs/device/sgs-XXXXXX/telemetry     │ Every 5 seconds (periodic)  │
-  │ sgs/device/sgs-XXXXXX/fault        │ Immediately on FSM→FAULT/   │
-  │                                     │ LOCKOUT transitions         │
-  │ sgs/device/sgs-XXXXXX/state        │ Immediately on any FSM      │
-  │                                     │ state transition             │
-  └─────────────────────────────────────┴─────────────────────────────┘
+  PUBLISH topics:
+    sgs/device/sgs-XXXXXX/telemetry  ← every 5 seconds
+    sgs/device/sgs-XXXXXX/fault      ← on FSM→FAULT/LOCKOUT
+    sgs/device/sgs-XXXXXX/state      ← on any FSM transition
 
-  SUBSCRIBE topic (broker → device):
-  ┌─────────────────────────────────────┬─────────────────────────────┐
-  │ sgs/device/sgs-XXXXXX/cmd           │ QoS 1 (at-least-once)      │
-  └─────────────────────────────────────┴─────────────────────────────┘
+  SUBSCRIBE topic:
+    sgs/device/sgs-XXXXXX/cmd        ← QoS 1
 
-  Supported commands (JSON: {"cmd":"..."}):
-  ┌────────────┬───────────────────────────────────────────────────────┐
-  │ "reset"    │ Triggers FSM::requestReset() — same as POST /api/reset│
-  │ "reboot"   │ Schedules ESP.restart() after 2s                      │
-  │ "ping"     │ Responds with pong JSON on state topic                │
-  └────────────┴───────────────────────────────────────────────────────┘
+  Supported commands: {"cmd": "reset"} / {"cmd": "reboot"} / {"cmd": "ping"}
 
-  Wi-Fi provisioning flow:
-  ─────────────────────────────────────────────────────────────────────
-  No stored credentials → starts AP "SGS-Setup" (pw: sgs-setup-1234)
-  DNS wildcard catches all requests → redirects to 192.168.4.1
-  Captive portal form → POST /save → stores SSID+pass to NVS → reboot
-  Credentials survive firmware updates (NVS namespace: "sgs")
+  Wi-Fi provisioning:
+    No credentials → AP "SGS-Setup" (pw: sgs-setup-1234)
+    Captive portal at 192.168.4.1 → POST /save → NVS → reboot
+    Credentials survive firmware updates (NVS namespace: "sgs")
 ```
 
 ---
 
-## 20. Standards Compliance Matrix
+## 20. Dashboard & Relay Server
+
+### Architecture
+
+```
+ESP32 (ws_server.cpp)
+  │  WebSocket push every 100ms
+  │  ws://10.x.x.x/ws/telemetry
+  ▼
+relay-server/ (Node.js — runs on your PC)
+  ├── esp32WsClient.js   connects to ESP32 WS, forwards instantly
+  ├── mqttClient.js      HiveMQ fallback (5s resolution)
+  ├── dataRouter.js      priority: ESP32 WS → MQTT → Mock
+  ├── mockGenerator.js   synthetic data matching schema v1.3 exactly
+  ├── wsRelay.js         serves dashboard files + browser WebSocket
+  ├── server.js          entry point
+  └── config.js          all settings (edit this file only)
+  │
+  │  WebSocket push to browser (instant, no timer)
+  │  ws://localhost:3000/ws/telemetry
+  │  HTTP file serving: http://localhost:3000
+  ▼
+dashboard_ip/ (5-page browser UI)
+  ├── Page 1 — Live Status (voltage, current, temp, waveform, health)
+  ├── Page 2 — Faults & Control (fault matrix, alarm log, relay toggle)
+  ├── Page 3 — Diagnostics (sensor health, ADC, power quality)
+  ├── Page 4 — Cloud / MQTT (HiveMQ status, payload inspector)
+  └── Page 5 — Analytics (historical charts, requires backend)
+```
+
+### Setup
+
+```bash
+# 1. Flash ESP32 via PlatformIO (firmware already complete)
+# 2. First boot: connect to "SGS-Setup" hotspot → browser → 192.168.4.1
+#    Enter WiFi credentials → ESP32 reboots and connects
+# 3. Note from Serial monitor (115200 baud):
+#    [WiFi] Connected. IP: 10.x.x.x
+#    [API]  key: aec158f34ad787c
+
+# 4. Edit relay-server/config.js:
+#    esp32.ip     → your ESP32's IP
+#    esp32.apiKey → your API key
+
+# 5. Start relay server
+cd relay-server
+npm install
+node server.js
+
+# 6. Open dashboard
+# http://localhost:3000
+```
+
+### Firmware Files Added
+
+| File | Purpose |
+|---|---|
+| `src/ws_server.cpp` | AsyncWebSocket server — pushes telemetry at 100ms |
+| `src/ws_server.h` | Header for ws_server |
+| `src/main.cpp` | Updated — WSServer::init() + WSServer::tick() in task_comms |
+| `include/config.h` | Updated — added `WS_PUSH_INTERVAL_MS 100` |
+
+### Dashboard Files Changed
+
+| File | Change |
+|---|---|
+| `dashboard_ip/main.js` | connect('localhost:3000'), DEV_MODE fix for port 3000 |
+| `dashboard_ip/telemetry/telemetryPoller.js` | Data stream watchdog (10s), ping interval 60s, pong timeout 30s |
+
+---
+
+## 21. Standards Compliance Matrix
 
 ```
   Standard              Scope                      SGS Implementation
   ────────────────────────────────────────────────────────────────────
   IS 12360:2004         Indian voltage tolerance    OV_FAULT=253V (+10%)
                         ±10% consumer side          UV_FAULT=207V (-10%)
-                                                    Recovery band 218.5–241.5V
-
   CEA Regs 2005         Supply voltage at PoD       OV_WARN=243V (+6%)
                         ±6%                         UV_WARN=216V (-6%)
-
   IS 8828 / IEC 60898   MCB trip curves             Rated base = 16A
-                        Curve C for motor loads      IDMT tuned to mirror C-curve
-                                                    behaviour at household scale
-
-  IEC 60255-3           IDMT protection curves       Standard Inverse curve
-                        (Overcurrent relays)         k=0.140, α=0.020
-                                                    TMS=0.10 (tunable in config.h)
-                                                    Accumulator-based integration
-
-  ANSI 50               Instantaneous OC protection  SC_INSTANT = 27A (no debounce)
-                        (Short circuit)              Bypasses inrush blank window
-
-  ANSI 51               Time-overcurrent protection  IDMT accumulator implementation
-                        (Inverse time OC relay)
-
-  ANSI 59               Overvoltage protection       OV_INSTANT = 270V (instantaneous)
-                                                    OV_FAULT = 253V (timed)
-
-  IEC 61000-4-15        Flicker measurement          Flicker index = variance/mean²
-                        (Power quality)              (DC-proxy; true IEC requires
-                                                     AC waveform sampling)
-
-  EN 50160              Voltage characteristics       Event classification labels
-  (adopted by BIS)      of public distribution        Sag/swell/rapid variation
-                        systems                       categories used in diagnostics
+  IEC 60255-3           IDMT protection curves       Standard Inverse
+                                                    k=0.140, α=0.020, TMS=0.10
+  ANSI 50               Instantaneous OC             SC_INSTANT = 27A
+  ANSI 51               Time-overcurrent             IDMT accumulator
+  ANSI 59               Overvoltage protection       OV_INSTANT = 270V
+  IEC 61000-4-15        Flicker measurement          Flicker index (DC-proxy)
+  EN 50160 (BIS)        Voltage characteristics      Event classification labels
   ────────────────────────────────────────────────────────────────────
   Note: SGS is a monitoring and protection device, not a certified relay.
-  The implementations above are engineering-faithful approximations using
-  the reference formulas and thresholds from these standards.
 ```
 
 ---
 
-## 21. Configuration Reference
-
-All tuneable parameters are in `config.h`. The table below summarises the most
-important ones with their current values and the rationale for each choice.
+## 22. Configuration Reference
 
 ```
   Parameter                Value     Rationale
@@ -1177,16 +876,16 @@ important ones with their current values and the rationale for each choice.
   CURRENT_FULL_SCALE       30A       Covers 16A MCB + SC detection at 27A
   RATED_CURRENT_A          16A       Standard Indian household MCB
   IIR_ALPHA_VOLTAGE        0.20      ~5-sample smoothing on voltage
-  IIR_ALPHA_CURRENT        0.30      Slightly faster — current changes faster
+  IIR_ALPHA_CURRENT        0.30      Slightly faster response
   CURR_DEADBAND_A          0.10A     0.33% of 30A scale — noise floor
-  MOVING_AVG_DEPTH         10        100ms window for display smoothing
+  MOVING_AVG_DEPTH         10        100ms display smoothing window
   ADC_OVERSAMPLE           4         +1 ENOB; 4× chosen for 100Hz budget
   SENSOR_LOOP_MS           10ms      100Hz — protection task tick rate
-  COMMS_LOOP_MS            50ms      20Hz — OLED + MQTT comms tick rate
-  WDT_TIMEOUT_S            10s       Watchdog: panic if protection task hangs
+  COMMS_LOOP_MS            50ms      20Hz — OLED + MQTT + WS comms tick
+  WS_PUSH_INTERVAL_MS      100ms     WebSocket push to browser (10Hz)
+  WDT_TIMEOUT_S            10s       Watchdog panic timeout
   INRUSH_BLANK_MS          3500ms    Worst-case Indian load: water pump
-  INRUSH_BLANK_WARN_MS     1000ms    Shorter blank for warning-level events
-  VOLT_RECOVERY_CONFIRM_N  50        500ms of stable voltage before reclose
+  VOLT_RECOVERY_CONFIRM_N  50        500ms stable voltage before reclose
   RECLOSE_DELAY_1_MS       5000ms    Trip 1 → 5s dead time
   RECLOSE_DELAY_2_MS       15000ms   Trip 2 → 15s dead time
   RECLOSE_DELAY_3_MS       30000ms   Trip 3 → 30s dead time → LOCKOUT
@@ -1196,7 +895,7 @@ important ones with their current values and the rationale for each choice.
   TEMP_RESET_BLOCK_C       60°C      Must cool before reset allowed
   HEAP_WARN_BYTES          20000B    Warn if free heap falls below ~20KB
   EVENT_LOG_CAPACITY       50        NVS ring buffer entries
-  MQTT_PUB_INTERVAL_MS     5000ms    Telemetry publish rate
+  MQTT_PUB_INTERVAL_MS     5000ms    Telemetry MQTT publish rate
   OLED_PAGE_FLIP_MS        4000ms    OLED page cycle time
   ─────────────────────────────────────────────────────────────────────
 ```
@@ -1217,8 +916,8 @@ important ones with their current values and the rationale for each choice.
 
   2. Validate before you protect
      Stage 2 of the fault pipeline runs before all others. If the sensors
-     themselves cannot be trusted (saturated, frozen, physically impossible
-     readings), the protection is meaningless. SGS knows when it is blind.
+     themselves cannot be trusted, the protection is meaningless.
+     SGS knows when it is blind.
 
   3. Intelligence proportional to risk
      Instantaneous trips (SC, severe OV) have near-zero latency. Debounced
