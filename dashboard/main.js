@@ -14,8 +14,14 @@
  * DEV_MODE is auto-detected: enabled on localhost / 127.0.0.1 / file://
  * Set to false (or serve from ESP32 IP) for production.
  *
- * Phase 4 note: Only Page1Status is implemented. All other pages use _NullPage
- * (no-op stub) — they will be replaced in Phases 5–7.
+ * dashboard_ip additions (not present in shared / remote variant):
+ *   _initFetchInterceptor() — patches window.fetch to inject X-API-Key on
+ *                             every same-origin request. Covers relayToggle,
+ *                             alarmLog, page2 reset, page3 config, historyPoller,
+ *                             and telemetryPoller HTTP fallback — no component
+ *                             file needs touching.
+ *   _showKeyBanner()        — one-time fixed banner prompting for the API key
+ *                             if none is stored in localStorage.
  */
 
 import * as telemetryPoller                   from './telemetry/telemetryPoller.js';
@@ -23,39 +29,52 @@ import { startMockPoller, stopMockPoller }    from './telemetry/mockData.js';
 import { push as bufferPush }                 from './telemetry/telemetryBuffer.js';
 import { Page1Status }      from './pages/page1-status.js';
 import { Page2Faults }      from './pages/page2-faults.js';
-import { Page3Diagnostics } from './pages/page3-diagnostics.js?v=5'; 
-import { Page4Cloud }       from './pages/page4-cloud.js?v=5';       
+import { Page3Diagnostics } from './pages/page3-diagnostics.js?v=5';
+import { Page4Cloud }       from './pages/page4-cloud.js?v=5';
 import { Page5Analytics }   from './pages/page5-analytics.js?v=5';
+import { getKey, setKey, isConfigured } from './utils/apiAuth.js';
 
 // ── Dev mode detection ────────────────────────────────────────────────────
 // Automatically true on localhost / file:// so the dashboard works immediately
 // with mock data without any manual toggle. Set FORCE_DEV_MODE = true to
 // override in non-standard dev setups.
 const FORCE_DEV_MODE = false;  // override if needed
+
+// DEV_MODE auto-detection:
+//   localhost:3000 → relay server is running → use REAL telemetry (not mock)
+//   localhost on any other port / file:// → dev mock mode
+const _isRelayServer =
+  window.location.hostname === 'localhost' &&
+  window.location.port === '3000';
+
 const DEV_MODE = FORCE_DEV_MODE || (
-  window.location.hostname === 'localhost'  ||
-  window.location.hostname === '127.0.0.1' ||
-  window.location.hostname === ''           ||  // file:// origin
-  window.location.protocol  === 'file:'
+  !_isRelayServer && (
+    window.location.hostname === 'localhost'  ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === ''           ||  // file:// origin
+    window.location.protocol  === 'file:'
+  )
 );
 
 if (DEV_MODE) {
   console.info('[main] DEV_MODE active — using mock telemetry (mockData.js)');
 }
+
 class _NullPage {
   mount(containerEl)    { /* leave phase placeholder divs intact */ }
   update(telemetryData) { /* no-op */ }
   destroy()             { /* nothing to clean up */ }
 }
+
 // ── Page registry ─────────────────────────────────────────────────────────
 // Maps data-page attribute values to Page class constructors.
 // Pages not yet implemented are registered as _NullPage (no-op stub).
 const PAGE_REGISTRY = {
-  status:      Page1Status,    
-  faults:      Page2Faults,    
-  diagnostics: Page3Diagnostics, // Changed from _NullPage
-  cloud:       Page4Cloud,       // Changed from _NullPage
-  analytics:   Page5Analytics, 
+  status:      Page1Status,
+  faults:      Page2Faults,
+  diagnostics: Page3Diagnostics,
+  cloud:       Page4Cloud,
+  analytics:   Page5Analytics,
 };
 
 // ── Router state ──────────────────────────────────────────────────────────
@@ -162,6 +181,115 @@ function _initRouter() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// Fetch interceptor — dashboard_ip only
+// Injects X-API-Key on every same-origin fetch() call.
+// Covers: relayToggle, alarmLog, page2 /api/reset, page3 /api/config,
+//         historyPoller /api/history, telemetryPoller HTTP fallback.
+// No component or page file needs to import apiAuth directly.
+// ══════════════════════════════════════════════════════════════════════════
+
+function _initFetchInterceptor() {
+  const _origFetch = window.fetch.bind(window);
+
+  window.fetch = function (input, init = {}) {
+    const urlStr = (input instanceof Request) ? input.url : String(input);
+
+    // Only inject on same-origin requests (device IP) — never on external URLs.
+    // A URL is same-origin if it is relative ('/api/…') or explicitly matches
+    // the current origin (http://192.168.x.x/…).
+    const isSameOrigin =
+      urlStr.startsWith('/') ||
+      urlStr.startsWith(window.location.origin);
+
+    const key = getKey();
+
+    if (isSameOrigin && key) {
+      // Merge headers without mutating the caller's object
+      const merged = new Headers(
+        init.headers || (input instanceof Request ? input.headers : {})
+      );
+      merged.set('X-API-Key', key);
+      init = { ...init, headers: merged };
+    }
+
+    return _origFetch(input, init);
+  };
+
+  console.info('[main] fetch interceptor active — X-API-Key injected on same-origin requests');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// First-run key banner — dashboard_ip only
+// Shows a small fixed banner at the bottom of the screen when no API key
+// is stored. Dismissed permanently once a key is entered.
+// ══════════════════════════════════════════════════════════════════════════
+
+function _showKeyBanner() {
+  if (isConfigured()) return; // already set — nothing to show
+
+  const banner = document.createElement('div');
+  banner.id = 'sgs-key-banner';
+  banner.style.cssText = [
+    'position: fixed',
+    'bottom: 0',
+    'left: 0',
+    'right: 0',
+    'z-index: 9999',
+    'background: #131613',
+    'border-top: 1px solid rgba(255,255,255,0.12)',
+    'padding: 12px 24px',
+    'display: flex',
+    'align-items: center',
+    'gap: 12px',
+    'font-family: var(--font-primary, system-ui)',
+    'font-size: 13px',
+    'color: #8a8e8a',
+  ].join(';');
+
+  banner.innerHTML = `
+    <span style="flex:1">
+      Enter your <strong style="color:#e8ebe5">X-API-Key</strong>
+      to enable relay control and alarm acknowledgement.
+    </span>
+    <input id="sgs-key-input" type="password"
+      placeholder="Paste API key…"
+      autocomplete="off" spellcheck="false"
+      style="background:#0d0f0d;border:1px solid rgba(255,255,255,0.12);
+             border-radius:8px;color:#e8ebe5;font-size:13px;
+             padding:6px 12px;outline:none;width:220px;" />
+    <button id="sgs-key-save"
+      style="background:#1D9E75;color:#060f06;border:none;border-radius:8px;
+             padding:7px 18px;font-size:13px;font-weight:500;cursor:pointer;">
+      Save
+    </button>
+    <button id="sgs-key-skip"
+      style="background:transparent;color:#5a5e5a;border:none;
+             font-size:13px;cursor:pointer;padding:7px 10px;">
+      Skip
+    </button>
+  `;
+
+  document.body.appendChild(banner);
+
+  document.getElementById('sgs-key-save').addEventListener('click', () => {
+    const val = document.getElementById('sgs-key-input').value.trim();
+    if (!val) return;
+    setKey(val);
+    banner.remove();
+    console.info('[main] API key saved');
+  });
+
+  document.getElementById('sgs-key-skip').addEventListener('click', () => {
+    banner.remove();
+  });
+
+  // Also save on Enter key inside the input
+  document.getElementById('sgs-key-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('sgs-key-save').click();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // Telemetry bootstrap
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -207,7 +335,7 @@ function _initTelemetry() {
       // Future: update connectivity indicator in Zone 1
     });
 
-    telemetryPoller.connect();
+    telemetryPoller.connect('localhost:3000');
   }
 }
 
@@ -216,6 +344,13 @@ function _initTelemetry() {
 // ══════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Install fetch interceptor before anything else fires a request.
+  // Skip in DEV_MODE — no auth needed on localhost.
+  if (!DEV_MODE) {
+    _initFetchInterceptor();
+    _showKeyBanner();
+  }
+
   _initRouter();
   mountPage('status');   // mount initial page before telemetry starts
   _initTelemetry();      // begin data flow
@@ -233,4 +368,3 @@ window.getCurrentPage = getCurrentPage;
  * No-op page class. Leaves existing .zone-placeholder content untouched.
  * Replaced by a real page class when the phase is implemented.
  */
-

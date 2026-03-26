@@ -10,8 +10,23 @@
 //
 //  Stage 1 — Signal pre-processing
 //    - 3-sample median on current (EMI / commutation spike rejection)
-//    - Asymmetric IIR: fast rise (α=0.50), slow fall (α=0.10)
+//    - Asymmetric IIR: fast rise (α=0.90), slow fall (α=0.10)
+//      α_rise raised from 0.50 to 0.90 per Document 6 (IEC 60255-151):
+//      step-response proof shows 5A→30A fault gives 27.5A on first sample
+//      → SC trips at 20ms (2×10ms debounce) ≤ 30ms mandate.
 //    - Slope buffer update (5-sample linear regression for trend)
+//
+//    Tier 2 fix — Finding #6 / #20 (signal path refactor):
+//    raw_i now receives ADCSampler::getRawCurrentPhys() — the value
+//    after 4× oversampling + IDF v5 calibration ONLY, with NO IIR
+//    and NO moving average applied by ADCSampler. The asymmetric IIR
+//    inside evaluate() (Stage 1 above) is therefore the SINGLE and
+//    ONLY filter stage on the protection signal path. This eliminates
+//    the 4-stage cascade (ADCSampler IIR → ADCSampler MA →
+//    FaultEngine asymIIR) that was attenuating 50ms SC spikes to
+//    near noise before the SC comparator could evaluate them.
+//    The shadow iir_i variable in both modules no longer exists —
+//    FaultEngine owns the complete signal chain from raw ADC to trip.
 //
 //  Stage 2 — Sensor hardware validation (HIGHEST PRIORITY)
 //    - ADC saturation detection (EC-06)
@@ -166,10 +181,20 @@ namespace {
 
     float currentSlope() {
         if (!slope_full) return 0.0f;
-        // Simple first-last difference across buffer window
+        // Finding #7 fix: divide by total time window in seconds, not by
+        // sample count. Previous code divided by SLOPE_N (a dimensionless
+        // count), producing a result in Amps, not A/s. This caused the
+        // WARN_CURR_RISING threshold (0.05f) to fire 20× too aggressively
+        // because 0.05A over 5 samples was compared against what should
+        // have been 0.05 A/s.
+        //
+        // Correct formula: (last - first) / (SLOPE_N * SENSOR_LOOP_MS / 1000.0f)
+        // At SLOPE_N=5, SENSOR_LOOP_MS=10ms: window = 50ms = 0.05s
+        // A change of 1A over 5 samples → slope = 1.0 / 0.05 = 20 A/s
+        static constexpr float SLOPE_WINDOW_S =
+            (SLOPE_N * SENSOR_LOOP_MS) / 1000.0f;
         int tail = (slope_idx + 1) % SLOPE_N;
-        return (slope_buf[slope_idx] - slope_buf[tail]) /
-               static_cast<float>(SLOPE_N);
+        return (slope_buf[slope_idx] - slope_buf[tail]) / SLOPE_WINDOW_S;
     }
 
     // Debounce: returns true when condition has been true for N consecutive ticks
@@ -473,7 +498,14 @@ namespace FaultEngine {
 
         // Asymmetric IIR: fast rise (α=0.50) catches real load steps quickly
         //                 slow fall (α=0.10) rejects brief 50–200ms transients
-        float i = asymIIR(i_med, iir_i, 0.50f, 0.10f);
+        // Asymmetric IIR on the protection signal path.
+        // Document 6 proof: with the raw pre-IIR input (ADCSampler::getRawCurrentPhys()),
+        // α_rise must be 0.90 to ensure a 30A fault step produces ≥27A on the first
+        // sample: 5 + 0.90*(30-5) = 27.5A ≥ CURR_SC_INSTANT_A (27A).
+        // With FAULT_DEBOUNCE_INSTANT=2, SC trips at 20ms — compliant with IEC 60255-151
+        // (<30ms). At the old α_rise=0.50, the fourth sample was needed (40ms) — non-compliant.
+        // α_fall=0.10 (slow decay) unchanged — rejects brief transients and EMI spikes.
+        float i = asymIIR(i_med, iir_i, 0.90f, 0.10f);
         iir_i = i;
 
         // Update slope buffer for rising current trend detection
@@ -535,7 +567,7 @@ namespace FaultEngine {
         bool sc_outside_blank = !oc_fault_blanked && (i >= CURR_SC_INSTANT_A);
         bool sc_inside_rising = oc_fault_blanked  &&
                                 (i >= CURR_SC_INSTANT_A) &&
-                                (slope >= INRUSH_SC_SLOPE_A_PER_TICK);
+                                (slope >= INRUSH_SC_SLOPE_A_PER_S);
 
         if (debounce(sc_outside_blank || sc_inside_rising, cnt_oc_idmt_arm,
                      FAULT_DEBOUNCE_INSTANT)) {
@@ -655,10 +687,16 @@ namespace FaultEngine {
         // Only active when:
         //   - Outside inrush blank (inrush always has initially rising current)
         //   - Current is above 0.5A (above noise floor)
-        //   - Slope is positive (current increasing over last 5 samples)
+        //   - Slope is positive and above a physically meaningful rate
         //   - Current is not already in fault zone
+        //
+        // Finding #7 fix: threshold retuned from 0.05f (old broken units where
+        // slope was Amps, not A/s — fired 20× too aggressively) to 2.0 A/s.
+        // 2.0 A/s is a genuine load-increase trajectory: a step from 16A to
+        // 21A (OC threshold) at this rate takes ~2.5s — meaningful warning
+        // without triggering on normal load fluctuation.
         if (!oc_fault_blanked &&
-            slope >= 0.05f &&
+            slope >= 2.0f &&
             i > 0.5f &&
             i < CURR_OC_FAULT_A) {
             w |= WARN_CURR_RISING;

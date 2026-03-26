@@ -5,7 +5,7 @@
 //  (Same path the relay server connects to)
 //
 //  Push rate: WS_PUSH_INTERVAL_MS (defined in config.h)
-//  Payload:   Full telemetry JSON from TelemetryBuilder::buildJSON()
+//  Payload:   Full telemetry JSON from TelemetryBuilder::getSnapshot()
 //             — identical to /api/telemetry response.
 //
 //  Client handling:
@@ -14,23 +14,41 @@
 //    - On disconnect: client removed from the internal client list
 //    - On text message (e.g. relay-server ping): ignored gracefully
 //
-//  Thread safety:
-//    AsyncWebSocket events fire on Core-1 (ESPAsync event loop).
-//    tick() is called from task_comms also on Core-1.
-//    Both on same core — no mutex needed for the WS object itself.
-//    SensorReading/FSMContext are read via the g_state_mutex in
-//    task_comms before calling tick() — already safe.
+//  Thread safety (Tier 1 fix — Findings #2 and #3):
+//    WS_EVT_CONNECT fires from the lwIP/AsyncTCP task context on Core-1.
+//    It must never block, take a mutex, or call buildJSON() (static buffer race).
+//
+//    Fix #2: WS_EVT_CONNECT reads g_reading/g_ctx via a seqlock retry loop
+//    (Option C from research doc). Zero blocking time. No torn reads.
+//
+//    Fix #3: tick() now calls TelemetryBuilder::getSnapshot() instead of
+//    buildJSON() directly. The snapshot was built once by task_comms and
+//    cached under seqlock protection — no concurrent serialisation possible.
+//
+//    tick() is called from task_comms (Core-1 RTOS task) — not an async
+//    callback — so it can safely call buildJSON() internally if needed.
+//    We still prefer getSnapshot() to avoid double-serialisation.
 // ============================================================
 #include "ws_server.h"
 #include "telemetry_builder.h"
 #include "config.h"
 #include <Arduino.h>
+#include <atomic>
+#include <cstring>
 
 namespace {
     AsyncWebSocket*  g_ws      = nullptr;
     SensorReading*   g_reading = nullptr;
     FSMContext*      g_ctx     = nullptr;
     uint32_t         g_last_push_ms = 0;
+
+    // Seqlock pointer — set during init(), used in WS_EVT_CONNECT (Finding #2)
+    std::atomic<uint32_t>* g_seqlock = nullptr;
+
+    // Per-client send buffer — reused across WS_EVT_CONNECT calls.
+    // Lives in the module namespace (not on the lwIP stack) to avoid
+    // stack overflow risk in the async callback context.
+    static char s_connect_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
 
     // ── WebSocket event handler ───────────────────────────────────────────
     void onWsEvent(AsyncWebSocket*       server,
@@ -46,13 +64,21 @@ namespace {
                 Serial.printf("[WS] client #%u connected from %s\n",
                               client->id(),
                               client->remoteIP().toString().c_str());
-                // Send one frame immediately — client should not wait
-                if (g_reading && g_ctx) {
-                    const char* payload =
-                        TelemetryBuilder::buildJSON(*g_reading, *g_ctx);
-                    if (payload) {
-                        client->text(payload);
-                    }
+                // Send one frame immediately — client should not wait.
+                //
+                // Finding #2 fix: we are in the lwIP async callback context.
+                // We must NOT call buildJSON() (static buffer race — Finding #3)
+                // and must NOT take g_state_mutex (pdMS_TO_TICKS(5) = 0 at 100Hz
+                // tick rate due to integer truncation — the research document
+                // confirms this is a non-blocking poll, not a 5ms wait).
+                //
+                // Correct approach: read the pre-built snapshot from
+                // TelemetryBuilder::getSnapshot() which uses a seqlock retry loop.
+                // The snapshot was committed by task_comms in the previous cycle.
+                // No blocking. No torn reads. No static buffer race.
+                if (TelemetryBuilder::getSnapshot(s_connect_buf,
+                                                   sizeof(s_connect_buf))) {
+                    client->text(s_connect_buf);
                 }
                 break;
 
@@ -96,10 +122,12 @@ namespace WSServer {
 
     void init(AsyncWebServer* server,
               SensorReading*  reading_ptr,
-              FSMContext*     ctx_ptr)
+              FSMContext*     ctx_ptr,
+              std::atomic<uint32_t>* seqlock_ptr)
     {
         g_reading = reading_ptr;
         g_ctx     = ctx_ptr;
+        g_seqlock = seqlock_ptr;
 
         // Allocate WebSocket handler — mounted at /ws/telemetry
         // (relay server connects to this exact path)
@@ -124,12 +152,18 @@ namespace WSServer {
         if (now - g_last_push_ms < WS_PUSH_INTERVAL_MS) return;
         g_last_push_ms = now;
 
-        // Build telemetry JSON — uses static buffer, zero heap allocation
-        const char* payload = TelemetryBuilder::buildJSON(r, ctx);
-        if (!payload) return;
+        // Finding #3 fix: use the pre-built snapshot instead of calling
+        // buildJSON() here. buildJSON() writes into a static buffer; if
+        // an HTTP handler fires between tick() calls it would corrupt that
+        // buffer mid-serialisation. The snapshot was committed by task_comms
+        // via buildSnapshot() after the last buildJSON() call — consistent
+        // and safe to read here.
+        static char s_tick_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
+        if (!TelemetryBuilder::getSnapshot(s_tick_buf, sizeof(s_tick_buf))) {
+            return; // No snapshot available yet (first few comms cycles)
+        }
 
         // Broadcast to all connected clients
-        // textAll() sends to every client in one pass
-        g_ws->textAll(payload);
+        g_ws->textAll(s_tick_buf);
     }
 }

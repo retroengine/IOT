@@ -282,7 +282,15 @@
 
 // Slope threshold for adaptive SC detection inside blank window
 // If slope > this AND current > SC threshold → SC trip (not inrush)
-#define INRUSH_SC_SLOPE_A_PER_TICK  0.5f   // 0.5A per 10ms tick = rising, not decaying
+#define INRUSH_SC_SLOPE_A_PER_S     10.0f  // 10 A/s = genuine SC rising slope inside inrush
+                                             // Tier 2 Finding #7: renamed and retuned from
+                                             // INRUSH_SC_SLOPE_A_PER_TICK (0.5f).
+                                             // Old code divided slope buffer difference by
+                                             // SLOPE_N (sample count) giving units of Amps,
+                                             // not A/s. After fix: currentSlope() returns
+                                             // true A/s = delta / (SLOPE_N * SENSOR_LOOP_MS/1000).
+                                             // 0.5A over 50ms window = 10 A/s — same physical
+                                             // intent, correct units.
 
 // ─── FSM Auto-Reclose — Escalating Dead Times ────────────────────────────────
 //

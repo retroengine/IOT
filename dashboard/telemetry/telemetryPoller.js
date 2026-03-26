@@ -74,8 +74,8 @@ const MAX_WS_FAILS_BEFORE_FALLBACK = 3;
 const HTTP_POLL_INTERVAL_MS = 100;
 
 // ── WS heartbeat config ────────────────────────────────────────────────────
-const WS_PING_INTERVAL_MS   = 10000;
-const WS_PONG_TIMEOUT_MS    = 5000;
+const WS_PING_INTERVAL_MS   = 60000;  // ping every 60s — data stream is the real heartbeat
+const WS_PONG_TIMEOUT_MS    = 30000;  // 30s timeout — only fires if data stream is also dead
 
 // ── Internal state ────────────────────────────────────────────────────────
 let _ws              = null;
@@ -171,10 +171,13 @@ function _onWsOpen() {
   _backoffMs         = BACKOFF_BASE_MS;
   _stopHttpFallback();
   _startPing();
+  // Start a data-stream watchdog — if no message arrives in 10s, connection is dead
+  _startDataWatchdog();
 }
 
 function _onWsMessage(event) {
   _resetPongTimeout();
+  _resetDataWatchdog();  // any incoming frame proves connection is alive
   _processFrame(event.data);
 }
 
@@ -185,6 +188,7 @@ function _onWsError(event) {
 
 function _onWsClose(event) {
   _stopPing();
+  _stopDataWatchdog();
   if (_connectionState === CONNECTION_STATE.DISCONNECTED) return;
   console.warn(`[telemetryPoller] WebSocket closed (code ${event.code})`);
   _onWsFailure();
@@ -253,6 +257,30 @@ function _resetPongTimeout() {
 function _clearPongTimeout() {
   clearTimeout(_wsPongTimeoutTimer);
   _wsPongTimeoutTimer = null;
+}
+
+// ── Data stream watchdog ───────────────────────────────────────────────────
+// Independent of the ping/pong mechanism. Monitors raw message arrival.
+// If no message arrives within 10s the connection is silently dead.
+// At 100ms push rate from relay server, 10s = 100 missed frames.
+const DATA_WATCHDOG_MS = 10000;
+let _dataWatchdogTimer = null;
+
+function _startDataWatchdog() {
+  _resetDataWatchdog();
+}
+
+function _resetDataWatchdog() {
+  clearTimeout(_dataWatchdogTimer);
+  _dataWatchdogTimer = setTimeout(() => {
+    console.warn('[telemetryPoller] data watchdog — no frames in 10s, reconnecting');
+    _onWsFailure();
+  }, DATA_WATCHDOG_MS);
+}
+
+function _stopDataWatchdog() {
+  clearTimeout(_dataWatchdogTimer);
+  _dataWatchdogTimer = null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════

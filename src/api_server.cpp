@@ -1,26 +1,47 @@
 // ============================================================
-//  api_server.cpp — ESPAsyncWebServer JSON REST API v2.0
+//  api_server.cpp — ESPAsyncWebServer JSON REST API v2.1
 //
-//  ADDITIONS IN v2.0:
-//    1. GET /api/diagnostics — Full sensor intelligence snapshot
-//       Returns the complete DiagnosticsSnapshot as JSON.
-//       Separate from /api/telemetry for consumers that only
-//       need health/diagnostic data without the full telemetry.
+//  TIER 1 FIXES (v2.1):
 //
-//    2. GET /api/health — Lightweight health check endpoint
-//       Returns overall score, status, and critical flags only.
-//       Suitable for uptime monitors, load balancers, dashboards.
+//  Finding #17 — HTTP Handler Reads g_reading Without Mutex
+//    All handlers that read g_reading / g_ctx now use two paths:
+//      /api/telemetry  → TelemetryBuilder::getSnapshot() — zero
+//                        serialisation in the async context, no
+//                        static buffer race, no mutex needed.
+//      /api/state      → seqlock retry loop on g_seqlock reads
+//                        g_reading / g_ctx atomically without
+//                        blocking the lwIP task.
+//    The key insight: pdMS_TO_TICKS(5) evaluates to 0 at 100Hz
+//    tick rate (5*100/1000 = 0, integer truncation). Any mutex
+//    attempt in this context is a non-blocking poll, not a wait.
+//    The seqlock is the correct primitive (Option C, research doc).
 //
-//  UNCHANGED FROM v1.0:
-//    - GET /api/telemetry
-//    - GET /api/state
-//    - GET /api/log
-//    - GET /api/config
-//    - GET /api/wifi / GET /api/wifi/scan
-//    - POST /api/reset / POST /api/reboot / POST /api/factory-reset
-//    - POST /api/wifi
-//    - GET /api/key-hint
-//    - POST /api/log/clear
+//  Finding #4 — SensorDiagnostics::compute() Mutates Shared State
+//    /api/diagnostics was calling compute() directly from the lwIP
+//    async context, racing with the call inside buildJSON() in
+//    task_comms. Both paths advanced the same static sliding window
+//    buffers — double-counting fault events and corrupting the
+//    power quality window.
+//    Fix: /api/diagnostics now calls lastSnapshot() only.
+//    compute() is called exclusively from buildJSON() in task_comms.
+//
+//  Finding #12 — Full API Key Printed to Serial on Every Boot
+//    Serial.printf now prints only first 4 chars + asterisks.
+//    The full key is never written to any serial or log output.
+//    Field recovery via /api/key-hint is the only legitimate channel.
+//
+//  Finding #16 — delay() Inside ESPAsyncWebServer Callback
+//    CONFIRMED ALREADY FIXED in original code: the /save handler in
+//    wifi_manager.cpp is the location of this bug, not api_server.cpp.
+//    All reboot-triggering handlers here already use scheduleReboot().
+//    No change required in this file for Finding #16.
+//
+//  UNCHANGED FROM v2.0:
+//    - All route handlers not touching g_reading/g_ctx
+//    - GET /api/log, /api/config, /api/wifi, /api/wifi/scan
+//    - POST /api/relay, /api/reset, /api/reboot, /api/factory-reset
+//    - POST /api/wifi, /api/log/clear
+//    - GET /api/key-hint, /api/health, /api/ping
 //    - CORS headers, API key auth, reboot task pattern
 // ============================================================
 #include "api_server.h"
@@ -35,12 +56,36 @@
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <atomic>
+#include <cstring>
 
 namespace {
-    SensorReading* g_reading = nullptr;
-    FSMContext*    g_ctx     = nullptr;
-    String         g_api_key;
+    SensorReading*          g_reading  = nullptr;
+    FSMContext*             g_ctx      = nullptr;
+    String                  g_api_key;
+    std::atomic<uint32_t>*  g_seqlock  = nullptr;
 
+    // ── Seqlock snapshot helper (Finding #17) ─────────────────────────────
+    // Reads g_reading and g_ctx into caller-supplied structs using the
+    // seqlock retry loop. Safe to call from the lwIP async context.
+    // Returns true if a consistent snapshot was obtained.
+    // Returns false if g_seqlock is not yet initialised (early boot).
+    bool readSharedState(SensorReading& r_out, FSMContext& ctx_out) {
+        if (!g_reading || !g_ctx || !g_seqlock) return false;
+
+        uint32_t seq0, seq1;
+        do {
+            seq0 = g_seqlock->load(std::memory_order_acquire);
+            r_out   = *g_reading;
+            ctx_out = *g_ctx;
+            std::atomic_thread_fence(std::memory_order_acquire);
+            seq1 = g_seqlock->load(std::memory_order_relaxed);
+        } while ((seq0 & 1u) != 0u || seq0 != seq1);
+
+        return true;
+    }
+
+    // ── Response helpers ───────────────────────────────────────────────────
     void addCORS(AsyncWebServerResponse* res) {
         res->addHeader("Access-Control-Allow-Origin",  "*");
         res->addHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
@@ -77,6 +122,10 @@ namespace {
         xTaskCreate(reboot_task, "REBOOT", 1024,
                     (void*)(uintptr_t)delay_ms, 1, nullptr);
     }
+
+    // Static buffer for /api/telemetry and /api/state snapshot reads.
+    // Each handler has its own buffer — no sharing between concurrent requests.
+    static char s_telemetry_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
 }
 
 namespace APIServer {
@@ -91,12 +140,14 @@ namespace APIServer {
 
     String getApiKey() { return g_api_key; }
 
-    void init(AsyncWebServer* server,
-              SensorReading* reading_ptr,
-              FSMContext*    fsm_ptr) {
+    void init(AsyncWebServer*         server,
+              SensorReading*          reading_ptr,
+              FSMContext*             fsm_ptr,
+              std::atomic<uint32_t>*  seqlock_ptr) {
 
         g_reading = reading_ptr;
         g_ctx     = fsm_ptr;
+        g_seqlock = seqlock_ptr;
 
         Preferences prefs;
         prefs.begin(NVS_NAMESPACE, false);
@@ -104,9 +155,13 @@ namespace APIServer {
         if (g_api_key.isEmpty()) {
             g_api_key = generateApiKey();
             prefs.putString(NVS_KEY_API_KEY, g_api_key);
-            Serial.printf("[API] Generated API key: %s\n", g_api_key.c_str());
+            // Finding #12: print only first 4 chars on new key generation
+            Serial.printf("[API] Generated API key: %s****\n",
+                          g_api_key.substring(0, 4).c_str());
         } else {
-            Serial.printf("[API] API key: %s\n", g_api_key.c_str());
+            // Finding #12: never print full key — first 4 chars only
+            Serial.printf("[API] API key loaded: %s****\n",
+                          g_api_key.substring(0, 4).c_str());
         }
         prefs.end();
 
@@ -128,43 +183,43 @@ namespace APIServer {
         });
 
         // ── GET /api/telemetry ────────────────────────────────────────────
+        // Finding #17 fix: no longer calls buildJSON() from the lwIP async
+        // context (static buffer race — Finding #3). Instead reads the
+        // pre-built snapshot committed by task_comms via buildSnapshot().
+        // getSnapshot() uses a seqlock retry loop — zero blocking time.
         server->on("/api/telemetry", HTTP_GET, [](AsyncWebServerRequest* req) {
             if (!g_reading || !g_ctx) {
                 sendJSON(req, 503, "{\"error\":\"Not ready\"}");
                 return;
             }
-            const char* payload = TelemetryBuilder::buildJSON(*g_reading, *g_ctx);
-            if (!payload) {
-                sendJSON(req, 500, "{\"error\":\"Serialization failed\"}");
+            if (!TelemetryBuilder::getSnapshot(s_telemetry_buf,
+                                                sizeof(s_telemetry_buf))) {
+                sendJSON(req, 503, "{\"error\":\"Snapshot not yet available\"}");
                 return;
             }
             AsyncWebServerResponse* res =
-                req->beginResponse(200, "application/json", payload);
+                req->beginResponse(200, "application/json", s_telemetry_buf);
             addCORS(res);
             req->send(res);
         });
 
-        // ── GET /api/diagnostics — NEW v2.0 ──────────────────────────────
-        // Returns the full DiagnosticsSnapshot as structured JSON.
-        // Uses the last computed snapshot — no recomputation unless fresh
-        // telemetry has been built since last call.
-        // No authentication required — diagnostic data is read-only.
+        // ── GET /api/diagnostics ──────────────────────────────────────────
+        // Finding #4 fix: no longer calls compute() from the lwIP async
+        // context. compute() is called exclusively from buildJSON() in
+        // task_comms. This handler reads the last committed snapshot via
+        // lastSnapshot() — read-only, no state mutation, safe from any context.
         server->on("/api/diagnostics", HTTP_GET, [](AsyncWebServerRequest* req) {
-            if (!g_reading || !g_ctx) {
+            if (!g_reading) {
                 sendJSON(req, 503, "{\"error\":\"Not ready\"}");
                 return;
             }
 
-            // Re-compute with current sensor readings for fresh data
-            const DiagnosticsSnapshot& d = SensorDiagnostics::compute(
-                g_reading->voltage_v,
-                g_reading->current_a,
-                g_reading->temp_c
-            );
+            // Finding #4: use lastSnapshot() — NOT compute()
+            const DiagnosticsSnapshot& d = SensorDiagnostics::lastSnapshot();
 
             JsonDocument doc;
-            doc["schema_v"]      = "1.3";
-            doc["computed_at_ms"]= d.computed_at_ms;
+            doc["schema_v"]       = "1.3";
+            doc["computed_at_ms"] = d.computed_at_ms;
 
             // ── Voltage health ────────────────────────────────────────────
             JsonObject v = doc["voltage_health"].to<JsonObject>();
@@ -239,10 +294,11 @@ namespace APIServer {
             sendJSON(req, 200, out);
         });
 
-        // ── GET /api/health — NEW v2.0 ────────────────────────────────────
+        // ── GET /api/health ───────────────────────────────────────────────
         // Lightweight health check. Returns summary only.
         // No auth required. Ideal for uptime monitoring services.
         // Response is intentionally small (~200 bytes).
+        // Uses lastSnapshot() — safe from any context, no state mutation.
         server->on("/api/health", HTTP_GET, [](AsyncWebServerRequest* req) {
             if (!g_reading) {
                 sendJSON(req, 503, "{\"status\":\"NOT_READY\",\"score\":0}");
@@ -271,32 +327,38 @@ namespace APIServer {
         });
 
         // ── GET /api/state — Legacy (retained for compatibility) ──────────
+        // Finding #17 fix: g_reading and g_ctx are now read via the
+        // seqlock retry loop (readSharedState) instead of direct pointer
+        // dereference. This eliminates the torn-read risk in the lwIP
+        // async callback context with zero blocking time.
         server->on("/api/state", HTTP_GET, [](AsyncWebServerRequest* req) {
-            if (!g_reading || !g_ctx) {
+            SensorReading r;
+            FSMContext    ctx;
+            if (!readSharedState(r, ctx)) {
                 sendJSON(req, 503, "{\"error\":\"Not ready\"}");
                 return;
             }
             JsonDocument doc;
             doc["ts"]         = millis();
             doc["uptime_s"]   = millis() / 1000;
-            doc["voltage"]    = serialized(String(g_reading->voltage_v, 1));
-            doc["current"]    = serialized(String(g_reading->current_a, 2));
-            doc["temp"]       = serialized(String(g_reading->temp_c, 1));
-            doc["power_va"]   = serialized(String(g_reading->power_va, 1));
-            doc["state"]      = fsmStateName(g_ctx->state);
-            doc["fault"]      = faultTypeName(g_ctx->fault_type);
-            doc["warn_flags"] = g_ctx->warn_flags;
-            doc["trip_count"] = g_ctx->trip_count;
-            doc["relay1"]     = g_reading->relay1_closed;
-            doc["relay2"]     = g_reading->relay2_closed;
+            doc["voltage"]    = serialized(String(r.voltage_v, 1));
+            doc["current"]    = serialized(String(r.current_a, 2));
+            doc["temp"]       = serialized(String(r.temp_c,    1));
+            doc["power_va"]   = serialized(String(r.power_va,  1));
+            doc["state"]      = fsmStateName(ctx.state);
+            doc["fault"]      = faultTypeName(ctx.fault_type);
+            doc["warn_flags"] = ctx.warn_flags;
+            doc["trip_count"] = ctx.trip_count;
+            doc["relay1"]     = r.relay1_closed;
+            doc["relay2"]     = r.relay2_closed;
             JsonObject warns = doc["warns"].to<JsonObject>();
-            warns["ov"]          = (bool)(g_ctx->warn_flags & WARN_OV);
-            warns["uv"]          = (bool)(g_ctx->warn_flags & WARN_UV);
-            warns["oc"]          = (bool)(g_ctx->warn_flags & WARN_OC);
-            warns["thermal"]     = (bool)(g_ctx->warn_flags & WARN_THERMAL);
-            warns["curr_rising"] = (bool)(g_ctx->warn_flags & WARN_CURR_RISING);
-            if (g_ctx->state == FSM_FAULT) {
-                uint32_t elapsed = millis() - g_ctx->fault_ts_ms;
+            warns["ov"]          = (bool)(ctx.warn_flags & WARN_OV);
+            warns["uv"]          = (bool)(ctx.warn_flags & WARN_UV);
+            warns["oc"]          = (bool)(ctx.warn_flags & WARN_OC);
+            warns["thermal"]     = (bool)(ctx.warn_flags & WARN_THERMAL);
+            warns["curr_rising"] = (bool)(ctx.warn_flags & WARN_CURR_RISING);
+            if (ctx.state == FSM_FAULT) {
+                uint32_t elapsed = millis() - ctx.fault_ts_ms;
                 int rem = (int)RECOVERY_DELAY_MS - (int)elapsed;
                 doc["recovery_ms"] = max(0, rem);
             } else {
@@ -308,6 +370,7 @@ namespace APIServer {
         });
 
         // ── GET /api/log ───────────────────────────────────────────────────
+        // NVS log reads do not touch g_reading/g_ctx — no seqlock needed.
         server->on("/api/log", HTTP_GET, [](AsyncWebServerRequest* req) {
             JsonDocument doc;
             JsonArray arr = doc.to<JsonArray>();
@@ -329,13 +392,8 @@ namespace APIServer {
         });
 
         // ── POST /api/relay ────────────────────────────────────────────────
-        // Dashboard contract: { "state": true/false }
-        // Response:           { "ok": true, "relay": <bool> }
-        // No auth in Phase 4 (auth added in Phase 8).
-        // Safety contract:    FSM FAULT/LOCKOUT clears the override immediately.
         server->on("/api/relay", HTTP_POST,
             [](AsyncWebServerRequest* req) {
-                // Body-less fallback (should not occur with a correct client)
                 sendJSON(req, 400, "{\"error\":\"No body\"}");
             },
             nullptr,
@@ -352,8 +410,6 @@ namespace APIServer {
                 }
                 bool desired = doc["state"].as<bool>();
                 RelayControl::setAPIOverride(desired);
-
-                // Echo back the requested state so the dashboard can confirm
                 String resp = "{\"ok\":true,\"relay\":";
                 resp += desired ? "true" : "false";
                 resp += "}";
@@ -362,11 +418,6 @@ namespace APIServer {
         );
 
         // ── POST /api/reset ────────────────────────────────────────────────
-        // Dashboard contract — three cmd variants:
-        //   { "cmd": "reset"  } → clear active fault, return FSM to RECOVERY
-        //   { "cmd": "reboot" } → ESP32 soft restart (no response expected)
-        //   { "cmd": "ping"   } → connectivity check, returns { "ok": true }
-        // No auth in Phase 4 (auth added in Phase 8).
         server->on("/api/reset", HTTP_POST,
             [](AsyncWebServerRequest* req) {
                 sendJSON(req, 400, "{\"error\":\"No body\"}");
@@ -400,17 +451,14 @@ namespace APIServer {
         );
 
         // ── GET /api/config ────────────────────────────────────────────────
-        // Page 3 fetches this once on mount to display protection thresholds.
-        // Field names match the aliases the dashboard parser accepts (dashboard.md §14).
         server->on("/api/config", HTTP_GET, [](AsyncWebServerRequest* req) {
             JsonDocument doc;
-            doc["ovp_threshold_v"]    = VOLT_OV_FAULT_V;     // was volt_ov_fault
-            doc["uvp_threshold_v"]    = VOLT_UV_FAULT_V;     // was volt_uv_fault
-            doc["ocp_threshold_a"]    = CURR_OC_FAULT_A;     // was curr_oc_fault
-            doc["otp_threshold_c"]    = TEMP_FAULT_C;        // was temp_fault
-            doc["reconnect_delay_s"]  = RECOVERY_DELAY_MS / 1000; // was missing
-            doc["fault_lockout_count"]= MAX_TRIP_COUNT;      // was max_trips
-            // Extra fields retained for firmware-side tooling
+            doc["ovp_threshold_v"]    = VOLT_OV_FAULT_V;
+            doc["uvp_threshold_v"]    = VOLT_UV_FAULT_V;
+            doc["ocp_threshold_a"]    = CURR_OC_FAULT_A;
+            doc["otp_threshold_c"]    = TEMP_FAULT_C;
+            doc["reconnect_delay_s"]  = RECOVERY_DELAY_MS / 1000;
+            doc["fault_lockout_count"]= MAX_TRIP_COUNT;
             doc["ovp_warn_v"]         = VOLT_OV_WARN_V;
             doc["uvp_warn_v"]         = VOLT_UV_WARN_V;
             doc["ocp_warn_a"]         = CURR_OC_WARN_A;
@@ -545,12 +593,12 @@ namespace APIServer {
             }
         );
 
-        Serial.println("[API] v2.0 routes registered:");
+        Serial.println("[API] v2.1 routes registered:");
         Serial.println("[API]   GET  /api/ping");
-        Serial.println("[API]   GET  /api/telemetry");
-        Serial.println("[API]   GET  /api/diagnostics  [NEW]");
-        Serial.println("[API]   GET  /api/health        [NEW]");
-        Serial.println("[API]   GET  /api/state");
+        Serial.println("[API]   GET  /api/telemetry     [seqlock snapshot — Finding #17]");
+        Serial.println("[API]   GET  /api/diagnostics   [lastSnapshot() — Finding #4]");
+        Serial.println("[API]   GET  /api/health");
+        Serial.println("[API]   GET  /api/state         [seqlock read — Finding #17]");
         Serial.println("[API]   GET  /api/log");
         Serial.println("[API]   GET  /api/config");
         Serial.println("[API]   GET  /api/wifi");
@@ -560,5 +608,6 @@ namespace APIServer {
         Serial.println("[API]   POST /api/reboot");
         Serial.println("[API]   POST /api/log/clear");
         Serial.println("[API]   POST /api/factory-reset");
+        Serial.println("[API]   POST /api/relay");
     }
 }

@@ -1,9 +1,17 @@
 // ============================================================
 //  adc_sampler.h — ADC Sampler Public API
 //  Voltage: GPIO34 ADC1_CH6 → 0–300 V
-//  Current: GPIO35 ADC1_CH7 → 0–5 A
+//  Current: GPIO35 ADC1_CH7 → 0–30 A
 //
-//  Expanded v2.0 API adds:
+//  v4.0 additions (Tier 2 — Findings #6, #9, #20):
+//    getRawVoltagePhys() / getRawCurrentPhys()
+//      Physical values after 4× oversampling + calibration ONLY.
+//      No IIR. No moving average. Used by FaultEngine as its
+//      protection signal path input — its asymmetric IIR is then
+//      the single filter stage, eliminating the 4-stage cascade
+//      that attenuated 50ms short-circuit spikes to near noise.
+//
+//  v2.0 API (unchanged):
 //    - Noise floor (RMS residual voltage/current)
 //    - Min/max seen since boot
 //    - Saturation flags (ADC rail hit)
@@ -73,4 +81,15 @@ namespace ADCSampler {
     // Used by sensor_diagnostics for linearity estimation.
     int      getLastRawV();   // 0–4095
     int      getLastRawI();   // 0–4095
+
+    // ── Protection signal path (Findings #6 / #20) ────────────────────────
+    // Physical values after 4× oversampling + IDF v5 calibration ONLY.
+    // NO IIR filter. NO moving average.
+    // FaultEngine passes these to evaluate() as its raw_i / raw_v inputs.
+    // FaultEngine's own asymmetric IIR (α_rise=0.50, α_fall=0.10) is then
+    // the single and only filter stage on the protection signal path.
+    // This ensures 50ms short-circuit spikes reach the SC comparator
+    // with sufficient amplitude to trip within IEC 60255-151 requirements.
+    float    getRawVoltagePhys();   // volts, post-cal, pre-IIR
+    float    getRawCurrentPhys();   // amps,  post-cal, pre-IIR
 }

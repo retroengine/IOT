@@ -5,16 +5,49 @@
 //  and computes comprehensive health, stability, and quality
 //  metrics for all sensing channels.
 //
-//  Design: stateless API — all state is internal to the module.
-//  compute() is called once per telemetry build cycle.
-//  No heap allocation. All state in static storage.
+//  Tier 1 fix — Finding #4: SensorDiagnostics::compute() Mutates
+//  Shared Static State From Multiple Concurrent Contexts
 //
-//  Scoring methodology:
+//  PROBLEM (original):
+//    compute() advanced sliding windows (pq_v_buf, temp_hist,
+//    thermal counters) on every call. It was called from both
+//    task_comms (via buildJSON) and from the lwIP async HTTP
+//    handler (/api/diagnostics). Concurrent calls double-counted
+//    fault events, corrupted the 60-sample power quality window,
+//    and produced torn reads of the DiagnosticsSnapshot struct.
+//
+//  FIX — Lock-Free Double-Buffer with Atomic Pointer Swap:
+//    (Approach A per research document — definitively optimal)
+//
+//    update(v, i, t)  — EXCLUSIVE MUTATOR. Called only from
+//                       task_comms, once per comms loop BEFORE
+//                       buildJSON(). Advances all sliding windows,
+//                       writes the new snapshot into the inactive
+//                       buffer, then atomically swaps the active
+//                       buffer index with memory_order_release.
+//                       The writer never blocks.
+//
+//    lastSnapshot()   — PURE OBSERVER. Loads the active buffer
+//                       index with memory_order_acquire (Xtensa
+//                       MEMW barrier) and returns a copy of the
+//                       active snapshot. Never mutates state.
+//                       Safe to call from any context including
+//                       the lwIP async callback.
+//
+//    compute(v, i, t) — BACKWARD-COMPATIBLE SHIM. Calls update()
+//                       then returns lastSnapshot(). Kept so
+//                       telemetry_builder.cpp compiles unchanged.
+//                       Must only be called from task_comms.
+//
+//  MEMORY COST:
+//    Two DiagnosticsSnapshot buffers ≈ 2 × ~260 bytes = ~520 bytes.
+//    Negligible against ESP32's 320KB SRAM pool.
+//
+//  SCORING METHODOLOGY (unchanged):
 //    All scores are 0–100 (uint8_t).
 //    100 = ideal / fully healthy.
 //    0   = completely degraded / sensor failure.
 //    Deductions are additive penalties from a 100 base.
-//    Bonuses exist but final score is clamped [0, 100].
 // ============================================================
 #pragma once
 #include <Arduino.h>
@@ -60,8 +93,8 @@ struct ThermalHealth {
 
 // ─── ADC Hardware Health ─────────────────────────────────────────────────
 struct ADCHealth {
-    uint8_t  calibration_type;          // 0=none, 1=efuse_vref, 2=efuse_tp
-    const char* calibration_label;      // "NONE" / "EFUSE_VREF" / "EFUSE_TP"
+    uint8_t  calibration_type;          // 0=none, 1=line_fitting, 2=curve_fitting
+    const char* calibration_label;      // "NONE" / "LINE_FITTING" / "CURVE_FITTING"
     float    linearity_error_pct;       // estimated % deviation from ideal linear
     float    actual_sample_rate_hz;     // measured sample rate
     float    expected_sample_rate_hz;   // from config (1000/SENSOR_LOOP_MS)
@@ -73,13 +106,6 @@ struct ADCHealth {
 };
 
 // ─── Power Quality Metrics ────────────────────────────────────────────────
-// NOTE: This system uses DC-scaled representations of voltage/current.
-// True AC power quality (FFT-based THD, ITIC curve) requires high-frequency
-// AC waveform sampling. The metrics below are DC-proxy equivalents:
-//   ripple_pct        ≈ DC ripple / average (proxy for AC distortion content)
-//   flicker_index     = variance / mean² (coefficient of variation squared)
-//   sag_depth_v       = how far below NOMINAL_VOLTAGE_V in the window
-//   swell_height_v    = how far above NOMINAL_VOLTAGE_V in the window
 struct PowerQuality {
     float   nominal_voltage_v;          // configured nominal (from config.h)
     float   mean_voltage_v;             // mean over quality window
@@ -108,23 +134,38 @@ struct SystemDiagnostics {
 
 // ─── Full Diagnostics Snapshot ───────────────────────────────────────────
 struct DiagnosticsSnapshot {
-    VoltageHealth    voltage;
-    CurrentHealth    current;
-    ThermalHealth    thermal;
-    ADCHealth        adc;
-    PowerQuality     power_quality;
+    VoltageHealth     voltage;
+    CurrentHealth     current;
+    ThermalHealth     thermal;
+    ADCHealth         adc;
+    PowerQuality      power_quality;
     SystemDiagnostics system;
-    uint32_t         computed_at_ms;
+    uint32_t          computed_at_ms;
 };
 
 // ─── Public API ───────────────────────────────────────────────────────────
 namespace SensorDiagnostics {
 
-    // Called once per telemetry cycle (from telemetry_builder).
-    // Reads current state from ADCSampler and DS18B20 public APIs.
-    // Returns a fully populated snapshot. No heap allocation.
-    DiagnosticsSnapshot compute(float voltage_v, float current_a, float temp_c);
+    // ── MUTATOR — call ONLY from task_comms, once per comms loop ─────────
+    // Advances all sliding windows (power quality buffer, thermal history,
+    // thermal counters), builds a complete DiagnosticsSnapshot into the
+    // inactive double-buffer, then atomically swaps it as the active buffer.
+    // Uses memory_order_release on the swap — guarantees all payload writes
+    // are globally visible (Xtensa MEMW barrier) before the index flips.
+    //
+    // configASSERT guards in debug builds prevent double-calling within
+    // the minimum expected interval (800ms).
+    void update(float voltage_v, float current_a, float temp_c);
 
-    // Optional: get last computed snapshot without recomputing.
-    const DiagnosticsSnapshot& lastSnapshot();
+    // ── OBSERVER — safe to call from any context including lwIP ──────────
+    // Loads the active buffer index with memory_order_acquire (Xtensa MEMW
+    // barrier) and returns a copy of the active snapshot. Completely
+    // lock-free. Never mutates any state. No torn reads possible.
+    DiagnosticsSnapshot lastSnapshot();
+
+    // ── BACKWARD-COMPATIBLE SHIM — call only from task_comms ─────────────
+    // Calls update(v, i, t) then returns lastSnapshot(). Kept so existing
+    // callers (telemetry_builder.cpp) compile without modification.
+    // Must only be called from task_comms — it calls update() internally.
+    DiagnosticsSnapshot compute(float voltage_v, float current_a, float temp_c);
 }

@@ -19,7 +19,16 @@
 //
 //    2. Schema version: "1.3-local"
 //
-//  PRESERVED (unchanged from v1.2):
+//  CHANGES IN Tier 1 (Finding #3 — static buffer race fix):
+//    Added buildSnapshot() and getSnapshot() to provide a
+//    seqlock-protected snapshot cache for async readers.
+//    buildJSON() is now called exclusively from task_comms.
+//    buildSnapshot() is called immediately after buildJSON()
+//    in task_comms to commit the result to the snapshot buffer.
+//    All lwIP async paths (HTTP handlers, WS connect) call
+//    getSnapshot() — zero serialisation in the async context.
+//
+//  PRESERVED (unchanged from v1.2/v1.3):
 //    - sensors, power, loads, alerts, prediction, actuators
 //    - Static buffer — zero heap allocation
 //    - All existing field names and structure
@@ -36,10 +45,24 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <esp_system.h>
+#include <atomic>
+#include <cstring>
 
 namespace {
     static char   s_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
     static size_t s_last_size = 0;
+
+    // ── Snapshot cache for async readers (Finding #3) ─────────────────────
+    // s_snapshot is written only from task_comms via buildSnapshot().
+    // All async paths (HTTP, WS connect) read it via getSnapshot().
+    // Protected by a seqlock so readers never see a torn string.
+    //
+    // Seqlock protocol:
+    //   Writer (task_comms): increment s_snap_seq to odd → copy → increment to even
+    //   Reader (async):      loop { read seq0; copy; fence; read seq1 }
+    //                        until seq0 == seq1 && seq0 % 2 == 0
+    static char     s_snapshot[TelemetryBuilder::TELEMETRY_BUF_SIZE] = {};
+    static std::atomic<uint32_t> s_snap_seq{0};
 
     // ── Energy integrator (unchanged) ─────────────────────────────────────
     static float    s_energy_wh    = 0.0f;
@@ -74,14 +97,23 @@ namespace {
 
 namespace TelemetryBuilder {
 
-// ── Power computation (unchanged from v1.2) ──────────────────────────────
+// ── Power computation (Finding #8 fix) ──────────────────────────────────
+// real_power_w removed from computation. power_factor hardcoded at 0.85
+// was producing false telemetry: ±15-40% error depending on load type.
+// apparent_power_va is the only honestly-measured power value available
+// without zero-crossing detection hardware. Energy integrator now uses
+// apparent_power_va as a conservative upper bound until Tier 4 implements
+// true PF measurement via zero-crossing detection.
 PowerMetrics computePower(float v, float i) {
     PowerMetrics p;
-    p.apparent_power_va = v * i;
-    p.power_factor      = 0.85f;
-    p.real_power_w      = p.apparent_power_va * p.power_factor;
-    updateEnergy(p.real_power_w);
-    p.energy_estimate_wh = s_energy_wh;
+    p.apparent_power_va    = v * i;
+    p.power_factor         = 0.0f;    // not measured — do not use
+    p.real_power_w         = 0.0f;    // not measured — do not use
+    // Energy integrator uses apparent power as conservative upper bound.
+    // This is physically accurate for resistive loads (PF≈1.0) and a known
+    // overestimate for inductive loads. Labelled as apparent on the dashboard.
+    updateEnergy(p.apparent_power_va);
+    p.energy_estimate_wh   = s_energy_wh;
     return p;
 }
 
@@ -191,13 +223,18 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     st["confidence"]     = t_conf;
     st["unit"]           = "C";
 
-    // ── power (unchanged) ─────────────────────────────────────────────────
+    // ── power (Finding #8 fix) ────────────────────────────────────────────
+    // real_power_w REMOVED. It was computed as apparent_power_va * 0.85f
+    // (hardcoded PF). For resistive loads (PF=1.0) it understated real power
+    // by 15%; for inductive motors at light load (PF=0.5) it overstated by 40%.
+    // The energy integrator was accumulating this permanently false value.
+    // Fix: expose apparent_power_va only. is_pf_measured: false signals to
+    // dashboard consumers that true power factor is not available.
+    // True PF measurement requires zero-crossing detection (Tier 4).
     JsonObject power = doc["power"].to<JsonObject>();
-    power["real_power_w"]       = serialized(String(pwr.real_power_w,       1));
     power["apparent_power_va"]  = serialized(String(pwr.apparent_power_va,  1));
-    power["power_factor"]       = serialized(String(pwr.power_factor,       2));
+    power["is_pf_measured"]     = false;
     power["energy_estimate_wh"] = serialized(String(pwr.energy_estimate_wh, 3));
-    power["pf_estimated"]       = true;
     power["frequency_hz"]       = 50.0f;   // Indian grid nominal (IS 12360)
 
     // ── loads (unchanged) ─────────────────────────────────────────────────
@@ -362,5 +399,72 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     s_last_size = written;
     return s_buf;
 }
+
+    // ── Snapshot cache management (Finding #3) ───────────────────────────
+    //
+    // buildSnapshot() — call only from task_comms, immediately after buildJSON().
+    // Copies the content of s_buf into s_snapshot under seqlock protection.
+    // The seqlock sequence counter is odd during the write, even when stable.
+    // memory_order_release on the counter stores generates a Xtensa MEMW barrier,
+    // ensuring all payload bytes are globally visible before seq turns even.
+    void buildSnapshot() {
+        // Read current (should be even — previous write finished)
+        uint32_t seq = s_snap_seq.load(std::memory_order_relaxed);
+
+        // Mark write in progress (odd)
+        s_snap_seq.store(seq + 1, std::memory_order_release);
+
+        // Copy the serialised string
+        // s_last_size was set by buildJSON(). strlcpy guarantees null termination.
+        if (s_last_size > 0 && s_last_size < TELEMETRY_BUF_SIZE) {
+            memcpy(s_snapshot, s_buf, s_last_size + 1); // +1 for null terminator
+        }
+
+        // Mark write complete (even) — barrier ensures payload is committed first
+        s_snap_seq.store(seq + 2, std::memory_order_release);
+    }
+
+    // getSnapshot() — safe to call from any context including lwIP callbacks.
+    // Performs a seqlock retry loop to obtain a consistent copy of the snapshot.
+    // In practice the loop executes exactly once — retries only if task_comms
+    // happens to be mid-write at the exact microsecond this is called.
+    //
+    // Parameters:
+    //   buf      — caller-supplied buffer of at least TELEMETRY_BUF_SIZE bytes
+    //   buf_size — size of buf
+    //
+    // Returns true if a valid snapshot was copied, false if none is available yet.
+    bool getSnapshot(char* buf, size_t buf_size) {
+        if (!buf || buf_size < 2) return false;
+        if (buf_size < TELEMETRY_BUF_SIZE) return false;
+
+        // No snapshot committed yet
+        if (s_snap_seq.load(std::memory_order_relaxed) == 0) {
+            buf[0] = '\0';
+            return false;
+        }
+
+        uint32_t seq0, seq1;
+        do {
+            // Step 1: read initial sequence.
+            // memory_order_acquire prevents the CPU from hoisting the payload
+            // copy above this read (Xtensa MEMW barrier).
+            seq0 = s_snap_seq.load(std::memory_order_acquire);
+
+            // Step 2: copy snapshot payload
+            memcpy(buf, s_snapshot, TELEMETRY_BUF_SIZE);
+
+            // Step 3: full acquire fence — payload copy must complete before
+            // the trailing sequence check. Prevents Xtensa pipeline reordering.
+            std::atomic_thread_fence(std::memory_order_acquire);
+
+            // Step 4: read final sequence (relaxed — fence already established barrier)
+            seq1 = s_snap_seq.load(std::memory_order_relaxed);
+
+            // Step 5: retry if seq was odd (write in progress) or changed (torn read)
+        } while ((seq0 & 1u) != 0u || seq0 != seq1);
+
+        return (buf[0] != '\0');
+    }
 
 } // namespace TelemetryBuilder
