@@ -25,3 +25,10 @@ desktop.ini
 # If you ever hardcode credentials for testing, exclude them here.
 secrets.h
 credentials.h
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
