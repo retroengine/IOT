@@ -8,6 +8,14 @@
 #include <stdint.h>
 #include <string.h>
 
+// ─── Load States (Motor Startup State Machine) ──────────────────────────────────
+enum LoadState : uint8_t {
+    LOAD_STATE_IDLE     = 0,
+    LOAD_STATE_STARTING = 1,
+    LOAD_STATE_RUNNING  = 2,
+    LOAD_STATE_FAULT    = 3
+};
+
 // ─── FSM States ───────────────────────────────────────────────────────────────
 enum FSMState : uint8_t {
     FSM_BOOT     = 0,
@@ -26,7 +34,10 @@ enum FaultType : uint8_t {
     FAULT_OVERCURRENT   = 3,
     FAULT_THERMAL       = 4,
     FAULT_SHORT_CIRCUIT = 5,   // ANSI 50 — instantaneous SC, bypasses reclose → LOCKOUT
-    FAULT_SENSOR_FAIL   = 6    // Hardware sensor failure — triggers immediate LOCKOUT
+    FAULT_SENSOR_FAIL   = 6,   // Hardware sensor failure — triggers immediate LOCKOUT
+    FAULT_SENSOR        = 6,   // Alias for FAULT_SENSOR_FAIL — used in fault_engine.cpp / fsm.cpp
+    FAULT_LOCKED_ROTOR  = 7,   // Starting motor failed to reach running current in allotted time
+    FAULT_MECHANICAL_STALL = 8 // Locked rotor behavior while running
 };
 
 // ─── Warning Flag Bitmasks ────────────────────────────────────────────────────
@@ -69,6 +80,8 @@ inline const char* faultTypeName(FaultType f) {
         case FAULT_THERMAL:       return "THERMAL";
         case FAULT_SHORT_CIRCUIT: return "SHORT_CIRCUIT";
         case FAULT_SENSOR_FAIL:   return "SENSOR_FAIL";
+        case FAULT_LOCKED_ROTOR:  return "LOCKED_ROTOR";
+        case FAULT_MECHANICAL_STALL: return "MECHANICAL_STALL";
         default:                  return "UNKNOWN";
     }
 }
@@ -90,7 +103,8 @@ struct FSMContext {
     uint8_t   warn_flags;
     int       trip_count;
     uint32_t  fault_ts_ms;
-    uint32_t  recovery_ts_ms;
+    uint32_t  active_delay_ms;   // Computed adaptive severity delay
+    uint32_t  target_reclose_ms; // Expected wall-clock time for reclose/recovery
     bool      reset_requested;
 };
 
@@ -133,6 +147,7 @@ struct FaultSnapshot {
     bool    over_temperature;
     bool    short_circuit_risk;
     bool    inrush_event;
+    bool    voltage_recovery_active;
     uint8_t warn_flags;
 };
 

@@ -41,6 +41,7 @@
 #include "ds18b20.h"
 #include "fault_engine.h"
 #include "relay_control.h"
+#include "serial_log.h"
 // mqtt_client.h intentionally excluded — LOCAL build
 #include <ArduinoJson.h>
 #include <WiFi.h>
@@ -63,6 +64,9 @@ namespace {
     //                        until seq0 == seq1 && seq0 % 2 == 0
     static char     s_snapshot[TelemetryBuilder::TELEMETRY_BUF_SIZE] = {};
     static std::atomic<uint32_t> s_snap_seq{0};
+
+    static char     s_compact_snapshot[128] = {};
+    static std::atomic<uint32_t> s_compact_snap_seq{0};
 
     // ── Energy integrator (unchanged) ─────────────────────────────────────
     static float    s_energy_wh    = 0.0f;
@@ -117,16 +121,23 @@ PowerMetrics computePower(float v, float i) {
     return p;
 }
 
-// ── Fault snapshot (unchanged) ────────────────────────────────────────────
-FaultSnapshot buildFaultSnapshot(const FSMContext& ctx) {
+// ── Fault snapshot ────────────────────────────────────────────────────────
+// Bug 6 fix: the old implementation compared ctx.fault_type (a single-enum
+// highest-priority fault) against specific fault types. In multi-fault scenarios
+// (e.g. simultaneous OV + OC), only the highest-priority fault appeared in
+// ft — the others were silently absent from telemetry. The under_voltage field
+// was already fixed (GAP-6) to use r.fault_bits; the remaining three fields
+// now match that approach for consistency and correctness.
+FaultSnapshot buildFaultSnapshot(const SensorReading& r, const FSMContext& ctx) {
     FaultSnapshot fs;
-    FaultType ft = ctx.fault_type;
     uint8_t   wf = ctx.warn_flags;
+    uint16_t  fb = r.fault_bits;  // bitmask — all active faults, not just highest
 
-    fs.over_voltage     = (ft == FAULT_OVERVOLTAGE);
-    fs.over_current     = (ft == FAULT_OVERCURRENT);
-    fs.over_temperature = (ft == FAULT_THERMAL);
+    fs.over_voltage     = (bool)(fb & (FAULT_BIT_OV | FAULT_BIT_OV_INSTANT));
+    fs.over_current     = (bool)(fb & FAULT_BIT_OC_IDMT);
+    fs.over_temperature = (bool)(fb & FAULT_BIT_THERMAL);
     fs.inrush_event     = FaultEngine::isInrushBlankActive();
+    fs.voltage_recovery_active = FaultEngine::isVoltageRecoveryActive();
     fs.warn_flags       = wf;
     fs.short_circuit_risk = false;
     return fs;
@@ -146,12 +157,12 @@ RiskLevel computeRiskLevel(const FSMContext& ctx, const FaultSnapshot& fs) {
 // ── Sensor confidence (unchanged) ────────────────────────────────────────
 uint8_t computeConfidence(bool calibrated, uint32_t sample_count,
                           float value, float full_scale) {
-    uint8_t score = 100;
+    int score = 100;    // signed so underflow guard is live (NEW-08 fix)
     if (!calibrated)                              score -= 30;
     if (sample_count < MOVING_AVG_DEPTH)          score -= 20;
     if (value < 0.0f || value > full_scale*1.05f) score -= 30;
     if (value == 0.0f && sample_count > 20)       score -= 10;
-    return (score < 0) ? 0 : (uint8_t)score;
+    return (uint8_t)((score < 0) ? 0 : (score > 100 ? 100 : score));
 }
 
 size_t lastPayloadSize() { return s_last_size; }
@@ -161,7 +172,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
 
     // ── Compute derived metrics ─────────────────────────────────────────
     PowerMetrics  pwr = computePower(r.voltage_v, r.current_a);
-    FaultSnapshot fs  = buildFaultSnapshot(ctx);
+    FaultSnapshot fs  = buildFaultSnapshot(r, ctx);
     fs.short_circuit_risk = (r.current_a >= CURR_OC_FAULT_A) &&
                             (r.voltage_v  <= VOLT_UV_FAULT_V);
     RiskLevel risk = computeRiskLevel(ctx, fs);
@@ -173,7 +184,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     else if (ctx.warn_flags & WARN_CURR_RISING)                       fault_prob = 25;
     else if (ctx.warn_flags != WARN_NONE)                             fault_prob = 15;
 
-    bool adc_cal         = (ADCSampler::getSampleCount() > 0);
+    bool adc_cal         = (ADCSampler::getCalibrationQuality() > 0);  // NEW-09 fix: sample count is always >0 after first sample; calibration quality correctly reflects eFuse correction availability
     uint32_t sample_count = ADCSampler::getSampleCount();
 
     uint8_t v_conf = computeConfidence(adc_cal, sample_count, r.voltage_v, VOLTAGE_FULL_SCALE);
@@ -186,11 +197,12 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     uint8_t  rst_reason = (uint8_t)esp_reset_reason();
     uint16_t cpu_mhz   = (uint16_t)(getCpuFrequencyMhz());
 
-    // ── NEW v1.3: Compute full diagnostics snapshot ─────────────────────
-    // This single call populates all sensor health, power quality,
-    // ADC health, and system diagnostics.
-    DiagnosticsSnapshot diag = SensorDiagnostics::compute(
-        r.voltage_v, r.current_a, r.temp_c);
+    // ── NEW v1.3: Retrieve full diagnostics snapshot ─────────────────────
+    // task_comms calls SensorDiagnostics::update() before buildJSON(), so
+    // the snapshot is already fresh. Using lastSnapshot() avoids a second
+    // update() call (which would double-advance sliding windows on MQTT
+    // publish cycles — NEW-19 fix).
+    DiagnosticsSnapshot diag = SensorDiagnostics::lastSnapshot();
 
     // ── Build JSON ───────────────────────────────────────────────────────
     JsonDocument doc;
@@ -255,6 +267,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     alerts["over_temperature"]   = fs.over_temperature;
     alerts["short_circuit_risk"] = fs.short_circuit_risk;
     alerts["inrush_event"]       = fs.inrush_event;
+    alerts["voltage_recovery_active"] = fs.voltage_recovery_active;
     JsonObject warns = alerts["warnings"].to<JsonObject>();
     warns["ov"]          = (bool)(ctx.warn_flags & WARN_OV);
     warns["uv"]          = (bool)(ctx.warn_flags & WARN_UV);
@@ -388,12 +401,16 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     size_t written = serializeJson(doc, s_buf, sizeof(s_buf));
 
     if (written == 0 || written >= sizeof(s_buf) - 1) {
-        static const char* err =
-            "{\"error\":\"telemetry_overflow\",\"schema_v\":\"1.3\"}";
-        s_last_size = strlen(err);
-        Serial.printf("[TELEMETRY] OVERFLOW! written=%d buf=%d\n",
-                      written, sizeof(s_buf));
-        return err;
+        // NEW-18 fix: write error into s_buf (not a separate literal) so
+        // buildSnapshot() copies consistent content. Returning a separate
+        // static literal left s_buf with partial/corrupt JSON, causing async
+        // readers via getSnapshot() to see different data than MQTT/HTTP callers.
+        static const char err[] = "{\"error\":\"telemetry_overflow\",\"schema_v\":\"1.3\"}";
+        memcpy(s_buf, err, sizeof(err));
+        s_last_size = sizeof(err) - 1;
+        LOG_TELEM("OVERFLOW! written=%d buf=%d",
+                      (int)written, (int)sizeof(s_buf));
+        return s_buf;
     }
 
     s_last_size = written;
@@ -462,6 +479,40 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
             seq1 = s_snap_seq.load(std::memory_order_relaxed);
 
             // Step 5: retry if seq was odd (write in progress) or changed (torn read)
+        } while ((seq0 & 1u) != 0u || seq0 != seq1);
+
+        return (buf[0] != '\0');
+    }
+
+
+    // ── Compact WebSocket payload ────────────────────────────────────────────
+    void buildCompactSnapshot(const SensorReading& r, const FSMContext& ctx) {
+        uint32_t seq = s_compact_snap_seq.load(std::memory_order_relaxed);
+        s_compact_snap_seq.store(seq + 1, std::memory_order_release);
+
+        // Map FSMState and fault to integers if necessary, or just use their enum values directly.
+        // Array: [schema_v, voltage, current, state, fault]
+        snprintf(s_compact_snapshot, sizeof(s_compact_snapshot), 
+                 "[1, %.1f, %.2f, %d, %d]", 
+                 r.voltage_v, r.current_a, (int)ctx.state, (int)ctx.fault_type);
+
+        s_compact_snap_seq.store(seq + 2, std::memory_order_release);
+    }
+
+    bool getCompactSnapshot(char* buf, size_t buf_size) {
+        if (!buf || buf_size < 128) return false;
+
+        if (s_compact_snap_seq.load(std::memory_order_relaxed) == 0) {
+            buf[0] = '\0';
+            return false;
+        }
+
+        uint32_t seq0, seq1;
+        do {
+            seq0 = s_compact_snap_seq.load(std::memory_order_acquire);
+            strlcpy(buf, s_compact_snapshot, buf_size);
+            std::atomic_thread_fence(std::memory_order_acquire);
+            seq1 = s_compact_snap_seq.load(std::memory_order_relaxed);
         } while ((seq0 & 1u) != 0u || seq0 != seq1);
 
         return (buf[0] != '\0');

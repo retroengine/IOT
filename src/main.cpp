@@ -14,13 +14,14 @@
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 #include <atomic>
+#include <WiFi.h>
 
 #include "config.h"
 #include "types.h"
 #include "adc_sampler.h"
 #include "ds18b20.h"
 #include "fault_engine.h"
-#include "fsm.h"
+#include "fsm.h"          // must declare FSM::earlyInit() — see NEW-13 fix
 #include "relay_control.h"
 #include "led_alert.h"
 #include "oled_display.h"
@@ -32,6 +33,8 @@
 #include "ws_server.h"
 #include "telemetry_builder.h"
 #include "sensor_diagnostics.h"
+#include "serial_log.h"
+#include "phantom_grid.h"
 
 // ─── Shared state ─────────────────────────────────────────────────────────────
 static SensorReading     g_reading;
@@ -54,9 +57,29 @@ std::atomic<uint32_t> g_seqlock{0};
 // ─── HTTP + WebSocket server ──────────────────────────────────────────────────
 static AsyncWebServer g_server(API_PORT);
 
+// ─── Core-0: USB UART HIL Listener ──────────────────────────────────────────
+void task_usb_hil_listener(void *pvParameters) {
+    LOG_SGS("task_usb_hil_listener pinned to core %d", xPortGetCoreID());
+    while (true) {
+        if (Serial.available() > 0) {
+            String payload = Serial.readStringUntil('\n');
+            int commaIndex = payload.indexOf(',');
+            
+            if (commaIndex > 0) {
+                hil_cmd.target_voltage = payload.substring(0, commaIndex).toFloat();
+                hil_cmd.trigger_motor = payload.substring(commaIndex + 1).toInt() == 1;
+                
+                // Fire the atomic flare to Core 1
+                hil_cmd.test_ready.store(true, std::memory_order_release);
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(50)); // Don't starve Core 0
+    }
+}
+
 // ─── Core-0: Protection Task ──────────────────────────────────────────────────
 void task_protection(void* pvParam) {
-    Serial.printf("[PROT] task on core %d\n", xPortGetCoreID());
+    LOG_PROT("task on core %d", xPortGetCoreID());
     esp_task_wdt_add(nullptr);
 
     ADCSampler::init();
@@ -68,6 +91,41 @@ void task_protection(void* pvParam) {
 
     while (true) {
         esp_task_wdt_reset();
+
+        // ── HIL ACCELERATOR INTERCEPT ──
+        if (hil_cmd.test_ready.load(std::memory_order_acquire)) {
+            // Setup motor startup if requested
+            if (hil_cmd.trigger_motor) {
+                FaultEngine::evaluate(hil_cmd.target_voltage, 85.0f, 35.0f, 0, 0, 10000);
+            } else {
+                FaultEngine::evaluate(hil_cmd.target_voltage, 5.0f, 35.0f, 0, 0, 10000);
+            }
+            
+            uint32_t spoofed_now_ms = 10010;
+            int ticks = 0;
+            uint64_t cpu_start_us = esp_timer_get_time();
+            
+            while (!FaultEngine::hasFault() && ticks < 200) {
+                float current_amps = hil_cmd.trigger_motor ? 85.0f : 5.0f;
+                if (hil_cmd.trigger_motor && ticks > 20) {
+                    current_amps = 5.0f; // Simulate motor acceleration after ~200ms
+                }
+                FaultEngine::evaluate(hil_cmd.target_voltage, current_amps, 35.0f, 0, 0, spoofed_now_ms);
+                spoofed_now_ms += 10; 
+                ticks++;
+            }
+            
+            uint64_t cpu_stop_us = esp_timer_get_time();
+            float pure_compute_ms = (cpu_stop_us - cpu_start_us) / 1000.0f;
+            int simulated_time_ms = ticks * 10;
+            
+            Serial.printf("{\"result\":\"TRIPPED\",\"sim_time_ms\":%d,\"cpu_math_ms\":%.4f}\n", 
+                          simulated_time_ms, pure_compute_ms);
+            
+            FaultEngine::clearAll();
+            hil_cmd.test_ready.store(false, std::memory_order_release);
+            continue; // Skip physical read this cycle
+        }
 
         ADCSampler::tick();
         DS18B20::tick();
@@ -92,10 +150,6 @@ void task_protection(void* pvParam) {
 
         RelayControl::update(ctx.state);
         LedAlert::tick(ctx.state);
-        LedAlert::updateLoadLEDs(
-            RelayControl::isLoad1Closed(),
-            RelayControl::isLoad2Closed()
-        );
 
         if (xSemaphoreTake(g_state_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
             // Seqlock: mark write in progress (odd) before modifying shared state.
@@ -128,7 +182,7 @@ void task_protection(void* pvParam) {
 
 // ─── Core-1: Comms Task ───────────────────────────────────────────────────────
 void task_comms(void* pvParam) {
-    Serial.printf("[COMMS] task on core %d\n", xPortGetCoreID());
+    LOG_COMMS("task on core %d", xPortGetCoreID());
     esp_task_wdt_add(nullptr);
 
     OLEDDisplay::init();
@@ -147,6 +201,7 @@ void task_comms(void* pvParam) {
             xSemaphoreGive(g_state_mutex);
         }
 
+        MQTTClient::loop();             // NEW-04 FIX: pump MQTT before any blocking I/O
         OLEDDisplay::update(r, ctx);
         Buzzer::tick(ctx.state);
 
@@ -163,6 +218,7 @@ void task_comms(void* pvParam) {
         // Called once per comms loop after buildJSON is done inside WSServer/MQTT.
         // All lwIP async paths call TelemetryBuilder::getSnapshot() instead.
         TelemetryBuilder::buildSnapshot();
+        TelemetryBuilder::buildCompactSnapshot(r, ctx);
 
         vTaskDelay(pdMS_TO_TICKS(COMMS_LOOP_MS));
     }
@@ -180,15 +236,15 @@ void task_health(void* pvParam) {
         UBaseType_t hwm_prot  = uxTaskGetStackHighWaterMark(h_prot);
         UBaseType_t hwm_comms = uxTaskGetStackHighWaterMark(h_comms);
 
-        Serial.printf("[HEALTH] heap=%lu min=%lu  stk_prot=%u stk_comms=%u\n",
-                      free_heap, min_heap, hwm_prot, hwm_comms);
+        LOG_HEALTH("heap=%u min=%u  stk_prot=%u stk_comms=%u",
+                   (unsigned)free_heap, (unsigned)min_heap, hwm_prot, hwm_comms);
 
         if (free_heap < HEAP_WARN_BYTES)
-            Serial.printf("[HEALTH] WARNING: low heap %lu bytes!\n", free_heap);
+            LOG_HEALTH("WARNING: low heap %u bytes!", (unsigned)free_heap);
         if (hwm_prot  < 512)
-            Serial.printf("[HEALTH] WARNING: PROT stack low HWM=%u\n",  hwm_prot);
+            LOG_HEALTH("WARNING: PROT stack low HWM=%u",  hwm_prot);
         if (hwm_comms < 512)
-            Serial.printf("[HEALTH] WARNING: COMMS stack low HWM=%u\n", hwm_comms);
+            LOG_HEALTH("WARNING: COMMS stack low HWM=%u", hwm_comms);
 
         vTaskDelay(pdMS_TO_TICKS(HEALTH_LOOP_MS));
     }
@@ -198,21 +254,38 @@ void task_health(void* pvParam) {
 void setup() {
     Serial.begin(115200);
     delay(200);
-    Serial.println("\n[SGS] Smart Grid Sentinel — boot");
+    Serial.println("\n═══════════════════════════════════════════");
+    Serial.println("  Smart Grid Sentinel — boot");
+    Serial.println("═══════════════════════════════════════════");
 
     esp_reset_reason_t reason = esp_reset_reason();
-    Serial.printf("[SGS] Reset reason: %d (%s)\n", reason,
+    LOG_SGS("Reset reason: %d (%s)", reason,
         reason == ESP_RST_WDT      ? "WATCHDOG"   :
         reason == ESP_RST_PANIC    ? "PANIC/CRASH" :
         reason == ESP_RST_BROWNOUT ? "BROWNOUT"    :
         reason == ESP_RST_POWERON  ? "POWER_ON"    : "OTHER");
 
     esp_task_wdt_init(WDT_TIMEOUT_S, true);
-    Serial.printf("[WDT] configured: %ds\n", WDT_TIMEOUT_S);
+    LOG_WDT("configured: %ds", WDT_TIMEOUT_S);
 
     NVSLog::init();
 
     g_state_mutex = xSemaphoreCreateMutex();
+    // NEW-15 fix: xSemaphoreCreateMutex() returns nullptr on heap exhaustion.
+    // Both task_protection and task_comms call xSemaphoreTake(g_state_mutex, ...)
+    // every loop iteration — passing nullptr is UB in release builds.
+    if (g_state_mutex == nullptr) {
+        LOG_MAIN("FATAL: g_state_mutex allocation failed — rebooting");
+        ESP.restart();
+    }
+
+    // ── FINDING NEW-13 FIX: Create FSM mutex here, before g_server.begin() ──
+    // API handlers registered below (APIServer::init / WSServer::init) call
+    // FSM::requestReset() / FSM::getContext() which take the FSM mutex.
+    // FSM::init() runs inside task_protection (launched after g_server.begin()),
+    // so without earlyInit() there is a 50–200 ms window where those handlers
+    // would call xSemaphoreTake(nullptr) — UB in release builds.
+    FSM::earlyInit();
 
     // ── FINDING #5 FIX: Launch protection tasks BEFORE any WiFi work ──────
     //
@@ -245,8 +318,10 @@ void setup() {
         req->send(404);
     });
 
-    g_server.begin();
-    Serial.printf("[API]  key: %s****\n", APIServer::getApiKey().substring(0, 4).c_str());
+    // NOTE: WiFi.mode() and g_server.begin() are NOT called here.
+    // They are handled by WiFiManager::task_wifi_provision() AFTER
+    // WiFi connects (STA) or captive portal starts (AP). This prevents
+    // binding the HTTP server to a dead network interface.
 
     EventEntry boot_event = { millis(), FSM_BOOT, FAULT_NONE, (float)reason, "BOOT" };
     NVSLog::append(boot_event);
@@ -279,9 +354,21 @@ void setup() {
     // This replaces the old WiFiManager::init() call. It returns immediately.
     // If WiFi fails, the captive portal runs inside this task — Core 0 is
     // completely unaffected. Protection runs unconditionally from step 4.
+    WiFiManager::setServer(&g_server);  // share port-80 server with portal
     WiFiManager::startProvisionTask();
 
-    Serial.println("[SGS] All tasks launched — protection is active");
+    // Step 8: Spawn the HIL listener strictly on Core 0 (PRO_CPU)
+    xTaskCreatePinnedToCore(
+        task_usb_hil_listener, 
+        "HIL_USB", 
+        4096, 
+        nullptr, 
+        1,  // Low priority is fine, it's just waiting for PowerShell
+        nullptr, 
+        0   // Pinned to Core 0
+    );
+
+    LOG_SGS("All tasks launched — protection is active");
 }
 
 void loop() {
