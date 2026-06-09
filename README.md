@@ -197,9 +197,9 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## 29. Author Information
 **Developed By:** Saikiran
-**GitHub:** [@Saikiran](https://github.com/your-username)
-**Portfolio:** [Your Website](https://your-portfolio.com)
+**GitHub:** [@Saikiran](https://github.com/retroengine)
+
 
 ## 30. Contact Information
-**Email:** your.email@example.com
-**Discussion:** Open an issue or start a Discussion on the GitHub repository.
+**Email:** saikiran.vanaparthi72@gmail.com
+
