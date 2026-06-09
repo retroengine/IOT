@@ -6,7 +6,7 @@
 //
 //  CHANGES IN v4.0 (Tier 2 — Findings #6, #9, #20):
 //
-//  Finding #6 / #20 — Two independent signal paths:
+//  Two independent signal paths:
 //    Protection path:  4× oversample + calibrate only → raw_v_phys / raw_i_phys
 //                      Exposed via getRawVoltagePhys() / getRawCurrentPhys()
 //                      FaultEngine receives this and owns its complete
@@ -15,12 +15,12 @@
 //    Telemetry path:   raw_phys → IIR → 10-sample MA → v_filtered / i_filtered
 //                      Unchanged. Used for display and diagnostics only.
 //
-//  Finding #9 — Bessel's correction in bufferVariance():
+//  Bessel's correction in bufferVariance():
 //    Changed denominator from count (population variance) to (count-1)
 //    (sample variance). For a 10-sample window this corrects a 10%
 //    systematic underestimate of signal noise. Guard added for count < 2.
 //
-//  CHANGES IN v3.0 (Tier 1 — Finding #1):
+//  CHANGES IN v3.0:
 //    Migrated from deprecated IDF v4 ADC API to IDF v5 Oneshot driver.
 //
 //  ALL OTHER SIGNAL PROCESSING UNCHANGED FROM v2.0:
@@ -66,7 +66,7 @@ uint32_t sample_count = 0;
 int last_raw_v = 0;
 int last_raw_i = 0;
 
-// ΓöÇΓöÇ Protection signal path outputs (Finding #6 / #20)
+// ΓöÇΓöÇ Protection signal path outputs
 // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ 4├ù oversampled + calibrated
 // physical values, BEFORE any IIR or moving average. FaultEngine consumes these
 // as its input ΓÇö its own asymmetric IIR is then the single and only filter
@@ -178,7 +178,7 @@ inline int oversample(adc1_channel_t ch) {
       n_ok++;
     }
   }
-  // BUG-08 FIX: divide by actual successful read count, not ADC_OVERSAMPLE.
+  // Divide by actual successful read count, not ADC_OVERSAMPLE.
   if (n_ok == 0) {
     LOG_ADC("oversample: all %d reads failed on ch%d", ADC_OVERSAMPLE,
             static_cast<int>(ch));
@@ -187,7 +187,7 @@ inline int oversample(adc1_channel_t ch) {
   return static_cast<int>(sum / n_ok);
 }
 
-// ΓöÇΓöÇ Polynomial and LUT Framework (Finding #30: Industry ADC Accuracy)
+// ΓöÇΓöÇ Polynomial and LUT Framework
 // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ To achieve sub-1% accuracy required for exact Indian grid
 // limit tracking, the system moves beyond ESP-IDF's simplistic 2-point line
 // fit, which fails at the SAR ADC non-linear rail zones.
@@ -275,7 +275,7 @@ float rollingAvg(float *buf, float new_val) {
 }
 
 // Compute sample variance from a rolling buffer.
-// Finding #9 fix: uses (count-1) denominator (Bessel's correction)
+// Uses (count-1) denominator (Bessel's correction)
 // instead of count (population variance). For a 10-sample window this
 // corrects a 10% systematic underestimate (N/(N-1) = 10/9 = 1.11├ù).
 // Guard: returns 0 for count < 2 (insufficient samples for sample variance).
@@ -296,7 +296,7 @@ float bufferVariance(float *buf, int count) {
 void updateNoiseFloor(float v_phys_in, float i_phys_in) {
   // Residual = instantaneous raw (physical) - IIR-filtered value.
   // Captures high-frequency noise rejected by the IIR.
-  // BUG-20 FIX: parameters were named raw_v_phys / raw_i_phys, shadowing
+  // Parameters were named raw_v_phys / raw_i_phys, shadowing
   // the module-level variables of the same name. The function was correct
   // (it used the parameters, not the module vars) but -Wshadow would warn
   // and a future maintainer could confuse the two. Renamed to v_phys_in /
@@ -529,7 +529,7 @@ void tick() {
       sil_active = true;
       use_custom_override = false;
       force_teleport = true;
-      // BUG-02/17 FIX: use clearAnomalies() instead of triggerSag(0,0).
+      // Use clearAnomalies() instead of triggerSag(0,0).
       // triggerSag() clamps depth to [0.1, 0.9] via clampf(), so
       // triggerSag(0.0, 0.0) was creating a phantom 10% sag event.
       g_voltage_sim->clearAnomalies();
@@ -693,7 +693,7 @@ void tick() {
   last_raw_v = raw_v;
   last_raw_i = raw_i;
 
-  // ΓöÇΓöÇ Finding #6 / #20: store pre-IIR physical values
+  // ΓöÇΓöÇ Store pre-IIR physical values
   // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ These are the protection signal
   // path outputs. FaultEngine reads getRawVoltagePhys() / getRawCurrentPhys()
   // and applies its own asymmetric IIR as the single filter. No cascade
@@ -779,7 +779,7 @@ float getCurrentVariance() { return i_variance; }
 int getLastRawV() { return last_raw_v; }
 int getLastRawI() { return last_raw_i; }
 
-// ΓöÇΓöÇ Protection signal path (Finding #6 / #20)
+// ΓöÇΓöÇ Protection signal path
 // ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 // Physical values after 4├ù oversampling + calibration ONLY.
 // No IIR. No moving average. FaultEngine uses these as its input

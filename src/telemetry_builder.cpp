@@ -19,7 +19,7 @@
 //
 //    2. Schema version: "1.3-local"
 //
-//  CHANGES IN Tier 1 (Finding #3 — static buffer race fix):
+//  Static buffer race fix:
 //    Added buildSnapshot() and getSnapshot() to provide a
 //    seqlock-protected snapshot cache for async readers.
 //    buildJSON() is now called exclusively from task_comms.
@@ -53,7 +53,7 @@ namespace {
     static char   s_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
     static size_t s_last_size = 0;
 
-    // ── Snapshot cache for async readers (Finding #3) ─────────────────────
+    // ── Snapshot cache for async readers ──────────────────────────────────
     // s_snapshot is written only from task_comms via buildSnapshot().
     // All async paths (HTTP, WS connect) read it via getSnapshot().
     // Protected by a seqlock so readers never see a torn string.
@@ -101,7 +101,7 @@ namespace {
 
 namespace TelemetryBuilder {
 
-// ── Power computation (Finding #8 fix) ──────────────────────────────────
+// ── Power computation ───────────────────────────────────────────────────
 // real_power_w removed from computation. power_factor hardcoded at 0.85
 // was producing false telemetry: ±15-40% error depending on load type.
 // apparent_power_va is the only honestly-measured power value available
@@ -157,7 +157,7 @@ RiskLevel computeRiskLevel(const FSMContext& ctx, const FaultSnapshot& fs) {
 // ── Sensor confidence (unchanged) ────────────────────────────────────────
 uint8_t computeConfidence(bool calibrated, uint32_t sample_count,
                           float value, float full_scale) {
-    int score = 100;    // signed so underflow guard is live (NEW-08 fix)
+    int score = 100;    // signed so underflow guard is live
     if (!calibrated)                              score -= 30;
     if (sample_count < MOVING_AVG_DEPTH)          score -= 20;
     if (value < 0.0f || value > full_scale*1.05f) score -= 30;
@@ -184,7 +184,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     else if (ctx.warn_flags & WARN_CURR_RISING)                       fault_prob = 25;
     else if (ctx.warn_flags != WARN_NONE)                             fault_prob = 15;
 
-    bool adc_cal         = (ADCSampler::getCalibrationQuality() > 0);  // NEW-09 fix: sample count is always >0 after first sample; calibration quality correctly reflects eFuse correction availability
+    bool adc_cal         = (ADCSampler::getCalibrationQuality() > 0);  // sample count is always >0 after first sample; calibration quality correctly reflects eFuse correction availability
     uint32_t sample_count = ADCSampler::getSampleCount();
 
     uint8_t v_conf = computeConfidence(adc_cal, sample_count, r.voltage_v, VOLTAGE_FULL_SCALE);
@@ -201,7 +201,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     // task_comms calls SensorDiagnostics::update() before buildJSON(), so
     // the snapshot is already fresh. Using lastSnapshot() avoids a second
     // update() call (which would double-advance sliding windows on MQTT
-    // publish cycles — NEW-19 fix).
+    // publish cycles).
     DiagnosticsSnapshot diag = SensorDiagnostics::lastSnapshot();
 
     // ── Build JSON ───────────────────────────────────────────────────────
@@ -235,7 +235,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     st["confidence"]     = t_conf;
     st["unit"]           = "C";
 
-    // ── power (Finding #8 fix) ────────────────────────────────────────────
+    // ── power ─────────────────────────────────────────────────────────────
     // real_power_w REMOVED. It was computed as apparent_power_va * 0.85f
     // (hardcoded PF). For resistive loads (PF=1.0) it understated real power
     // by 15%; for inductive motors at light load (PF=0.5) it overstated by 40%.
@@ -428,7 +428,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     size_t written = serializeJson(doc, s_buf, sizeof(s_buf));
 
     if (written == 0 || written >= sizeof(s_buf) - 1) {
-        // NEW-18 fix: write error into s_buf (not a separate literal) so
+        // write error into s_buf (not a separate literal) so
         // buildSnapshot() copies consistent content. Returning a separate
         // static literal left s_buf with partial/corrupt JSON, causing async
         // readers via getSnapshot() to see different data than MQTT/HTTP callers.
@@ -444,7 +444,7 @@ const char* buildJSON(const SensorReading& r, const FSMContext& ctx) {
     return s_buf;
 }
 
-    // ── Snapshot cache management (Finding #3) ───────────────────────────
+    // ── Snapshot cache management ────────────────────────────────────────
     //
     // buildSnapshot() — call only from task_comms, immediately after buildJSON().
     // Copies the content of s_buf into s_snapshot under seqlock protection.

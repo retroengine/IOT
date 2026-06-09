@@ -15,7 +15,7 @@ namespace {
     int log_head  = 0;
     int log_count = 0;
 
-    // NEW-10: mutex guards append/getEntry/clear against concurrent callers
+    // Mutex guards append/getEntry/clear against concurrent callers
     // (FSM::tick() on Core 0, API handlers on Core 1 lwIP context).
     static SemaphoreHandle_t s_nvs_mtx = nullptr;
 
@@ -40,13 +40,13 @@ namespace NVSLog {
     }
 
     void append(EventEntry e) {
-        // BUG-10/22 FIX: Extended mutex timeout from 20ms to 200ms.
+        // Extended mutex timeout from 20ms to 200ms.
         // NVS page flushes can take 50-150ms on fragmented partitions.
         // A 20ms timeout caused silent drops of fault events during
         // back-to-back trips, losing critical diagnostic history.
         if (!s_nvs_mtx || xSemaphoreTake(s_nvs_mtx, pdMS_TO_TICKS(200)) != pdTRUE) return;
 
-        // BUG-22 FIX: Check prefs.begin() return value. If the NVS
+        // Check prefs.begin() return value. If the NVS
         // partition is corrupted or locked by another task, begin()
         // returns false and all subsequent put/get calls silently fail.
         if (!prefs.begin(NVS_NAMESPACE, false)) {

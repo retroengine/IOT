@@ -42,7 +42,7 @@
 //    EC-04  DS18B20 +85°C boot sentinel: FSM waits DS18B20_BOOT_IGNORE_MS
 //           before trusting temperature readings
 //    EC-05  DS18B20 -127°C disconnect: triggers LOCKOUT from ANY state,
-//           even NORMAL or RECOVERY — restored by BUG-05 fix
+//           even NORMAL or RECOVERY — restored in update
 //    EC-12  Thermal fault: routes to LOCKOUT, skips auto-reclose
 //    EC-13  SC fault: routes to LOCKOUT, skips auto-reclose
 //    EC-14  Recovery voltage hysteresis: prevents reclose into unstable grid
@@ -120,7 +120,7 @@ bool voltageStableForRecovery(float v) {
 namespace FSM {
 
 // ── earlyInit ─────────────────────────────────────────────────────────────
-// NEW-13 fix: the FSM mutex must exist before the HTTP server starts
+// The FSM mutex must exist before the HTTP server starts
 // accepting connections, because API handlers call requestReset() and
 // getContext() which both take the mutex.  FSM::init() is called later
 // from task_protection on Core 0, potentially hundreds of milliseconds
@@ -146,7 +146,7 @@ void init() {
   if (mtx == nullptr) {
     mtx = xSemaphoreCreateMutex();
   }
-  // BUG-16 / NEW-13 FIX: crash loudly on heap exhaustion so the root cause
+  // Crash loudly on heap exhaustion so the root cause
   // is obvious rather than silently passing nullptr to xSemaphoreTake().
   if (mtx == nullptr) {
     LOG_FSM("FATAL: xSemaphoreCreateMutex failed — heap exhausted");
@@ -165,7 +165,7 @@ void init() {
 //               used for recovery band confirmation
 void tick(float temp_c, float voltage_v, uint32_t now_ms) {
 
-  // NEW-13 safety guard: earlyInit() should have created the mutex before
+  // Safety guard: earlyInit() should have created the mutex before
   // the HTTP server started, but guard here too — belt-and-suspenders.
   if (mtx == nullptr)
     return;
@@ -173,7 +173,7 @@ void tick(float temp_c, float voltage_v, uint32_t now_ms) {
   if (xSemaphoreTake(mtx, pdMS_TO_TICKS(10)) != pdTRUE)
     return;
 
-  // BUG-18 FIX: When now_ms is non-zero (HIL accelerator loop), use the
+  // When now_ms is non-zero (HIL accelerator loop), use the
   // provided simulated time. When 0 (normal real-time path), use millis().
   uint32_t now = (now_ms > 0) ? now_ms : millis();
   FaultType ft = FaultEngine::getActiveFault();
@@ -184,7 +184,7 @@ void tick(float temp_c, float voltage_v, uint32_t now_ms) {
   ctx.warn_flags = warns;
 
   // EC-05: DS18B20 disconnect — LOCKOUT from ANY state.
-  // FIX NEW-01: The previous attempt (BUG-05) checked temp_c against
+  // The previous attempt checked temp_c against
   // DS18B20_SENTINEL_DISC (-127°C), but DS18B20::getTemp() never returns
   // -127°C — it returns last_valid_temp, which is only written in the
   // STATE_VALID branch and is explicitly preserved on disconnect (see
@@ -568,7 +568,7 @@ void tick(float temp_c, float voltage_v, uint32_t now_ms) {
 FSMContext getContext() { return snapshot(); }
 
 void requestReset() {
-  // NEW-13: guard against early HTTP request arriving before init()
+  // Guard against early HTTP request arriving before init()
   if (mtx == nullptr)
     return;
   if (xSemaphoreTake(mtx, pdMS_TO_TICKS(10)) == pdTRUE) {

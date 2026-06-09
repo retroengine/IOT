@@ -43,10 +43,10 @@ namespace {
     FSMContext*      g_ctx     = nullptr;
     uint32_t         g_last_push_ms = 0;
 
-    // Seqlock pointer — set during init(), used in WS_EVT_CONNECT (Finding #2)
+    // Seqlock pointer — set during init(), used in WS_EVT_CONNECT
     std::atomic<uint32_t>* g_seqlock = nullptr;
 
-    // NOTE: s_connect_buf was removed (NEW-11 fix).
+    // NOTE: s_connect_buf was removed.
     // Two simultaneous WS_EVT_CONNECT callbacks share the same task context
     // on the lwIP event loop; a single static buffer causes the second
     // callback to overwrite the first client's payload before client->text()
@@ -68,8 +68,8 @@ namespace {
                               client->remoteIP().toString().c_str());
                 // Send one frame immediately — client should not wait.
                 //
-                // Finding #2 fix: we are in the lwIP async callback context.
-                // We must NOT call buildJSON() (static buffer race — Finding #3)
+                // We are in the lwIP async callback context.
+                // We must NOT call buildJSON() (static buffer race)
                 // and must NOT take g_state_mutex (pdMS_TO_TICKS(5) = 0 at 100Hz
                 // tick rate due to integer truncation — the research document
                 // confirms this is a non-blocking poll, not a 5ms wait).
@@ -79,7 +79,7 @@ namespace {
                 // The snapshot was committed by task_comms in the previous cycle.
                 // No blocking. No torn reads. No static buffer race.
                 //
-                // NEW-11 fix: each connect allocates its own heap buffer so that
+                // Each connect allocates its own heap buffer so that
                 // two simultaneous connects do not overwrite each other's payload
                 // before client->text() has enqueued the frame.
                 {
@@ -112,7 +112,7 @@ namespace {
                     // {"type":"ping"} → send pong
                     // ESPAsyncWebServer handles binary PING frames automatically
                     //
-                    // NEW-12 fix: strncmp(s1, s2, len) stops at the null terminator
+                    // strncmp(s1, s2, len) stops at the null terminator
                     // of the literal (pos 15/16) when len > strlen(literal), so any
                     // message that merely *starts with* the ping prefix — e.g.
                     // {"type":"ping","id":42} — would incorrectly trigger a pong.
@@ -174,7 +174,7 @@ namespace WSServer {
         if (now - g_last_push_ms < WS_PUSH_INTERVAL_MS) return;
         g_last_push_ms = now;
 
-        // Finding #3 fix: use the pre-built snapshot instead of calling
+        // Use the pre-built snapshot instead of calling
         // buildJSON() here. buildJSON() writes into a static buffer; if
         // an HTTP handler fires between tick() calls it would corrupt that
         // buffer mid-serialisation. The snapshot was committed by task_comms

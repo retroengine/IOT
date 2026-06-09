@@ -29,3 +29,8 @@ credentials.h
 # ── Node.js relay server secrets ─────────────────────────────────
 relay-server/.env
 node_modules/
+
+# ── Data and Logs ──────────────────────────────────────────────
+logs/
+*.csv
+

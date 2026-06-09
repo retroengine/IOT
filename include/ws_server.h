@@ -8,10 +8,9 @@
 //  Uses AsyncWebSocket (part of ESPAsyncWebServer — no new lib).
 //  Runs on the same AsyncWebServer instance as the REST API.
 //
-//  Thread safety (Tier 1 fix — Finding #2):
-//    init() now accepts a seqlock pointer used by WS_EVT_CONNECT
+//  Thread safety:
+//    init() accepts a seqlock pointer used by WS_EVT_CONNECT
 //    to read shared state safely from the lwIP async context.
-//    See ws_server.cpp for full rationale.
 //
 //  Public API:
 //    init(server, reading_ptr, ctx_ptr, seqlock_ptr) — register WS handler

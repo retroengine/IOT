@@ -38,14 +38,14 @@
 // ─── Hardware Bench Testing Bypass ──────────────────────────────────────────
 // Set this to 1 ONLY when testing the system with pure DC potentiometers.
 // MUST BE 0 FOR PRODUCTION BINARIES!
-#define HARDWARE_BENCH_TESTING 1
+#define HARDWARE_BENCH_TESTING 0
 
 // ─── GPIO Pins
 // ────────────────────────────────────────────────────────────────
 #define PIN_RELAY_LOAD1 26
 #define PIN_RELAY_LOAD2 27
 #define PIN_ALERT_LED 14
-#define PIN_BUZZER 26
+#define PIN_BUZZER 25
 #define PIN_DS18B20 13
 #define PIN_OLED_SDA                                                           \
   32 // Right side — I²C SDA (NOT 34/35! Those are input-only!)
@@ -65,7 +65,7 @@
 // Voltage: ZMPT101B stepped down to ADC range 0–3.3V mapped to 0–300V
 // Current: SCT-013-030 (0–30A : 0–1V) or ACS758-30AB mapped to 0–30A
 #define VOLTAGE_FULL_SCALE 300.0f  // V  — ADC upper rail represents 300V
-#define CURRENT_FULL_SCALE 1500.0f // A  — CHANGED from 5A to 30A
+#define CURRENT_FULL_SCALE 30.0f   // A  — SCT-013-030 (0–30A)
 
 // ─── IIR Filter Alphas ───────────────────────────────────────────────────────
 // Voltage: symmetric, slower — real grid voltages never change instantaneously
@@ -298,7 +298,7 @@
 // Slope threshold for adaptive SC detection inside startup window
 #define INRUSH_SC_SLOPE_A_PER_S                                                \
   10.0f // 10 A/s = genuine SC rising slope inside inrush
-        // Tier 2 Finding #7: renamed and retuned from
+        // Renamed and retuned from
         // INRUSH_SC_SLOPE_A_PER_TICK (0.5f).
         // Old code divided slope buffer difference by
         // SLOPE_N (sample count) giving units of Amps,
@@ -441,10 +441,10 @@
 // ─────────────────────────────────────────────────────────────────────
 #define MQTT_KEEPALIVE 60
 #define MQTT_PUB_INTERVAL_MS 5000
-#define MQTT_DEFAULT_HOST "e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud"
+#define MQTT_DEFAULT_HOST "your-broker.hivemq.cloud"
 #define MQTT_DEFAULT_PORT 8883
-#define MQTT_USERNAME "sgs-device-01"
-#define MQTT_PASSWORD "Chicken@65"
+#define MQTT_USERNAME "your-mqtt-username"
+#define MQTT_PASSWORD "your-mqtt-password"
 #define MQTT_TOPIC_TELEMETRY "sgs/telemetry"
 #define MQTT_TOPIC_FAULT "sgs/fault"
 #define MQTT_TOPIC_STATE "sgs/state"

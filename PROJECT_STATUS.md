@@ -161,7 +161,7 @@ setup()
         │
         ├─ WiFi.mode(WIFI_STA)
         ├─ Scan visible networks (prints all SSIDs with RSSI)
-        ├─ WiFi.begin("Lunch", "saikiran")  ← hardcoded for bench
+        ├─ WiFi.begin(ssid, pass)  ← from NVS (or captive portal)
         ├─ Wait 20 seconds
         │
         ├─ Connected?
@@ -230,12 +230,12 @@ Open `tools/phantom_dashboard/index.html` in Chrome. Direct command mapping to i
 ```
 ========================================
  🔐 API AUTHENTICATION KEY
-    KEY: aec158f34ad787c
+     KEY: <shown once on first boot serial monitor>
 ========================================
 
 ========================================
  🌐 NETWORK INTERFACE READY
-    IP Address : 10.117.3.199
+    IP Address : <assigned_ip>
     RSSI       : -48 dBm
     Channel    : 11
 ========================================

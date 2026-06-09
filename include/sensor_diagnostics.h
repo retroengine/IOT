@@ -5,7 +5,7 @@
 //  and computes comprehensive health, stability, and quality
 //  metrics for all sensing channels.
 //
-//  Tier 1 fix — Finding #4: SensorDiagnostics::compute() Mutates
+//  SensorDiagnostics::compute() Mutates Shared State
 //  Shared Static State From Multiple Concurrent Contexts
 //
 //  PROBLEM (original):

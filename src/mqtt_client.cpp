@@ -263,7 +263,7 @@ namespace MQTTClient {
     }
 
     // ── pumpLoop ──────────────────────────────────────────────────────────
-    // BUG-07 FIX: call mqtt.loop() before any blocking I/O (OLED, buzzer)
+    // Call mqtt.loop() before any blocking I/O (OLED, buzzer)
     // in task_comms. OLED I2C can block 15–30ms, starving the keepalive pump
     // and causing HiveMQ to drop the connection during TLS reconnects (up to
     // 30s). Caller (task_comms while loop) must call pumpLoop() first, then

@@ -9,7 +9,7 @@
 //    - Collect system diagnostics (heap, uptime, RSSI)
 //    - Serialize to a static 2KB char buffer (zero heap alloc)
 //
-//  THREAD SAFETY (Tier 1 fix — Finding #3):
+//  THREAD SAFETY:
 //    buildJSON() is called ONLY from task_comms (Core 1 RTOS task).
 //    task_comms calls buildSnapshot() immediately after buildJSON()
 //    to cache the result in a second static buffer protected by a

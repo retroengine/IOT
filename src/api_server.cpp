@@ -1,48 +1,8 @@
 // ============================================================
-//  api_server.cpp — ESPAsyncWebServer JSON REST API v2.1
+//  api_server.cpp — ESPAsyncWebServer JSON REST API
 //
-//  TIER 1 FIXES (v2.1):
-//
-//  Finding #17 — HTTP Handler Reads g_reading Without Mutex
-//    All handlers that read g_reading / g_ctx now use two paths:
-//      /api/telemetry  → TelemetryBuilder::getSnapshot() — zero
-//                        serialisation in the async context, no
-//                        static buffer race, no mutex needed.
-//      /api/state      → seqlock retry loop on g_seqlock reads
-//                        g_reading / g_ctx atomically without
-//                        blocking the lwIP task.
-//    The key insight: pdMS_TO_TICKS(5) evaluates to 0 at 100Hz
-//    tick rate (5*100/1000 = 0, integer truncation). Any mutex
-//    attempt in this context is a non-blocking poll, not a wait.
-//    The seqlock is the correct primitive (Option C, research doc).
-//
-//  Finding #4 — SensorDiagnostics::compute() Mutates Shared State
-//    /api/diagnostics was calling compute() directly from the lwIP
-//    async context, racing with the call inside buildJSON() in
-//    task_comms. Both paths advanced the same static sliding window
-//    buffers — double-counting fault events and corrupting the
-//    power quality window.
-//    Fix: /api/diagnostics now calls lastSnapshot() only.
-//    compute() is called exclusively from buildJSON() in task_comms.
-//
-//  Finding #12 — Full API Key Printed to Serial on Every Boot
-//    Serial.printf now prints only first 4 chars + asterisks.
-//    The full key is never written to any serial or log output.
-//    Field recovery via /api/key-hint is the only legitimate channel.
-//
-//  Finding #16 — delay() Inside ESPAsyncWebServer Callback
-//    CONFIRMED ALREADY FIXED in original code: the /save handler in
-//    wifi_manager.cpp is the location of this bug, not api_server.cpp.
-//    All reboot-triggering handlers here already use scheduleReboot().
-//    No change required in this file for Finding #16.
-//
-//  UNCHANGED FROM v2.0:
-//    - All route handlers not touching g_reading/g_ctx
-//    - GET /api/log, /api/config, /api/wifi, /api/wifi/scan
-//    - POST /api/relay, /api/reset, /api/reboot, /api/factory-reset
-//    - POST /api/wifi, /api/log/clear
-//    - GET /api/key-hint, /api/health, /api/ping
-//    - CORS headers, API key auth, reboot task pattern
+//  Handlers read shared state via seqlock (no mutex blocking).
+//  /api/diagnostics uses lastSnapshot() — no state mutation.
 // ============================================================
 #include "api_server.h"
 #include "telemetry_builder.h"
@@ -68,9 +28,9 @@ namespace {
     String                  g_api_key;
     std::atomic<uint32_t>*  g_seqlock  = nullptr;
 
-    // ── Seqlock snapshot helper (Finding #17) ─────────────────────────────
-    // Reads g_reading and g_ctx into caller-supplied structs using the
-    // seqlock retry loop. Safe to call from the lwIP async context.
+    // ── Seqlock snapshot helper ────────────────────────────────────────
+    // Reads g_reading and g_ctx via seqlock retry loop.
+    // Safe to call from the lwIP async context, zero blocking time.
     // Returns true if a consistent snapshot was obtained.
     // Returns false if g_seqlock is not yet initialised (early boot).
     bool readSharedState(SensorReading& r_out, FSMContext& ctx_out) {
@@ -99,12 +59,9 @@ namespace {
         return req->getHeader("X-API-Key")->value() == g_api_key;
     }
 
-    // BUG-08 FIX: rateLimitOK() previously used non-atomic read-modify-write
-    // sequences on the token counter. Two concurrent lwIP callbacks could both
-    // read tokens=1, both pass the >0 check, both decrement — underflowing the
-    // counter. On ESP32, ESPAsyncWebServer callbacks run on the lwIP task which
-    // is single-threaded, but WiFi event callbacks can preempt it. A portMUX
-    // spinlock is the correct ESP32 primitive for ISR-safe critical sections.
+    // rateLimitOK() uses a portMUX spinlock for ISR-safe token bucket.
+    // ESPAsyncWebServer callbacks run on the lwIP task (single-threaded),
+    // but WiFi event callbacks can preempt it.
     static portMUX_TYPE s_rate_mux = portMUX_INITIALIZER_UNLOCKED;
 
     bool rateLimitOK() {
@@ -168,11 +125,8 @@ namespace {
     }
 
     // Static buffer for /api/telemetry snapshot reads.
-    // Bug 9 fix: this is ONE shared buffer, not per-handler as the old comment
-    // incorrectly stated. Safe today only because ESPAsyncWebServer's lwIP event
-    // loop is single-threaded — two invocations of this handler cannot interleave.
-    // If handlers are ever refactored to a thread pool, move this buffer into
-    // the lambda as a local (stack) variable to prevent data races.
+    // Safe because ESPAsyncWebServer's lwIP event loop is single-threaded.
+    // If handlers are ever refactored to a thread pool, use a stack-local buffer.
     static char s_telemetry_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
 }
 
@@ -199,17 +153,17 @@ namespace APIServer {
 
         Preferences prefs;
         prefs.begin(NVS_NAMESPACE, false);
-        // Hardcoded API key to match the SIL test script and Dashboard setup
-        g_api_key = "aec158f34ad787c";
-        
-        // BUG-05 FIX: Previously printed the full API key to serial on every
-        // boot. An attacker with physical or remote serial access (USB CDC,
-        // MQTT log forwarding) could harvest the key. Print only the first
-        // 4 characters followed by asterisks.
+        g_api_key = prefs.getString(NVS_KEY_API_KEY, "");
+        if (g_api_key.length() == 0) {
+            g_api_key = generateApiKey();
+            prefs.putString(NVS_KEY_API_KEY, g_api_key);
+        }
+
         Serial.println("\n========================================");
         Serial.println(" 🔐 API AUTHENTICATION KEY");
         Serial.printf( "    KEY: %s****\n", g_api_key.substring(0, 4).c_str());
-        Serial.println("    Use this key in the Phantom Dashboard!");
+        Serial.println("    Full key shown once — save it now!");
+        Serial.printf( "    FULL: %s\n", g_api_key.c_str());
         Serial.println("========================================\n");
         prefs.end();
 
@@ -230,11 +184,7 @@ namespace APIServer {
                 "{\"status\":\"ok\",\"uptime\":" + String(millis()) + "}");
         });
 
-        // ── GET /api/telemetry ────────────────────────────────────────────
-        // Finding #17 fix: no longer calls buildJSON() from the lwIP async
-        // context (static buffer race — Finding #3). Instead reads the
-        // pre-built snapshot committed by task_comms via buildSnapshot().
-        // getSnapshot() uses a seqlock retry loop — zero blocking time.
+        // Telemetry: reads pre-built snapshot — no blocking, no static buffer race.
         server->on("/api/telemetry", HTTP_GET, [](AsyncWebServerRequest* req) {
             if (!g_reading || !g_ctx) {
                 sendJSON(req, 503, "{\"error\":\"Not ready\"}");
@@ -251,18 +201,13 @@ namespace APIServer {
             req->send(res);
         });
 
-        // ── GET /api/diagnostics ──────────────────────────────────────────
-        // Finding #4 fix: no longer calls compute() from the lwIP async
-        // context. compute() is called exclusively from buildJSON() in
-        // task_comms. This handler reads the last committed snapshot via
-        // lastSnapshot() — read-only, no state mutation, safe from any context.
+        // Diagnostics: uses lastSnapshot() — read-only, no state mutation.
         server->on("/api/diagnostics", HTTP_GET, [](AsyncWebServerRequest* req) {
             if (!g_reading) {
                 sendJSON(req, 503, "{\"error\":\"Not ready\"}");
                 return;
             }
 
-            // Finding #4: use lastSnapshot() — NOT compute()
             const DiagnosticsSnapshot& d = SensorDiagnostics::lastSnapshot();
 
             JsonDocument doc;
@@ -374,11 +319,7 @@ namespace APIServer {
             sendJSON(req, 200, out);
         });
 
-        // ── GET /api/state — Legacy (retained for compatibility) ──────────
-        // Finding #17 fix: g_reading and g_ctx are now read via the
-        // seqlock retry loop (readSharedState) instead of direct pointer
-        // dereference. This eliminates the torn-read risk in the lwIP
-        // async callback context with zero blocking time.
+        // State: reads g_reading/g_ctx via seqlock — zero blocking time.
         server->on("/api/state", HTTP_GET, [](AsyncWebServerRequest* req) {
             SensorReading r;
             FSMContext    ctx;
@@ -439,11 +380,7 @@ namespace APIServer {
             sendJSON(req, 200, out);
         });
 
-        // ── POST /api/relay ────────────────────────────────────────────────
-        // BUG-03 FIX: endpoint was completely unauthenticated — any LAN client
-        // could toggle physical relays without an API key. Auth now checked in
-        // both the no-body lambda and the body lambda, matching every other
-        // write endpoint (POST /api/wifi, /api/factory-reset, etc).
+        // Relay: authenticated, rate-limited.
         server->on("/api/relay", HTTP_POST,
             [](AsyncWebServerRequest* req) {
                 if (!authOK(req)) { sendUnauth(req); return; }
@@ -570,10 +507,7 @@ namespace APIServer {
             sendJSON(req, 200, out);
         });
 
-        // ── GET /api/wifi/scan ─────────────────────────────────────────────
-        // BUG-16 FIX: /api/wifi/scan was unauthenticated — any LAN client
-        // could enumerate nearby SSIDs without an API key, leaking location
-        // information and enabling targeted evil-twin attacks.
+        // WiFi scan: authenticated to prevent SSID enumeration.
         server->on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* req) {
             if (!authOK(req)) { sendUnauth(req); return; }
             int16_t n = WiFi.scanComplete();
@@ -724,12 +658,8 @@ namespace APIServer {
                 const char* p1_loc;
                 const char* p2_loc;
 
-                // BUG-03 FIX: The original IF-chain called strstr(cmd_loc, ...)
-                // without null-checking cmd_loc after the CUSTOM_LOAD branch.
-                // A payload like {"voltage":230,"current":5} with cmd_loc=nullptr
-                // would fall through to the else-if chain and dereference nullptr,
-                // crashing the lwIP task and killing all HTTP/WS connectivity.
-                // Every branch now guards cmd_loc != nullptr before dereferencing.
+                // Null-check cmd_loc before dereferencing to prevent crashes
+                // on payloads like {"voltage":230,"current":5}.
                 if (!cmd_loc && v_loc && i_loc) {
                     const char* c1 = strchr(v_loc, ':');
                     if (c1) p1 = atof(c1 + 1);

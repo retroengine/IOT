@@ -6,8 +6,8 @@ param (
     [float]$i
 )
 
-$IP = "10.117.3.199"
-$KEY = "aec158f34ad787c"
+$IP = "192.168.1.100"        # ← Your ESP32 IP
+$KEY = "YOUR_API_KEY"        # ← From ESP32 serial monitor at boot
 
 $body = @{
     active = $true

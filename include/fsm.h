@@ -14,7 +14,7 @@ namespace FSM {
     void       init();
     // temp_c   : DS18B20 reading — used for thermal guard and reset blocking
     // voltage_v: ADC voltage — used for recovery band confirmation (EC-14)
-    // now_ms   : BUG-18 FIX — optional simulated time for HIL loop.
+    // now_ms   : Optional simulated time for HIL loop.
     //            When 0 (default), uses real millis(). When non-zero,
     //            uses the provided value to evaluate all time-dependent
     //            state transitions (lockout timers, reclose delays, etc).

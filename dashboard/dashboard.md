@@ -329,4 +329,4 @@ All colours, spacing, and typography are defined as CSS variables in `tokens.css
 
 API key is stored in `localStorage` key `sgs_api_key`. A `fetch` interceptor in `main.js` injects `X-API-Key: <key>` on every same-origin request automatically. No component needs to handle auth manually.
 
-First-run banner prompts user to enter API key. Key is found on ESP32 Serial monitor at boot: `[API] key: aec158f34ad787c`.
+First-run banner prompts user to enter API key. Key is shown on ESP32 serial monitor at first boot.

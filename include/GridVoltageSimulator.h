@@ -73,7 +73,7 @@ public:
     void enableFlicker(bool enable);
 
     // Safely clear any active sag/swell event and return to nominal amplitude.
-    // BUG-02/17 FIX: replaces the old triggerSag(0,0) hack which was clamped
+    // Replaces the old triggerSag(0,0) hack which was clamped
     // to depth=0.1 by clampf(), creating a phantom 100ms 10% sag event every
     // time NORMAL_GRID was injected.
     void clearAnomalies();

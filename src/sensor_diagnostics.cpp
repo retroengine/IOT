@@ -1,7 +1,7 @@
 // ============================================================
 //  sensor_diagnostics.cpp — Sensor Intelligence & Health Engine
 //
-//  Tier 1 fix — Finding #4: SensorDiagnostics::compute() Mutates
+//  SensorDiagnostics::compute() Mutates Shared State
 //  Shared Static State From Multiple Concurrent Contexts
 //
 //  ARCHITECTURE CHANGE (Lock-Free Double-Buffer, Approach A):
@@ -76,7 +76,7 @@ namespace {
     int   temp_hist_idx = 0;
     bool  temp_hist_full = false;
 
-    // ── Double-buffer for lock-free snapshot delivery (Finding #4) ────────
+    // ── Double-buffer for lock-free snapshot delivery ─────────────────────
     // Two complete DiagnosticsSnapshot buffers (~260 bytes each ≈ 520 bytes
     // total — negligible against ESP32's 320KB SRAM pool).
     //
@@ -95,7 +95,7 @@ namespace {
     static DiagnosticsSnapshot s_buffers[2]   = {};
     static std::atomic<uint8_t> s_active_idx  {0};
 
-    // ── Temporal invariant guard (Finding #4) ─────────────────────────────
+    // ── Temporal invariant guard ──────────────────────────────────────────
     // Tracks the RTOS tick at the last update() call.
     // configASSERT in debug builds fires if update() is called more
     // frequently than once per 800ms — catching regression double-calls.
@@ -437,7 +437,7 @@ namespace SensorDiagnostics {
     // buffer, then atomically flips the active index.
     void update(float voltage_v, float current_a, float temp_c) {
 
-        // ── Temporal invariant guard (Finding #4, research doc §Regression) ──
+        // ── Temporal invariant guard ─────────────────────────────────────────
         // Prevents double-calling within the minimum expected interval.
         // configASSERT fires in debug builds only (compiled out in release).
         TickType_t now = xTaskGetTickCount();

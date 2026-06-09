@@ -2,7 +2,7 @@
 //  wifi_manager.cpp — Clean rewrite
 //
 //  Flow:
-//    1. WiFi.mode(WIFI_STA) + WiFi.begin("Lunch","saikiran")
+//    1. WiFi.mode(WIFI_STA) + WiFi.begin(ssid, pass) from NVS
 //    2. Wait 20 seconds for connection
 //    3. Connected → start HTTP server → done
 //    4. Failed    → switch to AP mode → start captive portal
@@ -86,11 +86,8 @@ display:flex;justify-content:center;align-items:center;min-height:100vh;font-siz
         Serial.println("[WiFi] Password: sgs-setup-1234");
         Serial.println("[WiFi] ═══════════════════════════════════\n");
 
-        // BUG-07 FIX: WiFi.disconnect(true, true) erases the NVS WiFi
-        // configuration layer (the second arg = eraseAP). If the user saved
-        // credentials via the captive portal or /api/wifi, entering AP mode
-        // for a retry should NOT destroy those saved credentials.
-        WiFi.disconnect(true, false);  // disconnect STA, keep NVS credentials
+        // Disconnect STA but keep NVS credentials intact for retry.
+        WiFi.disconnect(true, false);
         WiFi.mode(WIFI_OFF);
         vTaskDelay(pdMS_TO_TICKS(200));
 
@@ -171,11 +168,8 @@ display:flex;justify-content:center;align-items:center;min-height:100vh;font-siz
     void task_wifi_provision(void* pvParam) {
         vTaskDelay(pdMS_TO_TICKS(500));  // let other tasks start first
 
-        // BUG-06 FIX: Previously hardcoded to "Lunch"/"saikiran" instead of
-        // reading saved NVS preferences. If the user configured WiFi via the
-        // captive portal or REST API, those saved credentials were completely
-        // ignored on every boot. Now reads NVS first, falls back to hardcoded
-        // values only if NVS is empty (first-boot scenario).
+        // Read WiFi credentials from NVS. Falls back to captive portal
+        // if no saved credentials exist (first-boot scenario).
         Preferences prefs;
         prefs.begin(NVS_NAMESPACE, true);  // read-only
         String nvs_ssid = prefs.getString(NVS_KEY_WIFI_SSID, "");
@@ -195,10 +189,11 @@ display:flex;justify-content:center;align-items:center;min-height:100vh;font-siz
             pass = pass_buf;
             Serial.printf("[WiFi] Using NVS credentials: \"%s\"\n", ssid);
         } else {
-            // Fallback: hardcoded bench credentials (first boot only)
-            ssid = "Lunch";
-            pass = "saikiran";
-            Serial.println("[WiFi] No NVS credentials — using hardcoded defaults");
+            // No saved credentials — go straight to captive portal
+            Serial.println("[WiFi] No NVS credentials — launching captive portal");
+            startCaptivePortal();
+            vTaskDelete(nullptr);
+            return;
         }
 
         Serial.println("\n[WiFi] ═══════════════════════════════════");

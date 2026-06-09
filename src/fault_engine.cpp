@@ -3,7 +3,7 @@
 //  IS 12360 / IEC 60255 compliant. 6-stage pipeline: pre-process →
 //  sensor validation → instant fault → debounced fault → warnings →
 //  hysteresis clear. Single-stage asymmetric IIR on protection path
-//  (Finding #6/#20). See comments.md for full architecture docs.
+//  Two independent signal paths. See comments.md for full architecture docs.
 // ============================================================
 #include "fault_engine.h"
 #include "config.h"
@@ -16,7 +16,7 @@ namespace {
 
 // ── Debounce counters ──────────────────────────────────────────────────
 int cnt_ov = 0;         // Stage 4: sustained OV fault debounce (IS 12360 +10%)
-int cnt_ov_instant = 0; // Stage 3: OV_INSTANT (>270V) — BUG-01: separate
+int cnt_ov_instant = 0; // Stage 3: OV_INSTANT (>270V) — separate
                         // counter to prevent Stage 3/4 interference
 int cnt_uv = 0;         // Stage 4: sustained UV fault debounce
 int cnt_uv_instant = 0; // Stage 3: UV_INSTANT (<150V) — separate counter to
@@ -126,7 +126,7 @@ float asymIIR(float new_val, float prev, float alpha_rise, float alpha_fall) {
 float currentSlope() {
   if (!slope_full)
     return 0.0f;
-  // Finding #7 + BUG-01: divide by time window (seconds), not sample count; use
+  // Divide by time window (seconds), not sample count; use
   // correct oldest/newest indices.
   static constexpr float SLOPE_WINDOW_S = (SLOPE_N * SENSOR_LOOP_MS) / 1000.0f;
   int newest = (slope_idx + SLOPE_N - 1) % SLOPE_N;
@@ -232,7 +232,7 @@ bool checkFrozen(int raw_v_int, int raw_i_int) {
     }
     float mean = sum / n;
     float var = (sq - n * mean * mean) /
-                (n - 1); // NEW-06: Bessel-corrected sample variance
+                (n - 1); // Bessel-corrected sample variance
     return (var > 0.0f) ? var : 0.0f;
   };
 
@@ -288,7 +288,7 @@ bool checkPhysicsImpossibility(float v, float i) {
 
 void tickIDMT(float i_filtered, bool blank_active) {
   if (blank_active) {
-    // BUG-06: preserve thermal memory during inrush blank (wire is still warm)
+    // Preserve thermal memory during inrush blank (wire is still warm)
     return;
   }
 
@@ -508,7 +508,7 @@ void evaluate(float v, float raw_i_phys, float t, int raw_v_int, int raw_i_int,
   // EC-07: Frozen/stuck ADC — zero variance across FROZEN_N raw samples
   // EC-08: Physics impossibility — I>2A with V<5V simultaneously
   // Any hit → FAULT_BIT_SENSOR → FSM routes to LOCKOUT (no auto-reclose)
-  // BUG-02 FIX: these three calls were removed and the functions left as
+  // These three calls were removed and the functions left as
   // dead code. A stuck or saturated ADC will now correctly trigger LOCKOUT
   // instead of silently producing invalid measurements.
 #if !HARDWARE_BENCH_TESTING
@@ -544,7 +544,7 @@ void evaluate(float v, float raw_i_phys, float t, int raw_v_int, int raw_i_int,
       } else {
         current_load_state = LOAD_STATE_STARTING;
         load_state_timer_ms = now;
-        // BUG-13: Set startup_active on transition tick to protect first inrush
+        // Set startup_active on transition tick to protect first inrush
         // sample
         startup_active = true;
         LOG_FAULT_ENG("LOAD_STATE_IDLE -> STARTING (Motor Inrush active)");
@@ -613,7 +613,7 @@ void evaluate(float v, float raw_i_phys, float t, int raw_v_int, int raw_i_int,
 
   // P3: Severe overvoltage >270V (EC-10) — zero debounce
   // Protects MOV (MCOV 275V) and semiconductor SOA
-  // Uses cnt_ov_instant (separate from cnt_ov) — see BUG-01 fix in
+  // Uses cnt_ov_instant (separate from cnt_ov)
   // declarations.
   if (debounce(v >= VOLT_OV_INSTANT_V, cnt_ov_instant,
                FAULT_DEBOUNCE_INSTANT)) {
@@ -792,7 +792,7 @@ void evaluate(float v, float raw_i_phys, float t, int raw_v_int, int raw_i_int,
   //   - Slope is positive and above a physically meaningful rate
   //   - Current is not already in fault zone
   //
-  // Finding #7: threshold retuned to 2.0 A/s (was 0.05 in broken Amps units)
+  // Threshold retuned to 2.0 A/s (was 0.05 in broken Amps units)
   if (!startup_active && slope >= 2.0f && i > 0.5f && i < CURR_OC_FAULT_A) {
     w |= WARN_CURR_RISING;
   }

@@ -1,5 +1,5 @@
-$ESP32_IP = "10.117.3.199"         # Your ESP32's IP address
-$API_KEY = "aec158f34ad787c"        # Your API key
+$ESP32_IP = "192.168.1.100"         # ← Your ESP32's IP address
+$API_KEY = "YOUR_API_KEY"           # ← From ESP32 serial monitor at boot
 
 $HEADERS = @{
     "X-API-Key"    = $API_KEY

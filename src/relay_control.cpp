@@ -26,7 +26,7 @@ namespace {
     bool r2_closed = false;
 
     // ── API override (set by POST /api/relay from web handler) ────────────
-    // NEW-17 fix: two separate volatile bools are not atomically visible to
+    // Two separate volatile bools are not atomically visible to
     // another core.  Core 1 writes api_override_active=true THEN writes
     // api_override_state — Core 0 can observe active=true with the old state
     // value between the two stores, commanding the relay in the wrong direction.
@@ -92,7 +92,7 @@ namespace RelayControl {
                 want_r2 = false;
                 // SAFETY: clear any pending API override — a fault/lockout/boot
                 // must NEVER be overridden by a dashboard operator command.
-                // NEW-17: single atomic store with release ordering so Core 1
+                // Single atomic store with release ordering so Core 1
                 // sees the cleared state immediately.
                 api_override.store(0u, std::memory_order_release);
                 break;
@@ -101,7 +101,7 @@ namespace RelayControl {
         // Apply API override only when FSM permits the relay to be on/off
         // (i.e. we are in NORMAL or WARNING — the two states where
         //  the operator might legitimately need manual control).
-        // NEW-17: single acquire load — both active flag and desired state
+        // Single acquire load — both active flag and desired state
         // are read atomically; no torn observation between the two writes
         // that the old two-bool scheme allowed.
         {
@@ -134,7 +134,7 @@ namespace RelayControl {
 
     // Called from POST /api/relay — sets a one-shot operator override.
     // The FSM protection task will clear this override on any FAULT/LOCKOUT/BOOT.
-    // NEW-17: encodes both the active flag (bit 0) and desired state (bit 1) in
+    // Encodes both the active flag (bit 0) and desired state (bit 1) in
     // a single atomic store so Core 0 can never observe active=true with a
     // stale desired-state value between the two old separate writes.
     void setAPIOverride(bool desired_state) {

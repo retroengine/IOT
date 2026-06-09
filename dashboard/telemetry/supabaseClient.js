@@ -12,10 +12,12 @@
  *   isAvailable()                           → boolean
  */
 
-// ── Config (mirrored from relay-server — browser reads from same broker) ──
-const SUPABASE_URL     = 'https://wentwakvqfcazkksgamr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlbnR3YWt2cWZjYXpra3NnYW1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNjE2ODIsImV4cCI6MjA5MTkzNzY4Mn0.6rDmS14uEtCkYv7ucg_cqt8fhcGAopt-oVcOm1mysIU';
-const DEVICE_ID        = 'sgs-device-01';
+// ── Config — set via environment or update before deploying ───────────────
+// The anon key is safe to expose in the browser (row-level security controls access),
+// but keep credentials out of source control. Override at build/deploy time.
+const SUPABASE_URL      = ''; // e.g. 'https://your-project.supabase.co'
+const SUPABASE_ANON_KEY = ''; // e.g. 'eyJhbGciOi...'
+const DEVICE_ID         = 'sgs-device-01';
 
 // ── Column mapping (field key → DB column name) ─────────────────────────────
 const FIELD_COL = {

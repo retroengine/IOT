@@ -21,7 +21,7 @@
 #include "adc_sampler.h"
 #include "ds18b20.h"
 #include "fault_engine.h"
-#include "fsm.h"          // must declare FSM::earlyInit() — see NEW-13 fix
+#include "fsm.h"
 #include "relay_control.h"
 #include "led_alert.h"
 #include "oled_display.h"
@@ -129,7 +129,7 @@ void task_protection(void* pvParam) {
             while (!FaultEngine::hasFault() && ticks_executed < target_ticks) {
                 int mock_raw = 2048 + (ticks_executed % 4);
                 FaultEngine::evaluate(hil_cmd.target_voltage, hil_cmd.target_current, 35.0f, mock_raw, mock_raw, spoofed_now_ms, !hil_cmd.trigger_motor);
-                // BUG-18 FIX: Drive FSM with simulated time so it correctly
+                // Drive FSM with simulated time so it correctly
                 // evaluates state transitions (BOOT→NORMAL, FAULT→RECOVERY,
                 // lockout timers, reclose delays) during HIL. Without this,
                 // the FSM stays in FSM_BOOT because millis() returns real time
@@ -173,7 +173,7 @@ void task_protection(void* pvParam) {
         int   raw_v   = ADCSampler::getLastRawV();    // integer ADC counts — for sensor checks
         int   raw_i   = ADCSampler::getLastRawI();    // integer ADC counts — for sensor checks
 
-        // Finding #6 / #20 fix: pass pre-IIR physical current to FaultEngine.
+        // Pass pre-IIR physical current to FaultEngine for slope detection.
         // FaultEngine::evaluate() receives raw_i_phys (4× oversample + calibrate only,
         // no IIR, no MA) so its own asymmetric IIR is the SINGLE filter stage on
         // the protection signal path. This ensures 50ms SC spikes are NOT attenuated
@@ -238,11 +238,11 @@ void task_comms(void* pvParam) {
             xSemaphoreGive(g_state_mutex);
         }
 
-        MQTTClient::loop();             // NEW-04 FIX: pump MQTT before any blocking I/O
+        MQTTClient::loop();             // Pump MQTT before any blocking I/O
         OLEDDisplay::update(r, ctx);
         Buzzer::tick(ctx.state);
 
-        // Finding #4 fix: advance all diagnostic sliding windows ONCE per
+        // Advance all diagnostic sliding windows ONCE per
         // comms loop, exclusively here. update() is the sole mutator.
         // It must run BEFORE buildJSON() so the snapshot it commits is
         // the one telemetry_builder serialises in this same cycle.
@@ -308,7 +308,7 @@ void setup() {
     NVSLog::init();
 
     g_state_mutex = xSemaphoreCreateMutex();
-    // NEW-15 fix: xSemaphoreCreateMutex() returns nullptr on heap exhaustion.
+    // xSemaphoreCreateMutex() returns nullptr on heap exhaustion.
     // Both task_protection and task_comms call xSemaphoreTake(g_state_mutex, ...)
     // every loop iteration — passing nullptr is UB in release builds.
     if (g_state_mutex == nullptr) {
@@ -316,7 +316,7 @@ void setup() {
         ESP.restart();
     }
 
-    // ── FINDING NEW-13 FIX: Create FSM mutex here, before g_server.begin() ──
+    // Create FSM mutex here, before g_server.begin()
     // API handlers registered below (APIServer::init / WSServer::init) call
     // FSM::requestReset() / FSM::getContext() which take the FSM mutex.
     // FSM::init() runs inside task_protection (launched after g_server.begin()),
@@ -368,7 +368,7 @@ void setup() {
     static void*        health_params[2];
 
     // Step 4: Launch protection task — ALWAYS, with no WiFi dependency
-    // BUG-11/12 FIX: xTaskCreatePinnedToCore returns pdFAIL on heap
+    // xTaskCreatePinnedToCore returns pdFAIL on heap
     // exhaustion, leaving h_prot/h_comms as nullptr. The health monitor
     // would then call uxTaskGetStackHighWaterMark(nullptr) — UB on ESP32.
     // configASSERT halts with a backtrace instead of silently continuing

@@ -13,9 +13,9 @@ export const config = {
 
   // ── Your ESP32 on your LAN ──────────────────────────────────────────────
   esp32: {
-    ip:        process.env.ESP32_IP      || '10.117.3.199', // ← ESP32 LAN IP
-    port:      80,                                           // ← ESP32 HTTP port (default 80)
-    apiKey:    process.env.ESP32_API_KEY || 'aec158f34ad787c',
+    ip:        process.env.ESP32_IP      || '192.168.1.100',
+    port:      80,
+    apiKey:    process.env.ESP32_API_KEY || '',
     timeoutMs: 5000,   // WebSocket / HTTP handshake timeout (ms)
     pollMs:    2000,   // How often httpPoller polls /api/telemetry (ms)
   },
@@ -24,9 +24,9 @@ export const config = {
   //  Primary transport when ESP32 WS is unavailable (off-LAN / roaming).
   //  Credentials come from .env — never commit passwords to git.
   mqtt: {
-    host:           'e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud',
-    port:           8883,           // MQTT over TLS
-    username:       process.env.MQTT_USERNAME || 'sgs-device-01',
+    host:           process.env.MQTT_HOST || 'your-broker.hivemq.cloud',
+    port:           8883,
+    username:       process.env.MQTT_USERNAME || '',
     password:       process.env.MQTT_PASSWORD || '',
     topic:          'sgs/device/+/telemetry',
     keepalive:      60,             // seconds — HiveMQ Cloud requires ≤ 60s

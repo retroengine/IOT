@@ -49,19 +49,17 @@ if (DEV_MODE) {
   console.info('[main] DEV_MODE active — using mock telemetry (mockData.js)');
 }
 
-// ── Pre-fill MQTT defaults ────────────────────────────────────────────────
-// If the user has never visited page4, seed localStorage with the known
-// HiveMQ credentials so the form is ready to use immediately.
+// Pre-fill MQTT defaults if the user has never visited page4.
 // Password is intentionally NOT seeded — user must enter it every session.
 (function _seedMqttDefaults() {
   const LS_BROKER = 'sgs_mqtt_broker';
   const LS_USER   = 'sgs_mqtt_user';
   const LS_TOPIC  = 'sgs_mqtt_topic';
   if (!localStorage.getItem(LS_BROKER)) {
-    localStorage.setItem(LS_BROKER, 'wss://e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt');
+    localStorage.setItem(LS_BROKER, '');  // user fills via Cloud page
   }
   if (!localStorage.getItem(LS_USER)) {
-    localStorage.setItem(LS_USER,   'sgs-device-01');
+    localStorage.setItem(LS_USER,   '');  // user fills via Cloud page
   }
   if (!localStorage.getItem(LS_TOPIC)) {
     localStorage.setItem(LS_TOPIC,  'sgs/device/+/telemetry');
