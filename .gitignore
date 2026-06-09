@@ -25,3 +25,7 @@ desktop.ini
 # If you ever hardcode credentials for testing, exclude them here.
 secrets.h
 credentials.h
+
+# ── Node.js relay server secrets ─────────────────────────────────
+relay-server/.env
+node_modules/

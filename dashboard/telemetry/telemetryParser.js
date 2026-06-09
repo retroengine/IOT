@@ -175,14 +175,18 @@ function extractMeasurements(d) {
     return safeNum(deepGet(d, verbosePath));
   }
 
+  const p_raw = clamp('p', pick('p', 'power.real_power_w'));
+  const va_raw = clamp('va', pick('va', 'power.apparent_power_va'));
+  const pf_raw = clamp('pf', pick('pf', 'power.power_factor'));
+
   return {
     v:    clamp('v',    pick('v',    'sensors.voltage.filtered_value')),
     i:    clamp('i',    pick('i',    'sensors.current.filtered_value')),
     t:    clamp('t',    pick('t',    'sensors.temperature.filtered_value')),
-    p:    clamp('p',    pick('p',    'power.real_power_w')),
-    va:   clamp('va',   pick('va',   'power.apparent_power_va')),
+    p:    (p_raw === 0 && va_raw > 0) ? va_raw : p_raw,
+    va:   va_raw,
     e:    clamp('e',    pick('e',    'power.energy_estimate_wh')),
-    pf:   clamp('pf',   pick('pf',   'power.power_factor')),
+    pf:   (pf_raw === 0 && va_raw > 0) ? 1.0 : pf_raw,
     freq: clamp('freq', pick('freq', 'power.frequency_hz')),
   };
 }
@@ -229,9 +233,11 @@ function extractProtection(d) {
 
   // Fault flags
   const faults = {
-    active:        activeFault,
-    trip_count:    tripCount,
-    over_voltage:  boolPath('over_voltage',  'alerts.over_voltage'),
+    active:          activeFault,
+    trip_count:      tripCount,
+    active_delay_ms: numPath('active_delay_ms', 'alerts.active_delay_ms', 5000),
+    reclose_countdown_ms: numPath(null, 'alerts.reclose_countdown_ms', 0),
+    over_voltage:    boolPath('over_voltage',  'alerts.over_voltage'),
     over_current:  boolPath('over_current',  'alerts.over_current'),
     over_temp:     boolPath('over_temp',     'alerts.over_temperature'),
     short_circuit: boolPath('short_circuit', 'alerts.short_circuit_risk'),
@@ -385,9 +391,90 @@ function extractDiagnostics(d) {
  * @param {unknown} raw — anything received from WebSocket or HTTP
  * @returns {object|null} canonical telemetry object, or null if invalid
  */
+// ── Compact array format mappings (must match types.h enums) ──────────
+// The ESP32 WebSocket push uses getCompactSnapshot() which emits:
+//   [schema_v, voltage, current, fsm_state_int, fault_type_int]
+// These lookup tables convert the integer enums back to the string
+// names that the rest of the dashboard expects.
+const FSM_STATE_NAMES = ['BOOT', 'NORMAL', 'WARNING', 'FAULT', 'RECOVERY', 'LOCKOUT'];
+const FAULT_TYPE_NAMES = [
+  'NONE', 'OVERVOLTAGE', 'UNDERVOLT', 'OVERCURRENT', 'THERMAL',
+  'SHORT_CIRCUIT', 'SENSOR_FAIL', 'LOCKED_ROTOR', 'MECHANICAL_STALL',
+];
+
+/**
+ * Decode the compact array format sent by ws_server.cpp via
+ * TelemetryBuilder::getCompactSnapshot().
+ *
+ * Input:  [1, 230.5, 2.10, 1, 0]
+ *           │    │      │   │  └─ FaultType enum int
+ *           │    │      │   └──── FSMState  enum int
+ *           │    │      └──────── current_a (float)
+ *           │    └─────────────── voltage_v (float)
+ *           └──────────────────── schema version (always 1)
+ *
+ * Returns a minimal canonical object with safe defaults for fields
+ * not present in the compact payload.
+ */
+function decodeCompactArray(arr) {
+  if (arr.length < 5) return null;
+
+  const v     = safeNum(arr[1]);
+  const i     = safeNum(arr[2]);
+  const state = FSM_STATE_NAMES[arr[3]] || 'BOOT';
+  const fault = FAULT_TYPE_NAMES[arr[4]] || 'NONE';
+
+  return {
+    v:    clamp('v', v),
+    i:    clamp('i', i),
+    t:    0,
+    p:    0,
+    va:   clamp('va', v * i),
+    e:    0,
+    pf:   0,
+    freq: 50,
+
+    state,
+    relay:  (state === 'NORMAL' || state === 'WARNING' || state === 'RECOVERY'),
+    health: (state === 'NORMAL' || state === 'BOOT') ? 100 : 50,
+    uptime: 0,
+
+    faults: {
+      active:        fault,
+      trip_count:    0,
+      over_voltage:  (fault === 'OVERVOLTAGE'),
+      over_current:  (fault === 'OVERCURRENT'),
+      over_temp:     (fault === 'THERMAL'),
+      short_circuit: (fault === 'SHORT_CIRCUIT'),
+      inrush:        false,
+      warnings: { ov: false, uv: false, oc: false, thermal: false, curr_rising: false },
+    },
+
+    prediction: { fault_probability: 0, risk_level: 'LOW' },
+
+    wifi: { connected: true, rssi: -50, ip: '' },
+    mqtt: { connected: false, tls: false, publish_total: 0, publish_failed: 0, connect_attempts: 0, connect_successes: 0 },
+
+    sys: { uptime_s: 0, free_heap: 0, cpu_load_pct: 0, health_score: 100, health_status: 'HEALTHY', uptime_quality: 'STABLE', heap_healthy: true },
+
+    diagnostics: { voltage_stability: 100, current_stability: 100, temp_stability: 100, adc_health: 100, system_health: 100, power_quality_label: 'GOOD' },
+
+    schema_v: String(arr[0] || '1'),
+    device:   '',
+    ts:       Date.now(),
+  };
+}
+
 export function parse(raw) {
+  // ── Handle compact array format from ESP32 WebSocket push ────────────
+  // ws_server.cpp broadcasts [schema, voltage, current, state, fault]
+  // via getCompactSnapshot(). Decode it into a canonical object.
+  if (Array.isArray(raw)) {
+    return decodeCompactArray(raw);
+  }
+
   // ── Guard: must be a non-null object ─────────────────────────────────
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (raw === null || typeof raw !== 'object') {
     return null;
   }
 
@@ -404,17 +491,11 @@ export function parse(raw) {
     const diagnostics  = extractDiagnostics(d);
 
     // ── Required-field guard: voltage must be a non-zero value ───────────
-    // This is the simplest liveness check — a zero payload from a stale
-    // response is rejected rather than displayed as "0 V".
-    // (Skip guard when in BOOT state where v=0 is legitimate.)
+    // Removed strict allZero drop check for HIL phantom grid compatibility. 
+    // Zeroes across sensors are valid when hardware bench testing without injected voltage.
     if (measurements.v === 0 && protection.state !== 'BOOT') {
-      // Possible stale or empty response — still return it (display last
-      // known value rule from DESIGN.md §16.17). Do not null-reject here
-      // unless ALL primary fields are zero, which indicates a bad frame.
-      const allZero = measurements.v === 0 && measurements.i === 0 && measurements.t === 0;
-      if (allZero && protection.state !== 'BOOT') {
-        return null;
-      }
+      // Possible stale or empty response — but we will plot it anyway 
+      // rather than breaking the UI connectivity stream.
     }
 
     // ── Assemble canonical object ────────────────────────────────────────

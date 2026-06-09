@@ -6,6 +6,7 @@
 namespace MQTTClient {
     void     init();
     void     tick(const SensorReading& r, const FSMContext& ctx);
+    void     loop();     // Pumps PubSubClient keep-alive without publishing telemetry
     bool     isConnected();
     // ADD THESE:
     uint32_t getConnectAttempts();

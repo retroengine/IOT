@@ -339,8 +339,11 @@ export function connect(host) {
     return;
   }
   _host    = host || (typeof window !== 'undefined' ? window.location.host : 'localhost');
-  _wsUrl   = `ws://${_host}/ws/telemetry`;
-  _httpUrl = `http://${_host}/api/telemetry`;
+  const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const wsProto = isSecure ? 'wss://' : 'ws://';
+  const httpProto = isSecure ? 'https://' : 'http://';
+  _wsUrl   = `${wsProto}${_host}/ws/telemetry`;
+  _httpUrl = `${httpProto}${_host}/api/telemetry`;
   _reconnectAttempts = 0;
   _backoffMs         = BACKOFF_BASE_MS;
   _openWebSocket();
@@ -421,7 +424,12 @@ let _mqttRxBuffer        = new Uint8Array(0);
 let _mqttPacketIdCounter = 1;
 
 const MQTT_KEEPALIVE_S   = 30;
+// Fire PINGREQ at 80% of keepalive interval for safety margin against
+// network jitter — ensures broker never times us out.
+const MQTT_PING_INTERVAL = Math.floor(MQTT_KEEPALIVE_S * 0.8) * 1000;  // 24s
 const MQTT_BACKOFF_MAX   = 60000;
+// Maximum receive buffer size — prevents unbounded growth from bad frames
+const MQTT_MAX_BUF_BYTES = 65536;   // 64 KiB
 
 // ── MQTT state transition ─────────────────────────────────────────────────
 function _mqttSetState(newState, detail = {}) {
@@ -520,6 +528,14 @@ function _mqttOnData(data) {
   combined.set(_mqttRxBuffer, 0);
   combined.set(incoming, _mqttRxBuffer.length);
   _mqttRxBuffer = combined;
+
+  // Guard against unbounded buffer growth from malformed/oversized packets
+  if (_mqttRxBuffer.length > MQTT_MAX_BUF_BYTES) {
+    console.warn('[MQTT] receive buffer overflow (>64KiB) — resetting buffer');
+    _mqttRxBuffer = new Uint8Array(0);
+    return;
+  }
+
   _mqttDrainBuffer();
 }
 
@@ -620,7 +636,7 @@ function _mqttStartPing() {
     if (_mqttWs && _mqttWs.readyState === WebSocket.OPEN) {
       _mqttWs.send(_buildPingreq());
     }
-  }, MQTT_KEEPALIVE_S * 1000);
+  }, MQTT_PING_INTERVAL);  // fire at 80% of keepalive
 }
 
 function _mqttStopPing() {

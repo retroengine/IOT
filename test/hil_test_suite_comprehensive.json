@@ -1,0 +1,5238 @@
+{
+  "test_cases": [
+    {
+      "id": "UV_INSTANT_100V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 100V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 100.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_101V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 101V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 101.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_102V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 102V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 102.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_103V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 103V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 103.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_104V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 104V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 104.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_105V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 105V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 105.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_106V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 106V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 106.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_107V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 107V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 107.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_108V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 108V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 108.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_109V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 109V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 109.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_110V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 110V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_111V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 111V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 111.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_112V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 112V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 112.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_113V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 113V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 113.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_114V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 114V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 114.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_115V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 115V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 115.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_116V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 116V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 116.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_117V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 117V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 117.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_118V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 118V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 118.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_119V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 119V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 119.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_120V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 120V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 120.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_121V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 121V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 121.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_122V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 122V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 122.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_123V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 123V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 123.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_124V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 124V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 124.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_125V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 125V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 125.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_126V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 126V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 126.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_127V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 127V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 127.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_128V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 128V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 128.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_129V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 129V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 129.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_130V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 130V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 130.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_131V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 131V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 131.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_132V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 132V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 132.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_133V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 133V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 133.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_134V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 134V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 134.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_135V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 135V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 135.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_136V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 136V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 136.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_137V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 137V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 137.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_138V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 138V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 138.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_139V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 139V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 139.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_140V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 140V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 140.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_141V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 141V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 141.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_142V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 142V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 142.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_143V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 143V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 143.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_144V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 144V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 144.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_145V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 145V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 145.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_146V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 146V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 146.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_147V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 147V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 147.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_148V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 148V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 148.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_INSTANT_149V",
+      "category": "VOLTAGE",
+      "description": "Supply collapse at 149V \u2014 instant UV trip (\u2264150V)",
+      "sequence": [
+        {
+          "v": 149.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "UV_DEBOUNCED_151V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 151V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 151.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_152V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 152V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 152.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_153V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 153V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 153.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_154V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 154V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 154.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_155V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 155V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 155.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_156V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 156V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 156.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_157V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 157V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 157.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_158V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 158V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 158.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_159V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 159V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 159.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_160V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 160V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 160.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_161V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 161V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 161.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_162V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 162V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 162.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_163V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 163V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 163.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_164V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 164V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 164.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_165V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 165V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 165.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_166V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 166V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 166.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_167V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 167V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 167.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_168V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 168V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 168.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_169V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 169V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 169.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_170V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 170V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 170.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_171V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 171V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 171.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_172V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 172V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 172.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_173V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 173V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 173.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_174V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 174V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 174.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_175V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 175V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 175.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_176V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 176V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 176.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_177V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 177V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 177.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_178V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 178V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 178.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_179V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 179V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 179.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_180V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 180V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 180.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_181V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 181V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 181.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_182V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 182V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 182.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_183V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 183V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 183.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_184V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 184V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 184.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_185V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 185V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 185.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_186V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 186V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 186.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_187V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 187V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 187.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_188V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 188V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 188.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_189V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 189V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 189.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_190V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 190V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 190.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_191V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 191V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 191.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_192V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 192V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 192.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_193V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 193V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 193.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_194V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 194V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 194.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_195V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 195V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 195.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_196V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 196V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 196.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_197V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 197V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 197.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_198V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 198V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 198.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_199V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 199V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 199.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_200V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 200V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 200.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_201V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 201V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 201.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_202V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 202V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 202.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_203V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 203V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 203.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_204V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 204V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 204.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_205V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 205V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 205.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "UV_DEBOUNCED_206V",
+      "category": "VOLTAGE",
+      "description": "Debounced UV sag at 206V (below 207V threshold)",
+      "sequence": [
+        {
+          "v": 206.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "OV_DEBOUNCED_254V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 254V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 254.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_255V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 255V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 255.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_256V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 256V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 256.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_257V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 257V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 257.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_258V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 258V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 258.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_259V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 259V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 259.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_260V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 260V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 260.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_261V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 261V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 261.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_262V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 262V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 262.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_263V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 263V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 263.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_264V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 264V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 264.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_265V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 265V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 265.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_266V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 266V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 266.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_267V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 267V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 267.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_268V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 268V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 268.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_DEBOUNCED_269V",
+      "category": "VOLTAGE",
+      "description": "Debounced OV swell at 269V (above 253V threshold)",
+      "sequence": [
+        {
+          "v": 269.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "OV_INSTANT_270V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 270V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 270.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_271V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 271V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 271.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_272V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 272V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 272.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_273V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 273V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 273.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_274V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 274V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 274.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_275V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 275V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 275.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_276V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 276V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 276.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_277V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 277V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 277.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_278V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 278V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 278.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_279V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 279V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 279.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_280V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 280V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 280.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_281V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 281V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 281.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_282V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 282V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 282.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_283V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 283V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 283.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_284V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 284V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 284.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_285V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 285V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 285.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_286V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 286V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 286.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_287V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 287V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 287.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_288V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 288V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 288.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_289V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 289V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 289.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_290V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 290V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 290.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_291V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 291V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 291.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_292V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 292V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 292.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_293V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 293V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 293.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_294V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 294V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 294.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_295V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 295V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 295.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_296V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 296V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 296.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_297V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 297V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 297.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_298V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 298V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 298.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "OV_INSTANT_299V",
+      "category": "VOLTAGE",
+      "description": "MOV protection zone at 299V \u2014 instant OV trip (\u2265270V)",
+      "sequence": [
+        {
+          "v": 299.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "NORMAL_SWEEP_208V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 208V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 208.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_209V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 209V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 209.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_210V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 210V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 210.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_211V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 211V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 211.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_212V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 212V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 212.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_213V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 213V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 213.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_214V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 214V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 214.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_215V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 215V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 215.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_216V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 216V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 216.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_217V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 217V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 217.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_218V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 218V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 218.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_219V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 219V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 219.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_220V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 220V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 220.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_221V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 221V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 221.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_222V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 222V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 222.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_223V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 223V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 223.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_224V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 224V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 224.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_225V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 225V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 225.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_226V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 226V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 226.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_227V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 227V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 227.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_228V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 228V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 228.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_229V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 229V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 229.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_230V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 230V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_231V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 231V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 231.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_232V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 232V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 232.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_233V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 233V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 233.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_234V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 234V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 234.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_235V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 235V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 235.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_236V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 236V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 236.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_237V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 237V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 237.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_238V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 238V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 238.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_239V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 239V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 239.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_240V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 240V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 240.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_241V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 241V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 241.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_242V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 242V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 242.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_243V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 243V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 243.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_244V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 244V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 244.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_245V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 245V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 245.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_246V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 246V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 246.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_247V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 247V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 247.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_248V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 248V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 248.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_249V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 249V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 249.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_250V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 250V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 250.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_251V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 251V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 251.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_SWEEP_252V",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal grid voltage at 252V \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 252.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "IDMT_21.5A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 21.5A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 21.5,
+          "motor_starting": false,
+          "ticks": 4461
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 20818,
+      "expected_time_max_ms": 38663
+    },
+    {
+      "id": "IDMT_22.0A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 22.0A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 22.0,
+          "motor_starting": false,
+          "ticks": 2256
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 10528,
+      "expected_time_max_ms": 19552
+    },
+    {
+      "id": "IDMT_22.5A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 22.5A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 22.5,
+          "motor_starting": false,
+          "ticks": 1520
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 7096,
+      "expected_time_max_ms": 13179
+    },
+    {
+      "id": "IDMT_23.0A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 23.0A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 23.0,
+          "motor_starting": false,
+          "ticks": 1153
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 5380,
+      "expected_time_max_ms": 9993
+    },
+    {
+      "id": "IDMT_23.5A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 23.5A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 23.5,
+          "motor_starting": false,
+          "ticks": 932
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 4351,
+      "expected_time_max_ms": 8080
+    },
+    {
+      "id": "IDMT_24.0A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 24.0A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 24.0,
+          "motor_starting": false,
+          "ticks": 785
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 3664,
+      "expected_time_max_ms": 6805
+    },
+    {
+      "id": "IDMT_24.5A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 24.5A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 24.5,
+          "motor_starting": false,
+          "ticks": 680
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 3173,
+      "expected_time_max_ms": 5894
+    },
+    {
+      "id": "IDMT_25.0A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 25.0A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 25.0,
+          "motor_starting": false,
+          "ticks": 601
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 2804,
+      "expected_time_max_ms": 5209
+    },
+    {
+      "id": "IDMT_25.5A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 25.5A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 25.5,
+          "motor_starting": false,
+          "ticks": 539
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 2518,
+      "expected_time_max_ms": 4677
+    },
+    {
+      "id": "IDMT_26.0A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 26.0A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 26.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 2289,
+      "expected_time_max_ms": 4251
+    },
+    {
+      "id": "IDMT_26.5A",
+      "category": "IDMT",
+      "description": "IEC 60255 IDMT integration at 26.5A (pickup=21A, TMS=0.10)",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 26.5,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_min_ms": 2101,
+      "expected_time_max_ms": 3902
+    },
+    {
+      "id": "SC_INSTANT_27.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 27.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 27.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_30.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 30.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 30.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_35.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 35.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 35.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_40.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 40.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 40.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_50.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 50.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 50.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_60.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 60.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 60.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_70.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 70.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 70.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_80.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 80.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 80.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_100.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 100.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 100.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "SC_INSTANT_120.0A",
+      "category": "SHORT_CIRCUIT",
+      "description": "Short circuit at 120.0A \u2014 instant trip bypassing IDMT",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 120.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "TRANSIENT_REJECT_10ms",
+      "category": "NOISE_IMMUNITY",
+      "description": "UV noise spike at 185V for 10ms \u2014 must be rejected",
+      "sequence": [
+        {
+          "v": 185.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 1
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_30ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 30ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 3
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 80
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_40ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 40ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 4
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 90
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_50ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 50ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 5
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 100
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_60ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 60ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 6
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 110
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_70ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 70ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 7
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 120
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_80ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 80ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 8
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 130
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_90ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 90ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 9
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 140
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_100ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 100ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 10
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 150
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_110ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 110ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 11
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 160
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_120ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 120ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 12
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 170
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_130ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 130ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 13
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 180
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_140ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 140ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 14
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 190
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_150ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 150ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 15
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_160ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 160ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 16
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 210
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_170ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 170ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 17
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 220
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_180ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 180ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 18
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 230
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_190ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 190ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 19
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 240
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_200ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 200ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 250
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_210ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 210ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 21
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 260
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_220ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 220ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 22
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 270
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_230ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 230ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 23
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 280
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_240ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 240ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 24
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 290
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_250ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 250ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 25
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 300
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_260ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 260ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 26
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 310
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_270ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 270ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 27
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 320
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_280ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 280ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 28
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 330
+    },
+    {
+      "id": "TRANSIENT_SUSTAINED_290ms",
+      "category": "VOLTAGE",
+      "description": "UV pulse at 110V for 290ms \u2014 sustained enough to trip UV_INSTANT",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 29
+        },
+        {
+          "v": 230.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 20
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 340
+    },
+    {
+      "id": "SUSTAINED_UV_100V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 100V held for 1200ms",
+      "sequence": [
+        {
+          "v": 100.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_105V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 105V held for 1200ms",
+      "sequence": [
+        {
+          "v": 105.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_110V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 110V held for 1200ms",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_115V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 115V held for 1200ms",
+      "sequence": [
+        {
+          "v": 115.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_120V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 120V held for 1200ms",
+      "sequence": [
+        {
+          "v": 120.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_125V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 125V held for 1200ms",
+      "sequence": [
+        {
+          "v": 125.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_130V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 130V held for 1200ms",
+      "sequence": [
+        {
+          "v": 130.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_135V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 135V held for 1200ms",
+      "sequence": [
+        {
+          "v": 135.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_140V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 140V held for 1200ms",
+      "sequence": [
+        {
+          "v": 140.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_145V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 145V held for 1200ms",
+      "sequence": [
+        {
+          "v": 145.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_150V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 150V held for 1200ms",
+      "sequence": [
+        {
+          "v": 150.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_155V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 155V held for 1200ms",
+      "sequence": [
+        {
+          "v": 155.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_160V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 160V held for 1200ms",
+      "sequence": [
+        {
+          "v": 160.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_165V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 165V held for 1200ms",
+      "sequence": [
+        {
+          "v": 165.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_170V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 170V held for 1200ms",
+      "sequence": [
+        {
+          "v": 170.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_175V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 175V held for 1200ms",
+      "sequence": [
+        {
+          "v": 175.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_180V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 180V held for 1200ms",
+      "sequence": [
+        {
+          "v": 180.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_185V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 185V held for 1200ms",
+      "sequence": [
+        {
+          "v": 185.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_190V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 190V held for 1200ms",
+      "sequence": [
+        {
+          "v": 190.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "SUSTAINED_UV_195V",
+      "category": "VOLTAGE",
+      "description": "Sustained voltage sag to 195V held for 1200ms",
+      "sequence": [
+        {
+          "v": 195.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_MASK_OK_161V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 161V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 161.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_163V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 163V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 163.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_165V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 165V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 165.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_167V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 167V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 167.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_169V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 169V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 169.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_171V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 171V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 171.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_173V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 173V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 173.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_175V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 175V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 175.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_177V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 177V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 177.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_179V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 179V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 179.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_181V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 181V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 181.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_183V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 183V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 183.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_185V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 185V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 185.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_187V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 187V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 187.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_189V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 189V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 189.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_191V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 191V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 191.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_193V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 193V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 193.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_195V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 195V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 195.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_197V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 197V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 197.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_199V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 199V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 199.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_201V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 201V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 201.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_203V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 203V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 203.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_205V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 205V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 205.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_207V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 207V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 207.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_209V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 209V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 209.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_211V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 211V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 211.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_213V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 213V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 213.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_215V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 215V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 215.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_217V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 217V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 217.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_MASK_OK_219V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with 219V sag \u2014 masked by startup tolerance",
+      "sequence": [
+        {
+          "v": 219.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_80V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 80V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 80.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_83V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 83V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 83.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_86V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 86V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 86.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_89V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 89V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 89.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_92V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 92V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 92.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_95V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 95V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 95.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_98V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 98V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 98.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_101V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 101V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 101.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_104V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 104V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 104.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_107V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 107V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 107.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_110V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 110V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 110.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_113V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 113V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 113.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_116V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 116V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 116.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_119V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 119V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 119.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_122V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 122V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 122.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_125V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 125V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 125.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_128V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 128V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 128.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_131V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 131V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 131.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_134V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 134V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 134.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_137V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 137V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 137.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_140V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 140V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 140.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_143V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 143V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 143.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_146V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 146V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 146.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "MOTOR_CATASTROPHIC_149V",
+      "category": "MOTOR_INRUSH",
+      "description": "Motor inrush with catastrophic 149V \u2014 punches through mask",
+      "sequence": [
+        {
+          "v": 149.0,
+          "i": 85.0,
+          "motor_starting": true,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "NORMAL_CURRENT_0.5A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 0.5A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 0.5,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_2.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 2.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 2.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_4.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 4.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 4.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_6.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 6.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 6.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_8.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 8.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 8.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_10.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 10.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 10.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_12.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 12.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 12.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_14.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 14.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 14.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_16.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 16.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 16.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_18.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 18.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 18.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "NORMAL_CURRENT_20.0A",
+      "category": "NOISE_IMMUNITY",
+      "description": "Normal operating current at 20.0A \u2014 must NOT trip",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 20.0,
+          "motor_starting": false,
+          "ticks": 120
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "BOUNDARY_UV_INSTANT_EXACT",
+      "category": "BOUNDARY",
+      "description": "Exact UV_INSTANT boundary 150V",
+      "sequence": [
+        {
+          "v": 150.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "BOUNDARY_UV_INSTANT_PLUS1",
+      "category": "BOUNDARY",
+      "description": "1V above UV_INSTANT \u2014 debounced UV zone",
+      "sequence": [
+        {
+          "v": 151.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "BOUNDARY_UV_FAULT_EXACT",
+      "category": "BOUNDARY",
+      "description": "Exact UV_FAULT boundary 207V",
+      "sequence": [
+        {
+          "v": 207.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 1200
+    },
+    {
+      "id": "BOUNDARY_UV_FAULT_PLUS1",
+      "category": "BOUNDARY",
+      "description": "1V above UV_FAULT \u2014 safe zone",
+      "sequence": [
+        {
+          "v": 208.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "BOUNDARY_OV_FAULT_EXACT",
+      "category": "BOUNDARY",
+      "description": "Exact OV_FAULT boundary 253V",
+      "sequence": [
+        {
+          "v": 253.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "BOUNDARY_OV_FAULT_MINUS1",
+      "category": "BOUNDARY",
+      "description": "1V below OV_FAULT \u2014 safe zone",
+      "sequence": [
+        {
+          "v": 252.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "BOUNDARY_OV_INSTANT_EXACT",
+      "category": "BOUNDARY",
+      "description": "Exact OV_INSTANT boundary 270V",
+      "sequence": [
+        {
+          "v": 270.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "BOUNDARY_OV_INSTANT_MINUS1",
+      "category": "BOUNDARY",
+      "description": "1V below OV_INSTANT \u2014 debounced OV zone",
+      "sequence": [
+        {
+          "v": 269.0,
+          "i": 5.0,
+          "motor_starting": false,
+          "ticks": 2000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 20000
+    },
+    {
+      "id": "BOUNDARY_OC_FAULT_EXACT",
+      "category": "BOUNDARY",
+      "description": "Exact OC_FAULT pickup 21A",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 21.0,
+          "motor_starting": false,
+          "ticks": 6010
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 60100
+    },
+    {
+      "id": "BOUNDARY_OC_FAULT_MINUS1",
+      "category": "BOUNDARY",
+      "description": "1A below OC_FAULT \u2014 normal zone",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 20.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "NO_TRIP"
+    },
+    {
+      "id": "BOUNDARY_SC_INSTANT_EXACT",
+      "category": "BOUNDARY",
+      "description": "Exact SC_INSTANT boundary 27A",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 27.0,
+          "motor_starting": false,
+          "ticks": 500
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 200
+    },
+    {
+      "id": "BOUNDARY_SC_INSTANT_MINUS1",
+      "category": "BOUNDARY",
+      "description": "0.5A below SC \u2014 still in IDMT zone",
+      "sequence": [
+        {
+          "v": 230.0,
+          "i": 26.5,
+          "motor_starting": false,
+          "ticks": 6000
+        }
+      ],
+      "expected_result": "TRIP",
+      "expected_time_max_ms": 60000
+    }
+  ]
+}

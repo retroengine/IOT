@@ -17,6 +17,7 @@
  */
 
 const LS_KEY = 'sgs_api_key';
+const LS_IP  = 'sgs_target_ip';
 
 /** Return the stored API key, or empty string if not configured. */
 export function getKey() {
@@ -36,6 +37,26 @@ export function setKey(key) {
 /** Remove the stored API key entirely. */
 export function clearKey() {
   localStorage.removeItem(LS_KEY);
+}
+
+/** Return the stored Target IP, or empty string if not configured. */
+export function getTargetIp() {
+  return localStorage.getItem(LS_IP) || '';
+}
+
+/** Persist a new Target IP. Pass an empty string to effectively clear it. */
+export function setTargetIp(ip) {
+  if (typeof ip !== 'string') return;
+  if (ip.trim() === '') {
+    clearTargetIp();
+    return;
+  }
+  localStorage.setItem(LS_IP, ip.trim());
+}
+
+/** Remove the stored Target IP entirely. */
+export function clearTargetIp() {
+  localStorage.removeItem(LS_IP);
 }
 
 /** True when a non-empty key is stored. */

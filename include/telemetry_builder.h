@@ -53,9 +53,16 @@ namespace TelemetryBuilder {
     // Returns false if the snapshot is not yet available.
     bool getSnapshot(char* buf, size_t buf_size);
 
+    // ── Compact WebSocket payload ────────────────────────────────────────────
+    void buildCompactSnapshot(const SensorReading& r, const FSMContext& ctx);
+    bool getCompactSnapshot(char* buf, size_t buf_size);
+
     // ── Accessors for sub-components (used by specialized callers) ───────────
     PowerMetrics    computePower(float v, float i);
-    FaultSnapshot   buildFaultSnapshot(const FSMContext& ctx);
+    // Bug 6 fix: SensorReading& r added so fault_bits bitmask is accessible
+    // for multi-fault detection (OV, OC, OT). Callers must pass both r and ctx.
+    FaultSnapshot   buildFaultSnapshot(const SensorReading& r,
+                                       const FSMContext& ctx);
     RiskLevel       computeRiskLevel(const FSMContext& ctx,
                                      const FaultSnapshot& fs);
     uint8_t         computeConfidence(bool calibrated, uint32_t sample_count,

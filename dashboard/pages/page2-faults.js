@@ -423,6 +423,72 @@ const PAGE2_CSS = `
   .p2-top-grid,
   .p2-mid-grid,
   .p2-bottom-row { grid-template-columns: 1fr; }
+  .p2-sil-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* ─── Grid Scenarios (SIL Injection) Panel ─── */
+.p2-sil-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+.p2-sil-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 250ms ease,
+              color 200ms ease, transform 150ms ease, box-shadow 250ms ease;
+  overflow: hidden;
+}
+.p2-sil-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.p2-sil-btn:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.p2-sil-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+.p2-sil-btn .sil-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.p2-sil-btn.sil-active {
+  border-color: var(--health-excellent);
+  color: var(--health-excellent);
+  background: rgba(29,158,117,0.1);
+  box-shadow: 0 0 12px rgba(29,158,117,0.15);
+}
+.p2-sil-status {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: center;
+  margin-top: 8px;
+  min-height: 16px;
+  font-family: var(--font-mono);
 }
 `;
 
@@ -475,9 +541,6 @@ function _getField(obj, path) {
   return path.split('.').reduce((acc, k) => acc?.[k], obj) ?? null;
 }
 
-// ── Reclose dead times per trip count ────────────────────────────────────
-const RECLOSE_DEAD_TIMES = [5, 15, 30]; // seconds for trips 1, 2, 3
-
 // ── Page class ────────────────────────────────────────────────────────────
 export class Page2Faults {
   // ── mount ────────────────────────────────────────────────────────────────
@@ -518,6 +581,7 @@ export class Page2Faults {
     this._buildPageHeader(containerEl);
     this._buildTopGrid(containerEl);
     this._buildMidGrid(containerEl);
+    this._buildGridScenarios(containerEl);
     this._buildBottomRow(containerEl);
     this._buildConfirmDialog(containerEl);
   }
@@ -538,12 +602,12 @@ export class Page2Faults {
 
     // Track fault entry time for reclose countdown
     const state = telemetryData.state ?? 'NORMAL';
-    if (state === 'FAULT' && this._prevFsmState !== 'FAULT') {
-      this._faultEnteredAt    = Date.now();
-      const trips             = telemetryData.faults?.trip_count ?? 1;
-      const deadSecs          = RECLOSE_DEAD_TIMES[Math.min(trips - 1, 2)] ?? 5;
-      this._recloseDeadlineMs = this._faultEnteredAt + deadSecs * 1000;
-      this._startRecloseTimer();
+    if (state === 'FAULT') {
+      const remainingMs = telemetryData.faults?.reclose_countdown_ms ?? 0;
+      this._recloseDeadlineMs = Date.now() + remainingMs;
+      if (this._prevFsmState !== 'FAULT') {
+        this._startRecloseTimer();
+      }
     } else if (state !== 'FAULT') {
       this._stopRecloseTimer();
     }
@@ -1033,10 +1097,11 @@ export class Page2Faults {
 
   _tickReclose() {
     if (!this._recloseDeadlineMs) return;
+    const t = this._lastTelemetry;
     const remaining = Math.max(0, this._recloseDeadlineMs - Date.now());
     const secs      = remaining / 1000;
-    const trips     = this._lastTelemetry?.faults?.trip_count ?? 1;
-    const totalSecs = RECLOSE_DEAD_TIMES[Math.min(trips - 1, 2)] ?? 5;
+    const delayMs   = t?.faults?.active_delay_ms ?? 5000;
+    const totalSecs = Math.round(delayMs / 1000);
     const pct       = remaining / (totalSecs * 1000);
 
     if (this._recloseTimerText) {
@@ -1137,6 +1202,107 @@ export class Page2Faults {
   }
 
   // ── Bottom row: Reset Guard + Relay + ArcGauge ────────────────────────────
+
+  // ── Grid Scenarios (SIL Injection) Panel ───────────────────────────────
+
+  _buildGridScenarios(parent) {
+    const card = document.createElement('div');
+    card.className = 'p2-card';
+
+    const hdr = document.createElement('div');
+    hdr.className   = 'p2-card-hdr';
+    hdr.textContent = 'Grid Scenarios — SIL Injection';
+    card.appendChild(hdr);
+
+    const grid = document.createElement('div');
+    grid.className = 'p2-sil-grid';
+
+    const scenarios = [
+      { icon: '⚡', label: 'Normal Grid',  cmd: 'normal_grid',  color: '#1D9E75' },
+      { icon: '🏭', label: 'Motor Start',  cmd: 'motor_start',  color: '#3B8BD4' },
+      { icon: '⏹',  label: 'Motor Stop',   cmd: 'motor_stop',   color: '#8a8e8a' },
+      { icon: '💡', label: 'Flicker ON',   cmd: 'flicker_on',   color: '#EF9F27' },
+      { icon: '🔇', label: 'Flicker OFF',  cmd: 'flicker_off',  color: '#8a8e8a' },
+      { icon: '📉', label: 'Voltage Sag',  cmd: 'sag',          color: '#E24B4A', params: { depth: 0.5, duration: 2.0 } },
+      { icon: '📈', label: 'Voltage Swell', cmd: 'swell',       color: '#E24B4A', params: { height: 0.15, duration: 2.0 } },
+      { icon: '🛑', label: 'Disable SIL',  cmd: 'disable',      color: '#A32D2D' },
+    ];
+
+    this._silStatusEl = null;
+    this._silButtons = [];
+
+    for (const s of scenarios) {
+      const btn = document.createElement('button');
+      btn.className = 'p2-sil-btn';
+      btn.setAttribute('data-sil-cmd', s.cmd);
+      btn.innerHTML = `<span class="sil-icon">${s.icon}</span>${s.label}`;
+      btn.style.setProperty('--sil-accent', s.color);
+
+      btn.addEventListener('click', async () => {
+        // Build request body
+        const body = { cmd: s.cmd };
+        if (s.params) Object.assign(body, s.params);
+
+        // Visual feedback
+        btn.style.opacity = '0.5';
+        btn.style.pointerEvents = 'none';
+        this._setSilStatus(`Sending ${s.label}…`, 'var(--text-muted)');
+
+        try {
+          const resp = await fetch('/api/inject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const json = await resp.json();
+
+          if (resp.ok) {
+            this._setSilStatus(`✓ ${json.status || s.label + ' applied'}`, 'var(--health-excellent)');
+            // Highlight active scenario
+            this._silButtons.forEach(b => b.classList.remove('sil-active'));
+            if (s.cmd !== 'disable') btn.classList.add('sil-active');
+          } else {
+            this._setSilStatus(`✗ ${json.error || 'Request failed'}`, 'var(--fault-active)');
+          }
+        } catch (err) {
+          this._setSilStatus(`✗ ${err.message}`, 'var(--fault-active)');
+        } finally {
+          btn.style.opacity = '';
+          btn.style.pointerEvents = '';
+        }
+      });
+
+      grid.appendChild(btn);
+      this._silButtons.push(btn);
+    }
+
+    card.appendChild(grid);
+
+    // Status line
+    const statusEl = document.createElement('div');
+    statusEl.className = 'p2-sil-status';
+    statusEl.textContent = 'Ready';
+    card.appendChild(statusEl);
+    this._silStatusEl = statusEl;
+
+    parent.appendChild(card);
+  }
+
+  _setSilStatus(msg, color) {
+    if (!this._silStatusEl) return;
+    this._silStatusEl.textContent = msg;
+    this._silStatusEl.style.color = color || '';
+    // Auto-clear after 4s
+    clearTimeout(this._silStatusTimer);
+    this._silStatusTimer = setTimeout(() => {
+      if (this._silStatusEl) {
+        this._silStatusEl.textContent = 'Ready';
+        this._silStatusEl.style.color = 'var(--text-faint)';
+      }
+    }, 4000);
+  }
+
+  // ── Bottom Row ──────────────────────────────────────────────────────────
 
   _buildBottomRow(parent) {
     const row = document.createElement('div');

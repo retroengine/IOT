@@ -3,6 +3,7 @@
 // ============================================================
 #include "oled_display.h"
 #include "config.h"
+#include "serial_log.h"
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -11,6 +12,7 @@ namespace {
     Adafruit_SSD1306 oled(OLED_WIDTH, OLED_HEIGHT, &Wire, OLED_RESET_PIN);
     int       page = 0;
     uint32_t  last_flip_ms = 0;
+    bool      oled_ready = false;
 
     // State color mapping → bitmapped chars (OLED is monochrome, use inverted blocks)
     void drawStateBar(const char* state_str, FSMState s) {
@@ -35,8 +37,11 @@ namespace OLEDDisplay {
 
     void init() {
         Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
+        Wire.setClock(400000); // Boost I2C frequency to 400kHz
+
         if (!oled.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDR)) {
-            Serial.println("[OLED] init FAILED — check wiring");
+            LOG_OLED("init FAILED — check wiring");
+            oled_ready = false;
             return;
         }
         oled.clearDisplay();
@@ -47,10 +52,13 @@ namespace OLEDDisplay {
         oled.setCursor(40, 38);
         oled.print("Booting...");
         oled.display();
-        Serial.println("[OLED] init OK");
+        LOG_OLED("init OK");
+        oled_ready = true;
     }
 
     void update(const SensorReading& r, const FSMContext& ctx) {
+        if (!oled_ready) return;
+
         uint32_t now = millis();
         if (now - last_flip_ms >= OLED_PAGE_FLIP_MS) {
             page = (page + 1) % 2;
@@ -113,10 +121,15 @@ namespace OLEDDisplay {
             oled.setCursor(0, 47);
             oled.printf("L2: %s", r.relay2_closed ? "CLOSED" : "OPEN  ");
 
-            // Recovery countdown
+            // BUG-A2 FIX: Use the FSM's authoritative deadline directly.
+            // The old formula (delay - elapsed) broke whenever fault_ts_ms
+            // and active_delay_ms were inconsistent (e.g., after a re-trip
+            // where active_delay_ms was stale from trip 1).
             if (ctx.state == FSM_FAULT) {
-                uint32_t elapsed = millis() - ctx.fault_ts_ms;
-                int remaining = max(0, (int)(RECOVERY_DELAY_MS - elapsed) / 1000);
+                uint32_t now_ms = millis();
+                int remaining   = (ctx.target_reclose_ms > now_ms)
+                                ? (int)((ctx.target_reclose_ms - now_ms) / 1000)
+                                : 0;
                 oled.setCursor(0, 57);
                 oled.printf("Auto-reset: %ds", remaining);
             }

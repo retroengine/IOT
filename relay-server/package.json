@@ -1,16 +1,19 @@
 {
   "name": "sgs-relay-server",
-  "version": "1.0.0",
-  "description": "Smart Grid Sentinel — Local relay server. Bridges ESP32 HTTP/MQTT to browser WebSocket.",
+  "version": "1.1.0",
+  "description": "Smart Grid Sentinel — Local relay server. Bridges ESP32 WS/HTTP/MQTT to browser WebSocket.",
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.103.3",
+    "dotenv": "^16.4.5",
     "mqtt": "^5.3.4",
     "ws": "^8.17.0"
   }

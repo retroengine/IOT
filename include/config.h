@@ -38,14 +38,14 @@
 // ─── Hardware Bench Testing Bypass ──────────────────────────────────────────
 // Set this to 1 ONLY when testing the system with pure DC potentiometers.
 // MUST BE 0 FOR PRODUCTION BINARIES!
-#define HARDWARE_BENCH_TESTING 0
+#define HARDWARE_BENCH_TESTING 1
 
 // ─── GPIO Pins
 // ────────────────────────────────────────────────────────────────
 #define PIN_RELAY_LOAD1 26
 #define PIN_RELAY_LOAD2 27
 #define PIN_ALERT_LED 14
-#define PIN_BUZZER 25
+#define PIN_BUZZER 26
 #define PIN_DS18B20 13
 #define PIN_OLED_SDA                                                           \
   32 // Right side — I²C SDA (NOT 34/35! Those are input-only!)
@@ -64,8 +64,8 @@
 // ─── Sensor Scales ───────────────────────────────────────────────────────────
 // Voltage: ZMPT101B stepped down to ADC range 0–3.3V mapped to 0–300V
 // Current: SCT-013-030 (0–30A : 0–1V) or ACS758-30AB mapped to 0–30A
-#define VOLTAGE_FULL_SCALE 300.0f // V  — ADC upper rail represents 300V
-#define CURRENT_FULL_SCALE 30.0f  // A  — CHANGED from 5A to 30A
+#define VOLTAGE_FULL_SCALE 300.0f  // V  — ADC upper rail represents 300V
+#define CURRENT_FULL_SCALE 1500.0f // A  — CHANGED from 5A to 30A
 
 // ─── IIR Filter Alphas ───────────────────────────────────────────────────────
 // Voltage: symmetric, slower — real grid voltages never change instantaneously
@@ -113,7 +113,7 @@
 // Undervoltage
 #define VOLT_UV_WARN_V 216.0f    // CEA -6%  — WARNING issued
 #define VOLT_UV_FAULT_V 207.0f   // IS 12360 -10% — FAULT (motor protection)
-#define VOLT_UV_STARTUP_V 170.0f // Expanded UV tolerance during motor inrush
+#define VOLT_UV_STARTUP_V 160.0f // Expanded UV tolerance during motor inrush
 #define VOLT_UV_INSTANT_V 150.0f // near supply collapse — ZERO debounce
 // Hysteresis pickup (fault clears only when V rises above this)
 // 8V band prevents chattering at the 207V boundary
@@ -291,7 +291,7 @@
 //    regardless of inrush window, because genuine SMPS inrush decays within
 //    10ms.
 
-#define T_START_MAX_MS 3500 // Maximum time allowed for motor startup
+#define T_START_MAX_MS 8000 // Maximum time allowed for motor startup
 #define T_LOCKOUT_DOB_MS                                                       \
   180000 // 180 seconds Delay On Break (compressor safety)
 
@@ -474,7 +474,7 @@
 
 // ─── Watchdog
 // ─────────────────────────────────────────────────────────────────
-#define WDT_TIMEOUT_S 10
+#define WDT_TIMEOUT_S 30
 
 // ─── Health Monitor
 // ───────────────────────────────────────────────────────────

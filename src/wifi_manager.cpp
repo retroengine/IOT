@@ -1,42 +1,18 @@
 // ============================================================
-//  wifi_manager.cpp
+//  wifi_manager.cpp — Clean rewrite
 //
-//  Tier 1 fix — Finding #5: Captive Portal Blocks Protection Pipeline
-//  Tier 1 fix — Finding #16: delay() Inside ESPAsyncWebServer Callback
+//  Flow:
+//    1. WiFi.mode(WIFI_STA) + WiFi.begin("Lunch","saikiran")
+//    2. Wait 20 seconds for connection
+//    3. Connected → start HTTP server → done
+//    4. Failed    → switch to AP mode → start captive portal
 //
-//  FINDING #5 FIX:
-//    The original code called startCaptivePortal() from setup() inside
-//    WiFiManager::init(). startCaptivePortal() contained an infinite
-//    while(true) loop that never returned, meaning task_protection was
-//    never created if WiFi failed. The relay was never armed.
-//
-//    Correct architecture (per IEC 60255-1 independence of protection
-//    from communication, and the SGS Engineering Roadmap Tier 1):
-//      - setup() launches task_protection (Core 0) and task_comms
-//        (Core 1) unconditionally, with no dependency on WiFi state.
-//      - WiFi init runs inside task_wifi_provision, a new FreeRTOS
-//        task on Core 1. The infinite captive portal loop now blocks
-//        only inside this task — Core 0 is completely unaffected.
-//      - Protection starts within 100ms of boot regardless of WiFi.
-//
-//  FINDING #16 FIX:
-//    The /save POST handler used delay(1500) + ESP.restart() inside
-//    an ESPAsyncWebServer callback. delay() blocks the entire lwIP
-//    event loop for 1.5 seconds — dropping TCP frames, collapsing
-//    WebSocket connections, and risking TWDT panic.
-//    Fix: replaced with a minimal FreeRTOS task (reboot_task) that
-//    does vTaskDelay(1500ms) then ESP.restart(), identical to the
-//    scheduleReboot() pattern in api_server.cpp.
-//
-//  UNCHANGED:
-//    - WiFi STA connection sequence (30s timeout)
-//    - NVS credential storage (Preferences namespace "sgs")
-//    - Captive portal HTML, DNS redirect, /save POST handler logic
-//    - AP SSID "SGS-Setup"
-//    - isConnected() / getIP() public API semantics
+//  The HTTP server (g_server) is started HERE, not in setup().
+//  This guarantees it binds to a live network interface.
 // ============================================================
 #include "wifi_manager.h"
 #include "config.h"
+#include "serial_log.h"
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
@@ -45,17 +21,13 @@
 #include <freertos/task.h>
 
 namespace {
-    // ── Shared state (written by task_wifi_provision, read by any task) ──
-    // volatile is sufficient here: single writer, multiple readers,
-    // no struct torn-read risk (bool and char[] are independent fields).
     volatile bool connected = false;
     char          ip_str[20] = "0.0.0.0";
 
-    // ── Captive portal server (lives for the duration of provisioning) ────
-    Preferences      prefs;
     DNSServer        dns;
-    AsyncWebServer   portalServer(80);
+    AsyncWebServer*  sharedServer = nullptr;
 
+    // ── Portal HTML ──────────────────────────────────────────────────────
     const char PORTAL_HTML[] PROGMEM = R"rawhtml(
 <!DOCTYPE html><html><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -94,34 +66,77 @@ display:flex;justify-content:center;align-items:center;min-height:100vh;font-siz
 </head><body>Credentials saved — rebooting...</body></html>
 )rawhtml";
 
-    // ── Finding #16: reboot task replaces delay() + ESP.restart() ─────────
-    // Spawned from the /save POST handler. vTaskDelay yields the lwIP event
-    // loop immediately; the restart fires 1500ms later from RTOS task context.
     void reboot_task(void* pvParam) {
         vTaskDelay(pdMS_TO_TICKS(1500));
         ESP.restart();
-        vTaskDelete(nullptr); // never reached
+        vTaskDelete(nullptr);
     }
 
-    // ── Captive portal ─────────────────────────────────────────────────────
-    // Called from inside task_wifi_provision. Blocks in an event loop
-    // serving the provisioning UI. Safe here because this is a dedicated
-    // FreeRTOS task — blocking it does NOT affect task_protection on Core 0.
-    void startCaptivePortal() {
-        Serial.println("[WiFi] Starting captive portal AP: SGS-Setup");
-        WiFi.softAP("SGS-Setup", "sgs-setup-1234");
-        dns.start(53, "*", WiFi.softAPIP());
+    // ── Start HTTP server on the CURRENT live interface ───────────────────
+    void startServer() {
+        if (!sharedServer) return;
+        sharedServer->begin();
+        LOG_WIFI("HTTP server started on port 80");
+    }
 
-        portalServer.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+    // ── Captive Portal ───────────────────────────────────────────────────
+    void startCaptivePortal() {
+        Serial.println("\n[WiFi] ═══════════════════════════════════");
+        Serial.println("[WiFi] Starting Captive Portal: SGS-Setup");
+        Serial.println("[WiFi] Password: sgs-setup-1234");
+        Serial.println("[WiFi] ═══════════════════════════════════\n");
+
+        // BUG-07 FIX: WiFi.disconnect(true, true) erases the NVS WiFi
+        // configuration layer (the second arg = eraseAP). If the user saved
+        // credentials via the captive portal or /api/wifi, entering AP mode
+        // for a retry should NOT destroy those saved credentials.
+        WiFi.disconnect(true, false);  // disconnect STA, keep NVS credentials
+        WiFi.mode(WIFI_OFF);
+        vTaskDelay(pdMS_TO_TICKS(200));
+
+        // 2. Switch to clean AP mode
+        WiFi.mode(WIFI_AP);
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        bool apOk = WiFi.softAP("SGS-Setup", "sgs-setup-1234");
+        if (!apOk) {
+            Serial.println("[WiFi] FATAL: softAP() failed!");
+            return;
+        }
+
+        IPAddress apIP = WiFi.softAPIP();
+        Serial.printf("[WiFi] AP running — IP: %s\n", apIP.toString().c_str());
+
+        // 3. DNS: redirect ALL domains to us (captive portal detection)
+        dns.start(53, "*", apIP);
+
+        // 4. Register portal routes on the shared server
+        AsyncWebServer* srv = sharedServer;
+        if (!srv) {
+            Serial.println("[WiFi] FATAL: no shared server pointer!");
+            return;
+        }
+
+        srv->on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
             req->send(200, "text/html", PORTAL_HTML);
         });
 
-        // Catch-all redirect for captive portal detection
-        portalServer.onNotFound([](AsyncWebServerRequest* req) {
+        // Android/iOS captive portal detection endpoints
+        srv->on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* req) {
+            req->redirect("http://192.168.4.1/");
+        });
+        srv->on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest* req) {
+            req->redirect("http://192.168.4.1/");
+        });
+        srv->on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest* req) {
             req->redirect("http://192.168.4.1/");
         });
 
-        portalServer.on("/save", HTTP_POST, [](AsyncWebServerRequest* req) {
+        srv->onNotFound([](AsyncWebServerRequest* req) {
+            req->redirect("http://192.168.4.1/");
+        });
+
+        srv->on("/save", HTTP_POST, [](AsyncWebServerRequest* req) {
             if (req->hasParam("ssid", true)) {
                 String ssid = req->getParam("ssid", true)->value();
                 String pass = req->hasParam("pass", true)
@@ -133,86 +148,157 @@ display:flex;justify-content:center;align-items:center;min-height:100vh;font-siz
                 p.putString(NVS_KEY_WIFI_PASS, pass);
                 p.end();
 
+                Serial.printf("[WiFi] Saved: SSID=\"%s\"\n", ssid.c_str());
                 req->send(200, "text/html", SAVED_HTML);
-
-                // Finding #16 fix: spawn reboot task instead of delay()+restart().
-                // delay() inside an AsyncWebServer callback blocks the lwIP event
-                // loop — dropping frames and risking TWDT panic. The reboot task
-                // yields the CPU immediately and restarts 1500ms later.
                 xTaskCreate(reboot_task, "REBOOT", 1024, nullptr, 1, nullptr);
             } else {
                 req->send(400, "text/plain", "Missing SSID");
             }
         });
 
-        portalServer.begin();
+        // 5. Start the server NOW — on the AP interface
+        startServer();
+        Serial.println("[WiFi] Portal LIVE → connect to 'SGS-Setup' and open 192.168.4.1");
 
-        // Block here serving the captive portal.
-        // This is now safe — we are inside task_wifi_provision, not setup().
-        // Core 0 runs task_protection unaffected.
+        // 6. Block forever serving DNS
         while (true) {
             dns.processNextRequest();
             vTaskDelay(pdMS_TO_TICKS(10));
         }
     }
 
-    // ── WiFi provisioning task ─────────────────────────────────────────────
-    // Runs on Core 1 as a background task. Attempts STA connection, falls
-    // back to captive portal on failure. Never returns or blocks setup().
+    // ── Main provisioning task ───────────────────────────────────────────
     void task_wifi_provision(void* pvParam) {
-        // Read stored credentials
-        prefs.begin(NVS_NAMESPACE, true);
-        String ssid = prefs.getString(NVS_KEY_WIFI_SSID, "");
-        String pass = prefs.getString(NVS_KEY_WIFI_PASS, "");
+        vTaskDelay(pdMS_TO_TICKS(500));  // let other tasks start first
+
+        // BUG-06 FIX: Previously hardcoded to "Lunch"/"saikiran" instead of
+        // reading saved NVS preferences. If the user configured WiFi via the
+        // captive portal or REST API, those saved credentials were completely
+        // ignored on every boot. Now reads NVS first, falls back to hardcoded
+        // values only if NVS is empty (first-boot scenario).
+        Preferences prefs;
+        prefs.begin(NVS_NAMESPACE, true);  // read-only
+        String nvs_ssid = prefs.getString(NVS_KEY_WIFI_SSID, "");
+        String nvs_pass = prefs.getString(NVS_KEY_WIFI_PASS, "");
         prefs.end();
 
-        if (ssid.isEmpty()) {
-            Serial.println("[WiFi] No credentials — starting provisioning");
-            startCaptivePortal(); // blocks forever inside this task
-            vTaskDelete(nullptr); // never reached
-            return;
+        const char* ssid;
+        const char* pass;
+        // Static buffers to hold NVS strings (String objects die after scope)
+        static char ssid_buf[33] = {};
+        static char pass_buf[65] = {};
+
+        if (nvs_ssid.length() > 0) {
+            strncpy(ssid_buf, nvs_ssid.c_str(), sizeof(ssid_buf) - 1);
+            strncpy(pass_buf, nvs_pass.c_str(), sizeof(pass_buf) - 1);
+            ssid = ssid_buf;
+            pass = pass_buf;
+            Serial.printf("[WiFi] Using NVS credentials: \"%s\"\n", ssid);
+        } else {
+            // Fallback: hardcoded bench credentials (first boot only)
+            ssid = "Lunch";
+            pass = "saikiran";
+            Serial.println("[WiFi] No NVS credentials — using hardcoded defaults");
         }
 
-        Serial.printf("[WiFi] Connecting to \"%s\"...\n", ssid.c_str());
+        Serial.println("\n[WiFi] ═══════════════════════════════════");
+        Serial.printf( "[WiFi] Attempting: \"%s\" (20s timeout)\n", ssid);
+        Serial.println("[WiFi] ═══════════════════════════════════\n");
+
+        // ── Step 1.5: Scan for visible networks ──────────────────────────
         WiFi.mode(WIFI_STA);
-        WiFi.begin(ssid.c_str(), pass.c_str());
+        WiFi.disconnect();
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        Serial.println("[WiFi] Scanning for networks...");
+        int n = WiFi.scanNetworks();
+        if (n == 0) {
+            Serial.println("[WiFi] !! NO NETWORKS FOUND — is 2.4GHz enabled on router?");
+        } else {
+            Serial.printf("[WiFi] Found %d networks:\n", n);
+            bool found = false;
+            for (int i = 0; i < n; i++) {
+                String name = WiFi.SSID(i);
+                Serial.printf("[WiFi]   %d: %-32s  %ddBm  ch%d  %s\n",
+                    i + 1,
+                    name.c_str(),
+                    WiFi.RSSI(i),
+                    WiFi.channel(i),
+                    WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "OPEN" : "SECURED");
+                if (name == ssid) found = true;
+            }
+            if (!found) {
+                Serial.printf("[WiFi] !! WARNING: \"%s\" NOT FOUND in scan results!\n", ssid);
+                Serial.println("[WiFi] !! Check: exact spelling, 2.4GHz (not 5GHz), router powered on");
+            }
+        }
+        WiFi.scanDelete();
+
+        // ── Step 2: Connect ───────────────────────────────────────────────
+        WiFi.setAutoReconnect(true);
+        WiFi.begin(ssid, pass);
 
         uint32_t t0 = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - t0) < 30000) {
-            vTaskDelay(pdMS_TO_TICKS(500)); // yield — don't use delay() in RTOS tasks
+        int dots = 0;
+        while (WiFi.status() != WL_CONNECTED && (millis() - t0) < 20000) {
+            vTaskDelay(pdMS_TO_TICKS(500));
             Serial.print(".");
+            dots++;
+            if (dots % 20 == 0) {
+                Serial.printf(" [status=%d, %lums]\n", WiFi.status(), millis() - t0);
+            }
         }
         Serial.println();
 
+        // ── Step 3: Evaluate ──────────────────────────────────────────────
         if (WiFi.status() == WL_CONNECTED) {
             connected = true;
             strncpy(ip_str, WiFi.localIP().toString().c_str(), sizeof(ip_str) - 1);
             ip_str[sizeof(ip_str) - 1] = '\0';
-            Serial.printf("[WiFi] Connected. IP: %s\n", ip_str);
-        } else {
-            Serial.println("[WiFi] Connection failed — starting provisioning");
-            startCaptivePortal(); // blocks forever inside this task
+
+            Serial.println("\n========================================");
+            Serial.println(" 🌐 NETWORK INTERFACE READY");
+            Serial.printf( "    IP Address : %s\n", ip_str);
+            Serial.printf( "    RSSI       : %d dBm\n", WiFi.RSSI());
+            Serial.printf( "    Channel    : %d\n", WiFi.channel());
+            Serial.println("========================================\n");
+
+            // Start the HTTP server NOW — WiFi is live, port 80 will bind correctly
+            startServer();
+
+            vTaskDelete(nullptr);
+            return;
         }
 
-        vTaskDelete(nullptr); // clean up if we somehow exit (should not happen)
+        // ── Step 4: Failed — dump diagnostics then portal ─────────────────
+        Serial.println("\n[WiFi] !! CONNECTION FAILED !!");
+        Serial.printf( "[WiFi] Last status code: %d\n", WiFi.status());
+        Serial.println("[WiFi]   0=IDLE, 1=NO_SSID, 2=SCAN_DONE, 3=CONNECTED");
+        Serial.println("[WiFi]   4=CONNECT_FAIL, 5=LOST, 6=DISCONNECTED");
+        Serial.println("[WiFi] Falling back to captive portal...\n");
+
+        startCaptivePortal();  // blocks forever
+        vTaskDelete(nullptr);  // never reached
     }
 }
 
 namespace WiFiManager {
 
-    // Launch WiFi provisioning as a background task on Core 1.
-    // Returns immediately. task_protection must already be running.
+    void setServer(AsyncWebServer* server) {
+        sharedServer = server;
+    }
+
     void startProvisionTask() {
         xTaskCreatePinnedToCore(
             task_wifi_provision,
             "WIFI_PROV",
-            4096,       // 4K stack: enough for WiFi.begin() + DNS + portal server
+            8192,       // 8K stack — WiFi ops are stack-hungry on ESP32
             nullptr,
             2,          // Priority 2: below comms (3), above health (1)
             nullptr,
-            1           // Core 1: same as task_comms, away from protection Core 0
+            1           // Core 1
         );
-        Serial.println("[WiFi] Provisioning task launched (background)");
+        LOG_WIFI("Provisioning task launched");
     }
 
     bool isConnected() { return connected; }

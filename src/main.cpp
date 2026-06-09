@@ -63,14 +63,24 @@ void task_usb_hil_listener(void *pvParameters) {
     while (true) {
         if (Serial.available() > 0) {
             String payload = Serial.readStringUntil('\n');
-            int commaIndex = payload.indexOf(',');
-            
-            if (commaIndex > 0) {
-                hil_cmd.target_voltage = payload.substring(0, commaIndex).toFloat();
-                hil_cmd.trigger_motor = payload.substring(commaIndex + 1).toInt() == 1;
-                
-                // Fire the atomic flare to Core 1
+            payload.trim();
+            if (payload == "RESET") {
+                hil_cmd.target_voltage = -1.0f; // Magic value for reset
                 hil_cmd.test_ready.store(true, std::memory_order_release);
+            } else {
+                int c1 = payload.indexOf(',');
+                int c2 = payload.indexOf(',', c1 + 1);
+                int c3 = payload.indexOf(',', c2 + 1);
+                
+                if (c1 > 0 && c2 > 0 && c3 > 0) {
+                    hil_cmd.target_voltage = payload.substring(0, c1).toFloat();
+                    hil_cmd.target_current = payload.substring(c1 + 1, c2).toFloat();
+                    hil_cmd.trigger_motor = payload.substring(c2 + 1, c3).toInt() == 1;
+                    hil_cmd.ticks = payload.substring(c3 + 1).toInt();
+                    
+                    // Fire the atomic flare to Core 1
+                    hil_cmd.test_ready.store(true, std::memory_order_release);
+                }
             }
         }
         vTaskDelay(pdMS_TO_TICKS(50)); // Don't starve Core 0
@@ -94,36 +104,63 @@ void task_protection(void* pvParam) {
 
         // ── HIL ACCELERATOR INTERCEPT ──
         if (hil_cmd.test_ready.load(std::memory_order_acquire)) {
-            // Setup motor startup if requested
-            if (hil_cmd.trigger_motor) {
-                FaultEngine::evaluate(hil_cmd.target_voltage, 85.0f, 35.0f, 0, 0, 10000);
-            } else {
-                FaultEngine::evaluate(hil_cmd.target_voltage, 5.0f, 35.0f, 0, 0, 10000);
+            static uint32_t spoofed_now_ms = 10000;
+            
+            if (hil_cmd.target_voltage < 0.0f) {
+                // RESET Command received
+                FaultEngine::clearAll();
+                FSM::init(); // FORCE reset FSM immediately, ignoring DOB locks!
+                FaultEngine::notifyRelayClosed(); // Arm IDMT & Blanking logic
+                spoofed_now_ms = 10000;
+                
+                // Disarm FIRST so new commands from PC don't get clobbered
+                hil_cmd.test_ready.store(false, std::memory_order_release);
+
+                Serial.printf("{\"status\":\"RESET_ACK\"}\n");
+                Serial.flush(); // Must exit TX FIFO before orchestrator times out
+                continue;
             }
             
-            uint32_t spoofed_now_ms = 10010;
-            int ticks = 0;
+            int target_ticks = hil_cmd.ticks;
+            int ticks_executed = 0;
             uint64_t cpu_start_us = esp_timer_get_time();
             
-            while (!FaultEngine::hasFault() && ticks < 200) {
-                float current_amps = hil_cmd.trigger_motor ? 85.0f : 5.0f;
-                if (hil_cmd.trigger_motor && ticks > 20) {
-                    current_amps = 5.0f; // Simulate motor acceleration after ~200ms
-                }
-                FaultEngine::evaluate(hil_cmd.target_voltage, current_amps, 35.0f, 0, 0, spoofed_now_ms);
+            // Strictly loop for the requested tick count or until a fault throws
+            while (!FaultEngine::hasFault() && ticks_executed < target_ticks) {
+                int mock_raw = 2048 + (ticks_executed % 4);
+                FaultEngine::evaluate(hil_cmd.target_voltage, hil_cmd.target_current, 35.0f, mock_raw, mock_raw, spoofed_now_ms, !hil_cmd.trigger_motor);
+                // BUG-18 FIX: Drive FSM with simulated time so it correctly
+                // evaluates state transitions (BOOT→NORMAL, FAULT→RECOVERY,
+                // lockout timers, reclose delays) during HIL. Without this,
+                // the FSM stays in FSM_BOOT because millis() returns real time
+                // which doesn't advance fast enough in the accelerated loop.
+                FSM::tick(35.0f, hil_cmd.target_voltage, spoofed_now_ms);
                 spoofed_now_ms += 10; 
-                ticks++;
+                ticks_executed++;
+
+                if (ticks_executed % 2000 == 0) {
+                    esp_task_wdt_reset();
+                    vTaskDelay(1); // Yield to prevent Core 0 watchdog panic on deep simulations
+                }
             }
             
             uint64_t cpu_stop_us = esp_timer_get_time();
             float pure_compute_ms = (cpu_stop_us - cpu_start_us) / 1000.0f;
-            int simulated_time_ms = ticks * 10;
+            int simulated_time_ms = ticks_executed * 10;
             
-            Serial.printf("{\"result\":\"TRIPPED\",\"sim_time_ms\":%d,\"cpu_math_ms\":%.4f}\n", 
-                          simulated_time_ms, pure_compute_ms);
-            
-            FaultEngine::clearAll();
+            // Disarm atomic lock BEFORE the delay, so PC's quick response is caught
             hil_cmd.test_ready.store(false, std::memory_order_release);
+
+            if (FaultEngine::hasFault()) {
+                 Serial.printf("{\"status\":\"TRIPPED\",\"sim_time_ms\":%d,\"cpu_math_ms\":%.4f}\n", simulated_time_ms, pure_compute_ms);
+            } else {
+                 Serial.printf("{\"status\":\"DONE\",\"sim_time_ms\":%d,\"cpu_math_ms\":%.4f}\n", simulated_time_ms, pure_compute_ms);
+            }
+            
+            Serial.flush(); // Ensure the full JSON frame exits the TX FIFO before
+                            // the orchestrator sends the next RESET command.
+            vTaskDelay(pdMS_TO_TICKS(50)); // Give USB CDC host side time to read.
+            
             continue; // Skip physical read this cycle
         }
 
@@ -331,16 +368,23 @@ void setup() {
     static void*        health_params[2];
 
     // Step 4: Launch protection task — ALWAYS, with no WiFi dependency
-    xTaskCreatePinnedToCore(
+    // BUG-11/12 FIX: xTaskCreatePinnedToCore returns pdFAIL on heap
+    // exhaustion, leaving h_prot/h_comms as nullptr. The health monitor
+    // would then call uxTaskGetStackHighWaterMark(nullptr) — UB on ESP32.
+    // configASSERT halts with a backtrace instead of silently continuing
+    // into a boot-loop or load-prohibition panic.
+    BaseType_t rc_prot = xTaskCreatePinnedToCore(
         task_protection, "PROT",
         TASK_PROT_STACK_WORDS, nullptr,
         TASK_PROT_PRIORITY, &h_prot, 0);
+    configASSERT(rc_prot == pdPASS);
 
     // Step 5: Launch comms task
-    xTaskCreatePinnedToCore(
+    BaseType_t rc_comms = xTaskCreatePinnedToCore(
         task_comms, "COMMS",
         TASK_COMMS_STACK_WORDS, nullptr,
         TASK_COMMS_PRIORITY, &h_comms, 1);
+    configASSERT(rc_comms == pdPASS);
 
     // Step 6: Launch health monitor
     health_params[0] = h_prot;

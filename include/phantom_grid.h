@@ -16,7 +16,8 @@ enum class SilCommand : uint32_t {
     TRIGGER_SWELL = 5,
     ENABLE_FLICKER = 6,
     DISABLE_FLICKER = 7,
-    DISABLE_SIMULATION = 8
+    DISABLE_SIMULATION = 8,
+    CUSTOM_LOAD = 9
 };
 
 // Parameter slots (written with memory_order_relaxed BEFORE the command)
@@ -29,7 +30,9 @@ extern std::atomic<SilCommand> g_sil_cmd;
 struct HIL_Cmd {
     std::atomic<bool> test_ready{false};
     float target_voltage;
+    float target_current;
     bool trigger_motor;
+    int ticks;
 };
 
 extern HIL_Cmd hil_cmd;

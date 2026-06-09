@@ -32,7 +32,8 @@ import { Page2Faults }      from './pages/page2-faults.js';
 import { Page3Diagnostics } from './pages/page3-diagnostics.js?v=5';
 import { Page4Cloud }       from './pages/page4-cloud.js?v=5';
 import { Page5Analytics }   from './pages/page5-analytics.js?v=5';
-import { getKey, setKey, isConfigured } from './utils/apiAuth.js';
+import { Page6Phantom }     from './pages/page6-phantom.js';
+import { getKey, setKey, getTargetIp, setTargetIp, isConfigured } from './utils/apiAuth.js';
 
 // ── Dev mode detection ────────────────────────────────────────────────────
 // Automatically true on localhost / file:// so the dashboard works immediately
@@ -40,25 +41,32 @@ import { getKey, setKey, isConfigured } from './utils/apiAuth.js';
 // override in non-standard dev setups.
 const FORCE_DEV_MODE = false;  // override if needed
 
-// DEV_MODE auto-detection:
-//   localhost:3000 → relay server is running → use REAL telemetry (not mock)
-//   localhost on any other port / file:// → dev mock mode
-const _isRelayServer =
-  window.location.hostname === 'localhost' &&
-  window.location.port === '3000';
-
-const DEV_MODE = FORCE_DEV_MODE || (
-  !_isRelayServer && (
-    window.location.hostname === 'localhost'  ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname === ''           ||  // file:// origin
-    window.location.protocol  === 'file:'
-  )
-);
+// DEV_MODE is now strictly controlled by FORCE_DEV_MODE instead of 
+// auto-detecting localhost so that Live Server extensions don't trigger mock data.
+const DEV_MODE = FORCE_DEV_MODE;
 
 if (DEV_MODE) {
   console.info('[main] DEV_MODE active — using mock telemetry (mockData.js)');
 }
+
+// ── Pre-fill MQTT defaults ────────────────────────────────────────────────
+// If the user has never visited page4, seed localStorage with the known
+// HiveMQ credentials so the form is ready to use immediately.
+// Password is intentionally NOT seeded — user must enter it every session.
+(function _seedMqttDefaults() {
+  const LS_BROKER = 'sgs_mqtt_broker';
+  const LS_USER   = 'sgs_mqtt_user';
+  const LS_TOPIC  = 'sgs_mqtt_topic';
+  if (!localStorage.getItem(LS_BROKER)) {
+    localStorage.setItem(LS_BROKER, 'wss://e7fc2b846d3f4104914943838d5c7c27.s1.eu.hivemq.cloud:8884/mqtt');
+  }
+  if (!localStorage.getItem(LS_USER)) {
+    localStorage.setItem(LS_USER,   'sgs-device-01');
+  }
+  if (!localStorage.getItem(LS_TOPIC)) {
+    localStorage.setItem(LS_TOPIC,  'sgs/device/+/telemetry');
+  }
+})();
 
 class _NullPage {
   mount(containerEl)    { /* leave phase placeholder divs intact */ }
@@ -75,6 +83,7 @@ const PAGE_REGISTRY = {
   diagnostics: Page3Diagnostics,
   cloud:       Page4Cloud,
   analytics:   Page5Analytics,
+  phantom:     Page6Phantom,
 };
 
 // ── Router state ──────────────────────────────────────────────────────────
@@ -192,30 +201,35 @@ function _initFetchInterceptor() {
   const _origFetch = window.fetch.bind(window);
 
   window.fetch = function (input, init = {}) {
-    const urlStr = (input instanceof Request) ? input.url : String(input);
+    let urlStr = (input instanceof Request) ? input.url : String(input);
 
     // Only inject on same-origin requests (device IP) — never on external URLs.
-    // A URL is same-origin if it is relative ('/api/…') or explicitly matches
-    // the current origin (http://192.168.x.x/…).
-    const isSameOrigin =
-      urlStr.startsWith('/') ||
-      urlStr.startsWith(window.location.origin);
+    const isRelative = urlStr.startsWith('/');
+    const isSameOrigin = isRelative || urlStr.startsWith(window.location.origin);
 
     const key = getKey();
+    const targetIp = getTargetIp();
 
-    if (isSameOrigin && key) {
-      // Merge headers without mutating the caller's object
-      const merged = new Headers(
-        init.headers || (input instanceof Request ? input.headers : {})
-      );
-      merged.set('X-API-Key', key);
-      init = { ...init, headers: merged };
+    if (isSameOrigin) {
+      if (key) {
+        // Merge headers without mutating the caller's object
+        const merged = new Headers(
+          init.headers || (input instanceof Request ? input.headers : {})
+        );
+        merged.set('X-API-Key', key);
+        init = { ...init, headers: merged };
+      }
+
+      if (isRelative && targetIp) {
+        urlStr = `http://${targetIp}${urlStr}`;
+        input = urlStr;
+      }
     }
 
     return _origFetch(input, init);
   };
 
-  console.info('[main] fetch interceptor active — X-API-Key injected on same-origin requests');
+  console.info('[main] fetch interceptor active — X-API-Key and Target IP injected on same-origin requests');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -224,68 +238,54 @@ function _initFetchInterceptor() {
 // is stored. Dismissed permanently once a key is entered.
 // ══════════════════════════════════════════════════════════════════════════
 
-function _showKeyBanner() {
-  if (isConfigured()) return; // already set — nothing to show
+function _initConnectUI() {
+  const btn = document.getElementById('nav-connect-btn');
+  const modal = document.getElementById('connect-modal');
+  const ipInput = document.getElementById('connect-ip-input');
+  const keyInput = document.getElementById('connect-key-input');
+  const cancelBtn = document.getElementById('connect-cancel-btn');
+  const saveBtn = document.getElementById('connect-save-btn');
 
-  const banner = document.createElement('div');
-  banner.id = 'sgs-key-banner';
-  banner.style.cssText = [
-    'position: fixed',
-    'bottom: 0',
-    'left: 0',
-    'right: 0',
-    'z-index: 9999',
-    'background: #131613',
-    'border-top: 1px solid rgba(255,255,255,0.12)',
-    'padding: 12px 24px',
-    'display: flex',
-    'align-items: center',
-    'gap: 12px',
-    'font-family: var(--font-primary, system-ui)',
-    'font-size: 13px',
-    'color: #8a8e8a',
-  ].join(';');
+  if (!btn || !modal) return;
 
-  banner.innerHTML = `
-    <span style="flex:1">
-      Enter your <strong style="color:#e8ebe5">X-API-Key</strong>
-      to enable relay control and alarm acknowledgement.
-    </span>
-    <input id="sgs-key-input" type="password"
-      placeholder="Paste API key…"
-      autocomplete="off" spellcheck="false"
-      style="background:#0d0f0d;border:1px solid rgba(255,255,255,0.12);
-             border-radius:8px;color:#e8ebe5;font-size:13px;
-             padding:6px 12px;outline:none;width:220px;" />
-    <button id="sgs-key-save"
-      style="background:#1D9E75;color:#060f06;border:none;border-radius:8px;
-             padding:7px 18px;font-size:13px;font-weight:500;cursor:pointer;">
-      Save
-    </button>
-    <button id="sgs-key-skip"
-      style="background:transparent;color:#5a5e5a;border:none;
-             font-size:13px;cursor:pointer;padding:7px 10px;">
-      Skip
-    </button>
-  `;
+  // Pre-fill inputs
+  ipInput.value = getTargetIp() || '';
+  keyInput.value = getKey() || '';
 
-  document.body.appendChild(banner);
-
-  document.getElementById('sgs-key-save').addEventListener('click', () => {
-    const val = document.getElementById('sgs-key-input').value.trim();
-    if (!val) return;
-    setKey(val);
-    banner.remove();
-    console.info('[main] API key saved');
+  // Toggle modal
+  btn.addEventListener('click', () => {
+    const isVisible = modal.style.display === 'block';
+    modal.style.display = isVisible ? 'none' : 'block';
   });
 
-  document.getElementById('sgs-key-skip').addEventListener('click', () => {
-    banner.remove();
+  // Cancel
+  cancelBtn.addEventListener('click', () => {
+    modal.style.display = 'none';
   });
 
-  // Also save on Enter key inside the input
-  document.getElementById('sgs-key-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('sgs-key-save').click();
+  // Save
+  saveBtn.addEventListener('click', () => {
+    const keyVal = keyInput.value.trim();
+    const ipVal = ipInput.value.trim();
+    
+    if (keyVal) setKey(keyVal);
+    if (ipVal) setTargetIp(ipVal);
+
+    modal.style.display = 'none';
+    console.info('[main] Target connection updated');
+
+    // Refresh telemetry connection with new IP if applicable
+    if (ipVal && !DEV_MODE) {
+      telemetryPoller.disconnect();
+      telemetryPoller.connect(ipVal);
+    }
+  });
+
+  // Close when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!modal.contains(e.target) && !btn.contains(e.target)) {
+      modal.style.display = 'none';
+    }
   });
 }
 
@@ -335,7 +335,7 @@ function _initTelemetry() {
       // Future: update connectivity indicator in Zone 1
     });
 
-    telemetryPoller.connect('localhost:3000');
+    telemetryPoller.connect(getTargetIp() || window.location.host);
   }
 }
 
@@ -348,8 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Skip in DEV_MODE — no auth needed on localhost.
   if (!DEV_MODE) {
     _initFetchInterceptor();
-    _showKeyBanner();
   }
+  
+  // Always init the Connect UI
+  _initConnectUI();
 
   _initRouter();
   mountPage('status');   // mount initial page before telemetry starts

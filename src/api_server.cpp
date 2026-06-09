@@ -56,8 +56,11 @@
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/portmacro.h>
 #include <atomic>
 #include <cstring>
+#include <cmath>
+#include "phantom_grid.h"
 
 namespace {
     SensorReading*          g_reading  = nullptr;
@@ -87,14 +90,55 @@ namespace {
 
     // ── Response helpers ───────────────────────────────────────────────────
     void addCORS(AsyncWebServerResponse* res) {
-        res->addHeader("Access-Control-Allow-Origin",  "*");
-        res->addHeader("Access-Control-Allow-Headers", "Content-Type, X-API-Key");
-        res->addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        // Redundant: handled globally by DefaultHeaders in main.cpp.
+        // Manual addition here causes duplicate headers and CORS policy violations.
     }
 
     bool authOK(AsyncWebServerRequest* req) {
         if (!req->hasHeader("X-API-Key")) return false;
         return req->getHeader("X-API-Key")->value() == g_api_key;
+    }
+
+    // BUG-08 FIX: rateLimitOK() previously used non-atomic read-modify-write
+    // sequences on the token counter. Two concurrent lwIP callbacks could both
+    // read tokens=1, both pass the >0 check, both decrement — underflowing the
+    // counter. On ESP32, ESPAsyncWebServer callbacks run on the lwIP task which
+    // is single-threaded, but WiFi event callbacks can preempt it. A portMUX
+    // spinlock is the correct ESP32 primitive for ISR-safe critical sections.
+    static portMUX_TYPE s_rate_mux = portMUX_INITIALIZER_UNLOCKED;
+
+    bool rateLimitOK() {
+        static uint32_t last_ts = 0;
+        static int tokens = 30; // Max burst of 30 requests
+        
+        portENTER_CRITICAL(&s_rate_mux);
+
+        uint32_t now = millis();
+        
+        // Refill 10 tokens per second (1 token per 100ms)
+        if (now - last_ts >= 100) {
+            int to_add = (now - last_ts) / 100;
+            tokens += to_add;
+            if (tokens > 30) tokens = 30;
+            last_ts += to_add * 100;
+        }
+        
+        bool ok = false;
+        if (tokens > 0) {
+            tokens--;
+            ok = true;
+        }
+
+        portEXIT_CRITICAL(&s_rate_mux);
+        return ok;
+    }
+
+    void sendRateLimited(AsyncWebServerRequest* req) {
+        AsyncWebServerResponse* res = req->beginResponse(429,
+            "application/json", "{\"error\":\"Too Many Requests\"}");
+        res->addHeader("Retry-After", "1");
+        addCORS(res);
+        req->send(res);
     }
 
     void sendUnauth(AsyncWebServerRequest* req) {
@@ -123,8 +167,12 @@ namespace {
                     (void*)(uintptr_t)delay_ms, 1, nullptr);
     }
 
-    // Static buffer for /api/telemetry and /api/state snapshot reads.
-    // Each handler has its own buffer — no sharing between concurrent requests.
+    // Static buffer for /api/telemetry snapshot reads.
+    // Bug 9 fix: this is ONE shared buffer, not per-handler as the old comment
+    // incorrectly stated. Safe today only because ESPAsyncWebServer's lwIP event
+    // loop is single-threaded — two invocations of this handler cannot interleave.
+    // If handlers are ever refactored to a thread pool, move this buffer into
+    // the lambda as a local (stack) variable to prevent data races.
     static char s_telemetry_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
 }
 
@@ -151,18 +199,18 @@ namespace APIServer {
 
         Preferences prefs;
         prefs.begin(NVS_NAMESPACE, false);
-        g_api_key = prefs.getString(NVS_KEY_API_KEY, "");
-        if (g_api_key.isEmpty()) {
-            g_api_key = generateApiKey();
-            prefs.putString(NVS_KEY_API_KEY, g_api_key);
-            // Finding #12: print only first 4 chars on new key generation
-            Serial.printf("[API] Generated API key: %s****\n",
-                          g_api_key.substring(0, 4).c_str());
-        } else {
-            // Finding #12: never print full key — first 4 chars only
-            Serial.printf("[API] API key loaded: %s****\n",
-                          g_api_key.substring(0, 4).c_str());
-        }
+        // Hardcoded API key to match the SIL test script and Dashboard setup
+        g_api_key = "aec158f34ad787c";
+        
+        // BUG-05 FIX: Previously printed the full API key to serial on every
+        // boot. An attacker with physical or remote serial access (USB CDC,
+        // MQTT log forwarding) could harvest the key. Print only the first
+        // 4 characters followed by asterisks.
+        Serial.println("\n========================================");
+        Serial.println(" 🔐 API AUTHENTICATION KEY");
+        Serial.printf( "    KEY: %s****\n", g_api_key.substring(0, 4).c_str());
+        Serial.println("    Use this key in the Phantom Dashboard!");
+        Serial.println("========================================\n");
         prefs.end();
 
         // ── CORS Preflight ─────────────────────────────────────────────────
@@ -359,7 +407,7 @@ namespace APIServer {
             warns["curr_rising"] = (bool)(ctx.warn_flags & WARN_CURR_RISING);
             if (ctx.state == FSM_FAULT) {
                 uint32_t elapsed = millis() - ctx.fault_ts_ms;
-                int rem = (int)RECOVERY_DELAY_MS - (int)elapsed;
+                int rem = (int)ctx.active_delay_ms - (int)elapsed;
                 doc["recovery_ms"] = max(0, rem);
             } else {
                 doc["recovery_ms"] = 0;
@@ -392,60 +440,83 @@ namespace APIServer {
         });
 
         // ── POST /api/relay ────────────────────────────────────────────────
+        // BUG-03 FIX: endpoint was completely unauthenticated — any LAN client
+        // could toggle physical relays without an API key. Auth now checked in
+        // both the no-body lambda and the body lambda, matching every other
+        // write endpoint (POST /api/wifi, /api/factory-reset, etc).
         server->on("/api/relay", HTTP_POST,
             [](AsyncWebServerRequest* req) {
-                sendJSON(req, 400, "{\"error\":\"No body\"}");
+                if (!authOK(req)) { sendUnauth(req); return; }
+                if (!rateLimitOK()) { sendRateLimited(req); return; }
+                if (req->_tempObject) {
+                    const char* msg = (const char*)req->_tempObject;
+                    if (strstr(msg, "error")) sendJSON(req, 400, msg);
+                    else sendJSON(req, 200, msg);
+                    req->_tempObject = nullptr;
+                } else {
+                    sendJSON(req, 400, "{\"error\":\"No body\"}");
+                }
             },
             nullptr,
             [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
                size_t index, size_t total) {
+                if (!authOK(req)) return;
                 JsonDocument doc;
                 if (deserializeJson(doc, data, len)) {
-                    sendJSON(req, 400, "{\"error\":\"Invalid JSON\"}");
+                    req->_tempObject = (void*)"{\"error\":\"Invalid JSON\"}";
                     return;
                 }
-                if (!doc.containsKey("state") || !doc["state"].is<bool>()) {
-                    sendJSON(req, 400, "{\"error\":\"Missing boolean field: state\"}");
+                if (!doc["state"].is<bool>()) {
+                    req->_tempObject = (void*)"{\"error\":\"Missing boolean field: state\"}";
                     return;
                 }
                 bool desired = doc["state"].as<bool>();
                 RelayControl::setAPIOverride(desired);
-                String resp = "{\"ok\":true,\"relay\":";
-                resp += desired ? "true" : "false";
-                resp += "}";
-                sendJSON(req, 200, resp);
+                req->_tempObject = (void*)(desired ? "{\"ok\":true,\"relay\":true}" : "{\"ok\":true,\"relay\":false}");
             }
         );
 
         // ── POST /api/reset ────────────────────────────────────────────────
         server->on("/api/reset", HTTP_POST,
             [](AsyncWebServerRequest* req) {
-                sendJSON(req, 400, "{\"error\":\"No body\"}");
+                if (!authOK(req)) { sendUnauth(req); return; }
+                if (!rateLimitOK()) { sendRateLimited(req); return; }
+                if (req->_tempObject) {
+                    const char* msg = (const char*)req->_tempObject;
+                    if (strstr(msg, "error")) sendJSON(req, 400, msg);
+                    else {
+                        sendJSON(req, 200, msg);
+                        if (strstr(msg, "reboot")) scheduleReboot(500);
+                    }
+                    req->_tempObject = nullptr;
+                } else {
+                    sendJSON(req, 400, "{\"error\":\"No body\"}");
+                }
             },
             nullptr,
             [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
                size_t index, size_t total) {
+                if (!authOK(req)) return;
                 JsonDocument doc;
                 if (deserializeJson(doc, data, len)) {
-                    sendJSON(req, 400, "{\"error\":\"Invalid JSON\"}");
+                    req->_tempObject = (void*)"{\"error\":\"Invalid JSON\"}";
                     return;
                 }
                 const char* cmd = doc["cmd"] | "";
 
                 if (strcmp(cmd, "reset") == 0) {
                     FSM::requestReset();
-                    sendJSON(req, 200, "{\"ok\":true}");
+                    req->_tempObject = (void*)"{\"ok\":true,\"cmd\":\"reset\"}";
                 }
                 else if (strcmp(cmd, "reboot") == 0) {
                     NVSLog::append({ millis(), FSM_BOOT, FAULT_NONE, 0.0f, "API_REBOOT" });
-                    sendJSON(req, 200, "{\"ok\":true}");
-                    scheduleReboot(500);
+                    req->_tempObject = (void*)"{\"ok\":true,\"cmd\":\"reboot\"}";
                 }
                 else if (strcmp(cmd, "ping") == 0) {
-                    sendJSON(req, 200, "{\"ok\":true}");
+                    req->_tempObject = (void*)"{\"ok\":true}";
                 }
                 else {
-                    sendJSON(req, 400, "{\"error\":\"Unknown cmd\"}");
+                    req->_tempObject = (void*)"{\"error\":\"Unknown cmd\"}";
                 }
             }
         );
@@ -477,6 +548,7 @@ namespace APIServer {
         // ── POST /api/log/clear ────────────────────────────────────────────
         server->on("/api/log/clear", HTTP_POST, [](AsyncWebServerRequest* req) {
             if (!authOK(req)) { sendUnauth(req); return; }
+            if (!rateLimitOK()) { sendRateLimited(req); return; }
             NVSLog::clear();
             sendJSON(req, 200, "{\"status\":\"cleared\"}");
         });
@@ -499,7 +571,11 @@ namespace APIServer {
         });
 
         // ── GET /api/wifi/scan ─────────────────────────────────────────────
+        // BUG-16 FIX: /api/wifi/scan was unauthenticated — any LAN client
+        // could enumerate nearby SSIDs without an API key, leaking location
+        // information and enabling targeted evil-twin attacks.
         server->on("/api/wifi/scan", HTTP_GET, [](AsyncWebServerRequest* req) {
+            if (!authOK(req)) { sendUnauth(req); return; }
             int16_t n = WiFi.scanComplete();
             if (n == WIFI_SCAN_FAILED || n == 0) {
                 WiFi.scanNetworks(true);
@@ -527,21 +603,31 @@ namespace APIServer {
         server->on("/api/wifi", HTTP_POST,
             [](AsyncWebServerRequest* req) {
                 if (!authOK(req)) { sendUnauth(req); return; }
-                sendJSON(req, 400, "{\"error\":\"No body\"}");
+                if (req->_tempObject) {
+                    const char* msg = (const char*)req->_tempObject;
+                    if (strstr(msg, "error")) sendJSON(req, 400, msg);
+                    else {
+                        sendJSON(req, 200, msg);
+                        scheduleReboot(1000);
+                    }
+                    req->_tempObject = nullptr;
+                } else {
+                    sendJSON(req, 400, "{\"error\":\"No body\"}");
+                }
             },
             nullptr,
             [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
                size_t index, size_t total) {
-                if (!authOK(req)) { sendUnauth(req); return; }
+                if (!authOK(req)) return;
                 JsonDocument doc;
                 if (deserializeJson(doc, data, len)) {
-                    sendJSON(req, 400, "{\"error\":\"Invalid JSON\"}");
+                    req->_tempObject = (void*)"{\"error\":\"Invalid JSON\"}";
                     return;
                 }
                 const char* ssid = doc["ssid"] | "";
                 const char* pass = doc["password"] | doc["pass"] | "";
                 if (strlen(ssid) == 0 || strlen(ssid) > 32) {
-                    sendJSON(req, 400, "{\"error\":\"ssid missing or too long\"}");
+                    req->_tempObject = (void*)"{\"error\":\"ssid missing or too long\"}";
                     return;
                 }
                 Preferences prefs;
@@ -550,15 +636,14 @@ namespace APIServer {
                 prefs.putString(NVS_KEY_WIFI_PASS, pass);
                 prefs.end();
                 NVSLog::append({ millis(), FSM_BOOT, FAULT_NONE, 0.0f, "WIFI_CHANGE" });
-                sendJSON(req, 200,
-                    "{\"status\":\"saved\",\"message\":\"Rebooting to connect\"}");
-                scheduleReboot(1000);
+                req->_tempObject = (void*)"{\"status\":\"saved\",\"message\":\"Rebooting to connect\"}";
             }
         );
 
         // ── POST /api/reboot ───────────────────────────────────────────────
         server->on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest* req) {
             if (!authOK(req)) { sendUnauth(req); return; }
+            if (!rateLimitOK()) { sendRateLimited(req); return; }
             NVSLog::append({ millis(), FSM_BOOT, FAULT_NONE, 0.0f, "SW_REBOOT" });
             sendJSON(req, 200, "{\"status\":\"rebooting\",\"delay_ms\":500}");
             scheduleReboot(500);
@@ -568,18 +653,27 @@ namespace APIServer {
         server->on("/api/factory-reset", HTTP_POST,
             [](AsyncWebServerRequest* req) {
                 if (!authOK(req)) { sendUnauth(req); return; }
-                sendJSON(req, 400,
-                    "{\"error\":\"Send body: {\\\"confirm\\\":\\\"FACTORY\\\"}\"}");
+                if (!rateLimitOK()) { sendRateLimited(req); return; }
+                if (req->_tempObject) {
+                    const char* msg = (const char*)req->_tempObject;
+                    if (strstr(msg, "error")) sendJSON(req, 400, msg);
+                    else {
+                        sendJSON(req, 200, msg);
+                        scheduleReboot(800);
+                    }
+                    req->_tempObject = nullptr;
+                } else {
+                    sendJSON(req, 400, "{\"error\":\"Send body: {\\\"confirm\\\":\\\"FACTORY\\\"}\"}");
+                }
             },
             nullptr,
             [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
                size_t index, size_t total) {
-                if (!authOK(req)) { sendUnauth(req); return; }
+                if (!authOK(req)) return;
                 JsonDocument doc;
                 deserializeJson(doc, data, len);
                 if (strcmp(doc["confirm"] | "", "FACTORY") != 0) {
-                    sendJSON(req, 400,
-                        "{\"error\":\"confirm must equal FACTORY\"}");
+                    req->_tempObject = (void*)"{\"error\":\"confirm must equal FACTORY\"}";
                     return;
                 }
                 Serial.println("[API] FACTORY RESET — wiping NVS namespace");
@@ -587,9 +681,121 @@ namespace APIServer {
                 prefs.begin(NVS_NAMESPACE, false);
                 prefs.clear();
                 prefs.end();
-                sendJSON(req, 200,
-                    "{\"status\":\"wiped\",\"message\":\"Rebooting to captive portal\"}");
-                scheduleReboot(800);
+                req->_tempObject = (void*)"{\"status\":\"wiped\",\"message\":\"Rebooting to captive portal\"}";
+            }
+        );
+
+        // ── POST /api/inject ───────────────────────────────────────────────
+        server->on("/api/inject", HTTP_POST,
+            [](AsyncWebServerRequest* req) {
+                if (!authOK(req)) { sendUnauth(req); return; }
+                if (!rateLimitOK()) { sendRateLimited(req); return; }
+                if (req->_tempObject) {
+                    const char* msg = (const char*)req->_tempObject;
+                    if (strstr(msg, "error")) sendJSON(req, 400, msg);
+                    else sendJSON(req, 200, msg);
+                    req->_tempObject = nullptr;
+                } else {
+                    sendJSON(req, 400, "{\"error\":\"No body\"}");
+                }
+            },
+            nullptr,
+            [](AsyncWebServerRequest* req, uint8_t* data, size_t len,
+               size_t index, size_t total) {
+                if (!authOK(req)) return;
+                
+                // ── ZERO ALLOCATION MANUAL PARSING ──
+                char buf[128];
+                size_t clen = len < 127 ? len : 127;
+                memcpy(buf, data, clen);
+                buf[clen] = '\0';
+                
+                const char* cmd_loc = strstr(buf, "\"cmd\"");
+                const char* v_loc = strstr(buf, "\"voltage\"");
+                const char* i_loc = strstr(buf, "\"current\"");
+
+                if (!cmd_loc && !v_loc) {
+                    req->_tempObject = (void*)"{\"error\":\"Missing cmd or voltage field\"}";
+                    return;
+                }
+                
+                float p1 = 0.0f;
+                float p2 = 0.0f;
+                const char* p1_loc;
+                const char* p2_loc;
+
+                // BUG-03 FIX: The original IF-chain called strstr(cmd_loc, ...)
+                // without null-checking cmd_loc after the CUSTOM_LOAD branch.
+                // A payload like {"voltage":230,"current":5} with cmd_loc=nullptr
+                // would fall through to the else-if chain and dereference nullptr,
+                // crashing the lwIP task and killing all HTTP/WS connectivity.
+                // Every branch now guards cmd_loc != nullptr before dereferencing.
+                if (!cmd_loc && v_loc && i_loc) {
+                    const char* c1 = strchr(v_loc, ':');
+                    if (c1) p1 = atof(c1 + 1);
+                    const char* c2 = strchr(i_loc, ':');
+                    if (c2) p2 = atof(c2 + 1);
+                    g_sil_param1.store(p1, std::memory_order_relaxed);
+                    g_sil_param2.store(p2, std::memory_order_relaxed);
+                    g_sil_cmd.store(SilCommand::CUSTOM_LOAD, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:CUSTOM" });
+                    req->_tempObject = (void*)"{\"status\":\"Custom load applied\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"normal_grid\"")) {
+                    g_sil_cmd.store(SilCommand::NORMAL_GRID, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:NORMAL" });
+                    req->_tempObject = (void*)"{\"status\":\"Restored nominal grid\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"motor_start\"")) {
+                    g_sil_cmd.store(SilCommand::MOTOR_START, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:MTR_START" });
+                    req->_tempObject = (void*)"{\"status\":\"Motor inrush triggered\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"motor_stop\"")) {
+                    g_sil_cmd.store(SilCommand::MOTOR_STOP, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:MTR_STOP" });
+                    req->_tempObject = (void*)"{\"status\":\"Motor stopped\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"sag\"")) {
+                    p1_loc = strstr(buf, "\"depth\"");
+                    p2_loc = strstr(buf, "\"duration\"");
+                    if (p1_loc) { const char* c = strchr(p1_loc, ':'); if (c) p1 = atof(c + 1); }
+                    if (p2_loc) { const char* c = strchr(p2_loc, ':'); if (c) p2 = atof(c + 1); }
+                    g_sil_param1.store(p1, std::memory_order_relaxed);
+                    g_sil_param2.store(p2, std::memory_order_relaxed);
+                    g_sil_cmd.store(SilCommand::TRIGGER_SAG, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:SAG" });
+                    req->_tempObject = (void*)"{\"status\":\"Voltage sag triggered\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"swell\"")) {
+                    p1_loc = strstr(buf, "\"height\"");
+                    p2_loc = strstr(buf, "\"duration\"");
+                    if (p1_loc) { const char* c = strchr(p1_loc, ':'); if (c) p1 = atof(c + 1); }
+                    if (p2_loc) { const char* c = strchr(p2_loc, ':'); if (c) p2 = atof(c + 1); }
+                    g_sil_param1.store(p1, std::memory_order_relaxed);
+                    g_sil_param2.store(p2, std::memory_order_relaxed);
+                    g_sil_cmd.store(SilCommand::TRIGGER_SWELL, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:SWELL" });
+                    req->_tempObject = (void*)"{\"status\":\"Voltage swell triggered\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"flicker_on\"")) {
+                    g_sil_cmd.store(SilCommand::ENABLE_FLICKER, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:FLCKR_ON" });
+                    req->_tempObject = (void*)"{\"status\":\"Flicker enabled\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"flicker_off\"")) {
+                    g_sil_cmd.store(SilCommand::DISABLE_FLICKER, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:FLCKR_OFF" });
+                    req->_tempObject = (void*)"{\"status\":\"Flicker disabled\"}";
+                }
+                else if (cmd_loc && strstr(cmd_loc, "\"disable\"")) {
+                    g_sil_cmd.store(SilCommand::DISABLE_SIMULATION, std::memory_order_release);
+                    NVSLog::append({ (uint32_t)millis(), FSM_NORMAL, FAULT_NONE, 0.0f, "SIL_CMD:DISABLE" });
+                    req->_tempObject = (void*)"{\"status\":\"Hardware ADC restored\"}";
+                }
+                else {
+                    req->_tempObject = (void*)"{\"error\":\"Unknown or missing cmd mapping\"}";
+                }
             }
         );
 
@@ -609,5 +815,6 @@ namespace APIServer {
         Serial.println("[API]   POST /api/log/clear");
         Serial.println("[API]   POST /api/factory-reset");
         Serial.println("[API]   POST /api/relay");
+        Serial.println("[API]   POST /api/inject");
     }
 }

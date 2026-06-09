@@ -47,6 +47,7 @@
 // ============================================================
 #include "ds18b20.h"
 #include "config.h"
+#include "serial_log.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -130,15 +131,14 @@ namespace DS18B20 {
         dt.setWaitForConversion(false); // non-blocking — never stall protection task
 
         int found = dt.getDeviceCount();
-        Serial.printf("[DS18B20] init — found %d device(s)\n", found);
-        Serial.printf("[DS18B20] boot sentinel window: %dms (ignoring +85°C until %lums)\n",
-                      DS18B20_BOOT_IGNORE_MS, boot_ts_ms + DS18B20_BOOT_IGNORE_MS);
+        LOG_DS18B20("init -- found %d device(s)", found);
+        LOG_DS18B20("boot sentinel window: %dms", DS18B20_BOOT_IGNORE_MS);
 
         if (found == 0) {
             // No sensor on bus at boot — treat as disconnected immediately
             sensor_disconnected = true;
             disconnect_count++;
-            Serial.println("[DS18B20] WARNING: No sensor found at init — LOCKOUT will be triggered");
+            LOG_DS18B20("WARNING: No sensor found at init -- LOCKOUT will be triggered");
         }
     }
 
@@ -148,7 +148,7 @@ namespace DS18B20 {
         // ── Update boot window flag ────────────────────────────────────────
         if (!boot_window_done && (now - boot_ts_ms >= DS18B20_BOOT_IGNORE_MS)) {
             boot_window_done = true;
-            Serial.println("[DS18B20] boot sentinel window expired — +85°C now treated as real reading");
+            LOG_DS18B20("boot sentinel window expired -- +85C now treated as real reading");
         }
 
         // ── Read back if conversion is done (≥800ms since request) ────────
@@ -175,9 +175,9 @@ namespace DS18B20 {
                     if (sensor_disconnected) {
                         sensor_disconnected = false;
                         sensor_reconnected  = true;  // FSM will log and clear
-                        Serial.printf("[DS18B20] sensor RECONNECTED — temp=%.2f°C "
-                                      "(was disconnected for %lums)\n",
-                                      t, now - disconnect_ts_ms);
+                        LOG_DS18B20("sensor RECONNECTED -- temp=%.2fC "
+                                    "(was disconnected for %ums)",
+                                    t, (unsigned)(now - disconnect_ts_ms));
                     }
                     break;
 
@@ -185,9 +185,9 @@ namespace DS18B20 {
                     // ── EC-04: Power-on default — discard ───────────────
                     // Do NOT update last_valid_temp. Do NOT set ready.
                     // Log once so developer knows it was caught.
-                    Serial.printf("[DS18B20] boot sentinel +85.0°C discarded "
-                                  "(boot window active, %lums remaining)\n",
-                                  (boot_ts_ms + DS18B20_BOOT_IGNORE_MS) - now);
+                    LOG_DS18B20("boot sentinel +85.0C discarded "
+                                "(boot window active, %ums remaining)",
+                                (unsigned)((boot_ts_ms + DS18B20_BOOT_IGNORE_MS) - now));
                     break;
 
                 case STATE_DISCONNECTED:
@@ -203,19 +203,19 @@ namespace DS18B20 {
                             sensor_disconnected = true;
                             disconnect_count++;
                             disconnect_ts_ms = now;
-                            Serial.printf("[DS18B20] SENSOR DISCONNECTED (event #%lu, "
-                                          "%d consecutive -127°C readings) "
-                                          "— FSM LOCKOUT will be triggered\n",
-                                          disconnect_count, disc_debounce_count);
+                            LOG_DS18B20("SENSOR DISCONNECTED (event #%u, "
+                                        "%d consecutive -127C readings) "
+                                        "-- FSM LOCKOUT will be triggered",
+                                        (unsigned)disconnect_count, disc_debounce_count);
                         }
                         // last_valid_temp unchanged — preserve last known reading
                         // ready = false — stop reporting stale data as valid
                         ready = false;
                     } else {
                         // Not yet confirmed — log glitch but do not declare disconnect
-                        Serial.printf("[DS18B20] disconnect glitch %d/%d "
-                                      "(%.1f°C) — debouncing\n",
-                                      disc_debounce_count, DISC_DEBOUNCE_N, t);
+                        LOG_DS18B20("disconnect glitch %d/%d "
+                                    "(%.1fC) -- debouncing",
+                                    disc_debounce_count, DISC_DEBOUNCE_N, t);
                     }
                     break;
 
@@ -224,7 +224,7 @@ namespace DS18B20 {
                     // Treat as sensor anomaly — do NOT update reading.
                     // Do NOT trigger LOCKOUT (could be single-sample glitch).
                     // Log for diagnostics.
-                    Serial.printf("[DS18B20] out-of-range reading: %.2f°C — discarded\n", t);
+                    LOG_DS18B20("out-of-range reading: %.2fC -- discarded", t);
                     break;
             }
         }

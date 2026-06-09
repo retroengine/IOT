@@ -23,6 +23,7 @@
 #include "telemetry_builder.h"
 #include "fsm.h"
 #include "config.h"
+#include "serial_log.h"
 #include "hivemq_cert.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -77,21 +78,21 @@ namespace {
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload, length);
         if (err) {
-            Serial.printf("[MQTT] CMD: JSON parse error: %s\n", err.c_str());
+            LOG_MQTT("CMD: JSON parse error: %s", err.c_str());
             return;
         }
 
         const char* cmd = doc["cmd"] | "";
-        Serial.printf("[MQTT] CMD received: %s\n", cmd);
+        LOG_MQTT("CMD received: %s", cmd);
 
         if (strcmp(cmd, "reset") == 0) {
             // Request FSM reset — same as POST /api/reset
             FSM::requestReset();
-            Serial.println("[MQTT] CMD: FSM reset requested");
+            LOG_MQTT("CMD: FSM reset requested");
         }
         else if (strcmp(cmd, "reboot") == 0) {
             // Soft reboot with 2s delay
-            Serial.println("[MQTT] CMD: Rebooting in 2s...");
+            LOG_MQTT("CMD: Rebooting in 2s...");
             // Non-blocking: spawn a minimal task to reboot after delay
             xTaskCreate([](void*) {
                 vTaskDelay(pdMS_TO_TICKS(2000));
@@ -103,13 +104,13 @@ namespace {
             // Respond with a status message on the state topic
             char pong[128];
             snprintf(pong, sizeof(pong),
-                     "{\"pong\":true,\"uptime_s\":%lu,\"heap\":%lu}",
-                     millis() / 1000, esp_get_free_heap_size());
+                     "{\"pong\":true,\"uptime_s\":%u,\"heap\":%u}",
+                     (unsigned)(millis() / 1000), (unsigned)esp_get_free_heap_size());
             mqtt.publish(topic_state, pong);
-            Serial.println("[MQTT] CMD: pong sent");
+            LOG_MQTT("CMD: pong sent");
         }
         else {
-            Serial.printf("[MQTT] CMD: Unknown command: %s\n", cmd);
+            LOG_MQTT("CMD: Unknown command: %s", cmd);
         }
     }
 
@@ -152,9 +153,9 @@ namespace {
         last_reconnect_ms = now;
         connect_attempts++;
 
-        Serial.printf("[MQTT] Connecting to %s:%d as '%s' (attempt #%lu, backoff=%lums)\n",
+        Serial.printf("[MQTT] Connecting to %s:%d as '%s' (attempt #%u, backoff=%ums)\n",
                       broker_host, broker_port, client_id,
-                      connect_attempts, reconnect_backoff_ms);
+                      (unsigned)connect_attempts, (unsigned)reconnect_backoff_ms);
 
         bool ok;
         if (strlen(mqtt_user) > 0) {
@@ -166,8 +167,8 @@ namespace {
         if (ok) {
             connect_successes++;
             last_connect_ms = now;
-            Serial.printf("[MQTT] Connected. TLS verified=%d  successes=%lu/%lu\n",
-                          tls_cert_verified, connect_successes, connect_attempts);
+            Serial.printf("[MQTT] Connected. TLS verified=%d  successes=%u/%u\n",
+                          tls_cert_verified, (unsigned)connect_successes, (unsigned)connect_attempts);
 
             // Subscribe to command topic on every (re)connect
             // QoS 1: at least once delivery for commands
@@ -204,8 +205,8 @@ namespace {
         publish_total++;
         if (!ok) {
             publish_failed++;
-            Serial.printf("[MQTT] Publish FAILED on %s (payload %d bytes, failed=%lu/%lu)\n",
-                          topic, strlen(payload), publish_failed, publish_total);
+            Serial.printf("[MQTT] Publish FAILED on %s (payload %d bytes, failed=%u/%u)\n",
+                          topic, strlen(payload), (unsigned)publish_failed, (unsigned)publish_total);
         }
         return ok;
     }
@@ -261,10 +262,19 @@ namespace MQTTClient {
         Serial.printf("[MQTT] command topic:   %s\n", topic_cmd);
     }
 
-    void tick(const SensorReading& r, const FSMContext& ctx) {
-        // MUST call mqtt.loop() to process incoming messages (commands)
-        // and maintain keepalive. Call even if not connected (handles reconnect).
+    // ── pumpLoop ──────────────────────────────────────────────────────────
+    // BUG-07 FIX: call mqtt.loop() before any blocking I/O (OLED, buzzer)
+    // in task_comms. OLED I2C can block 15–30ms, starving the keepalive pump
+    // and causing HiveMQ to drop the connection during TLS reconnects (up to
+    // 30s). Caller (task_comms while loop) must call pumpLoop() first, then
+    // OLEDDisplay::update(), then MQTTClient::tick().
+    void loop() {
         mqtt.loop();
+    }
+
+    void tick(const SensorReading& r, const FSMContext& ctx) {
+        // mqtt.loop() is now called via loop() at the top of task_comms,
+        // before any blocking I/O. Removed from here to avoid double-pumping.
 
         if (!ensure_connected()) return;
 
@@ -278,8 +288,8 @@ namespace MQTTClient {
             if (payload) {
                 bool ok = publish_safe(topic_telemetry, payload);
                 if (ok) {
-                    Serial.printf("[MQTT] Telemetry published (%d bytes, total=%lu)\n",
-                                  TelemetryBuilder::lastPayloadSize(), publish_total);
+                    LOG_MQTT("Telemetry published (%d bytes, total=%u)",
+                             TelemetryBuilder::lastPayloadSize(), (unsigned)publish_total);
                 }
             }
         }

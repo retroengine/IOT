@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phantom Grid | Smart Grid Sentinel</title>
+    <meta name="description" content="SIL Physics Engine control panel for Smart Grid Sentinel ESP32 protection relay">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #06080d;
+            --surface: #0d1117;
+            --surface-2: #161b22;
+            --surface-3: #1c2333;
+            --border: rgba(255,255,255,0.06);
+            --border-active: rgba(255,255,255,0.12);
+            --cyan: #22d3ee;
+            --green: #34d399;
+            --emerald: #10b981;
+            --red: #f87171;
+            --rose: #fb7185;
+            --amber: #fbbf24;
+            --violet: #a78bfa;
+            --blue: #60a5fa;
+            --text: #e2e8f0;
+            --text-dim: #64748b;
+            --text-muted: #475569;
+            --radius: 14px;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        /* ── Ambient Glow ─────────────────────────── */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -40%; left: -20%;
+            width: 60%; height: 80%;
+            background: radial-gradient(ellipse, rgba(34,211,238,0.06) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -30%; right: -10%;
+            width: 50%; height: 70%;
+            background: radial-gradient(ellipse, rgba(167,139,250,0.05) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Header ───────────────────────────────── */
+        .header {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(6,8,13,0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header-brand {
+            display: flex; align-items: center; gap: 10px;
+            font-weight: 800; font-size: 1rem; letter-spacing: -0.3px;
+        }
+        .header-brand .icon {
+            width: 28px; height: 28px;
+            background: linear-gradient(135deg, var(--cyan), var(--violet));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+        }
+        .header-right {
+            display: flex; align-items: center; gap: 1rem;
+        }
+        .conn-badge {
+            display: flex; align-items: center; gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem; font-weight: 600;
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.2);
+            color: var(--red);
+        }
+        .conn-badge.online {
+            background: rgba(52,211,153,0.1);
+            border-color: rgba(52,211,153,0.2);
+            color: var(--green);
+        }
+        .conn-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--red);
+        }
+        .conn-badge.online .conn-dot {
+            background: var(--green);
+            box-shadow: 0 0 8px rgba(52,211,153,0.5);
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ── Layout ───────────────────────────────── */
+        .app {
+            position: relative; z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 3rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1.25rem;
+        }
+        @media (max-width: 1100px) { .app { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 700px) { .app { grid-template-columns: 1fr; padding: 1rem; } }
+
+        /* ── Cards ────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .card-lg { grid-column: span 2; }
+        @media (max-width: 700px) { .card-lg { grid-column: span 1; } }
+        .card-header {
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .card-title {
+            font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1.5px;
+            color: var(--text-dim);
+        }
+        .card-badge {
+            font-size: 0.65rem; font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(34,211,238,0.1);
+            color: var(--cyan);
+            border: 1px solid rgba(34,211,238,0.15);
+        }
+
+        /* ── Telemetry Meters ─────────────────────── */
+        .meter-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        @media (max-width: 700px) { .meter-row { grid-template-columns: repeat(2, 1fr); } }
+        .meter {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .meter::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 100%; height: 3px;
+        }
+        .meter.m-v::after { background: linear-gradient(90deg, var(--cyan), var(--blue)); }
+        .meter.m-i::after { background: linear-gradient(90deg, var(--green), var(--emerald)); }
+        .meter.m-s::after { background: linear-gradient(90deg, var(--violet), var(--blue)); }
+        .meter.m-f::after { background: linear-gradient(90deg, var(--red), var(--rose)); }
+        .meter-label {
+            font-size: 0.65rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 6px;
+        }
+        .meter-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            letter-spacing: -1px;
+        }
+        .meter.m-v .meter-value { color: var(--cyan); }
+        .meter.m-i .meter-value { color: var(--green); }
+        .meter.m-s .meter-value { color: var(--violet); }
+        .meter.m-f .meter-value { color: var(--text-dim); }
+        .meter.m-f.active .meter-value { color: var(--red); }
+        .meter-unit {
+            font-size: 0.7rem; font-weight: 500;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ── Inputs ───────────────────────────────── */
+        .field { display: flex; flex-direction: column; gap: 5px; }
+        .field-label {
+            font-size: 0.7rem; font-weight: 600;
+            color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        input[type="text"], input[type="number"] {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-family: var(--font);
+            font-size: 0.9rem;
+            font-weight: 500;
+            outline: none;
+            width: 100%;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: var(--cyan); }
+        input[type="number"] { font-variant-numeric: tabular-nums; }
+
+        /* ── Range Sliders ─────────────────────────── */
+        .range-group { display: flex; flex-direction: column; gap: 6px; }
+        .range-header {
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .range-val {
+            font-weight: 700; font-size: 0.85rem;
+            color: var(--cyan);
+            font-variant-numeric: tabular-nums;
+        }
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 5px;
+            border-radius: 3px;
+            background: var(--surface-3);
+            border: none; padding: 0;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--cyan);
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(34,211,238,0.4);
+            transition: transform 0.15s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        /* ── Buttons ──────────────────────────────── */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            border: none; border-radius: 10px;
+            padding: 10px 16px;
+            font-family: var(--font);
+            font-size: 0.8rem; font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+            pointer-events: none;
+        }
+        .btn-cyan    { background: var(--cyan); color: #06080d; }
+        .btn-green   { background: var(--emerald); color: #06080d; }
+        .btn-red     { background: #dc2626; }
+        .btn-amber   { background: #d97706; color: #06080d; }
+        .btn-violet  { background: #7c3aed; }
+        .btn-slate   { background: #334155; }
+        .btn-rose    { background: #e11d48; }
+        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row > .btn { flex: 1; }
+
+        /* ── Section Divider ──────────────────────── */
+        .divider {
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Status Toast ──────────────────────────── */
+        .toast {
+            min-height: 36px;
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 0.78rem; font-weight: 600;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            transition: all 0.3s;
+        }
+        .toast.ok   { color: var(--green); border-color: rgba(52,211,153,0.2); background: rgba(52,211,153,0.06); }
+        .toast.err  { color: var(--red); border-color: rgba(248,113,113,0.2); background: rgba(248,113,113,0.06); }
+        .toast.warn { color: var(--amber); border-color: rgba(251,191,36,0.2); background: rgba(251,191,36,0.06); }
+
+        /* ── Custom Inject Card ───────────────────── */
+        .inject-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            align-items: end;
+        }
+        @media (max-width: 700px) {
+            .inject-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── Log ──────────────────────────────────── */
+        .log-box {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            max-height: 140px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.72rem;
+            line-height: 1.7;
+            color: var(--text-dim);
+        }
+        .log-box::-webkit-scrollbar { width: 4px; }
+        .log-box::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 2px; }
+        .log-entry { white-space: nowrap; }
+        .log-ts { color: var(--text-muted); }
+        .log-ok { color: var(--green); }
+        .log-err { color: var(--red); }
+    </style>
+</head>
+<body>
+
+    <!-- ── Header ────────────────────────────────── -->
+    <div class="header">
+        <div class="header-brand">
+            <div class="icon">⚡</div>
+            Phantom Grid
+        </div>
+        <div class="header-right">
+            <div class="conn-badge" id="conn-badge">
+                <div class="conn-dot"></div>
+                <span id="conn-text">Offline</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── App ────────────────────────────────────── -->
+    <div class="app">
+
+        <!-- ── Telemetry: Full Row ──────────────── -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <span class="card-title">Live Telemetry</span>
+                <span class="card-badge" id="sil-badge">SIL Inactive</span>
+            </div>
+            <div class="meter-row">
+                <div class="meter m-v">
+                    <div class="meter-label">Voltage RMS</div>
+                    <div class="meter-value" id="disp-v">---</div>
+                    <div class="meter-unit">Volts</div>
+                </div>
+                <div class="meter m-i">
+                    <div class="meter-label">Current RMS</div>
+                    <div class="meter-value" id="disp-i">---</div>
+                    <div class="meter-unit">Amps</div>
+                </div>
+                <div class="meter m-s">
+                    <div class="meter-label">FSM State</div>
+                    <div class="meter-value" id="disp-state" style="font-size:1.3rem;">—</div>
+                    <div class="meter-unit" id="disp-state-sub">&nbsp;</div>
+                </div>
+                <div class="meter m-f" id="meter-fault">
+                    <div class="meter-label">Active Fault</div>
+                    <div class="meter-value" id="disp-fault" style="font-size:1.1rem;">CLEAR</div>
+                    <div class="meter-unit">&nbsp;</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Connection Config ────────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Connection</span>
+            </div>
+            <div class="field">
+                <label class="field-label">ESP32 IP Address</label>
+                <input type="text" id="ip" value="10.117.3.199" placeholder="192.168.x.x">
+            </div>
+            <div class="field">
+                <label class="field-label">API Key</label>
+                <input type="text" id="apikey" value="aec158f34ad787c" placeholder="Paste API key">
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-cyan" id="btn-connect">Connect</button>
+                <button class="btn btn-slate" id="btn-fetch-state">Fetch State</button>
+            </div>
+        </div>
+
+        <!-- ── Scenario Cheat Sheet ──────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Scenario Cheat Sheet</span>
+                <span class="card-badge">Manual Input</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-dim); line-height:1.6;">
+                Use the <strong>Custom Injection</strong> form below instead of preset macros to trigger scenarios manually.
+                <br><br>
+                <div style="display:grid; grid-template-columns: 1fr auto; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px;">
+                    <div style="color:var(--green); font-weight:600;">⚡ Normal Grid</div>
+                    <div style="font-family:monospace;">230 V | 5.0 A</div>
+                    
+                    <div style="color:var(--red); font-weight:600;">🏭 Motor Start (Inrush)</div>
+                    <div style="font-family:monospace;">230 V | 90 A</div>
+
+                    <div style="color:var(--text); font-weight:600;">⏹ Motor Running</div>
+                    <div style="font-family:monospace;">230 V | 10.0 A</div>
+
+                    <div style="color:var(--violet); font-weight:600;">🛑 Zero Load / SIL Off Equivalent</div>
+                    <div style="font-family:monospace;">0 V | 0.0 A</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── System Controls ──────────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">System Controls</span>
+            </div>
+            <div class="btn-grid">
+                <button class="btn btn-violet" id="btn-reset-fsm">🔄 Reset FSM</button>
+                <button class="btn btn-red" id="btn-reboot">♻️ Reboot ESP</button>
+                <button class="btn btn-green" id="btn-relay-on">🟢 Relay ON</button>
+                <button class="btn btn-slate" id="btn-relay-off">🔴 Relay OFF</button>
+            </div>
+        </div>
+
+        <!-- ── Voltage Sag / Swell ──────────────── -->
+        <div class="card card-lg">
+            <div class="card-header">
+                <span class="card-title">Voltage Events</span>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem;">
+                <!-- Sag -->
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="font-size:0.8rem; font-weight:700; color:var(--red);">⬇ Voltage Sag</div>
+                    <div class="range-group">
+                        <div class="range-header">
+                            <span class="field-label">Depth</span>
+                            <span class="range-val" id="val-sag-depth">0.30</span>
+                        </div>
+                        <input type="range" id="range-sag-depth" min="0.1" max="0.9" step="0.05" value="0.3">
+                    </div>
+                    <div class="range-group">
+                        <div class="range-header">
+                            <span class="field-label">Duration (s)</span>
+                            <span class="range-val" id="val-sag-dur">2.0</span>
+                        </div>
+                        <input type="range" id="range-sag-dur" min="0.1" max="10" step="0.1" value="2.0">
+                    </div>
+                    <button class="btn btn-red" id="btn-sag" style="width:100%;">Trigger Sag</button>
+                </div>
+                <!-- Swell -->
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="font-size:0.8rem; font-weight:700; color:var(--violet);">⬆ Voltage Swell</div>
+                    <div class="range-group">
+                        <div class="range-header">
+                            <span class="field-label">Height</span>
+                            <span class="range-val" id="val-swell-ht">0.20</span>
+                        </div>
+                        <input type="range" id="range-swell-ht" min="0.1" max="0.8" step="0.05" value="0.2">
+                    </div>
+                    <div class="range-group">
+                        <div class="range-header">
+                            <span class="field-label">Duration (s)</span>
+                            <span class="range-val" id="val-swell-dur">2.0</span>
+                        </div>
+                        <input type="range" id="range-swell-dur" min="0.1" max="10" step="0.1" value="2.0">
+                    </div>
+                    <button class="btn btn-violet" id="btn-swell" style="width:100%;">Trigger Swell</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Custom V/I Inject ────────────────── -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Custom Injection</span>
+                <span class="card-badge" style="background:rgba(251,191,36,0.1); color:var(--amber); border-color:rgba(251,191,36,0.15);">Manual</span>
+            </div>
+            <div class="field">
+                <label class="field-label">Voltage (V RMS)</label>
+                <input type="number" id="custom-v" value="230" min="0" max="400" step="1">
+            </div>
+            <div class="field">
+                <label class="field-label">Current (A RMS)</label>
+                <input type="number" id="custom-i" value="5" min="0" max="30" step="0.5">
+            </div>
+            <div class="field">
+                <label class="field-label">Hold Duration (s)</label>
+                <input type="number" id="custom-dur" value="10" min="1" max="300" step="1">
+            </div>
+            <button class="btn btn-amber" id="btn-custom-inject" style="width:100%;">🎯 Inject Custom Load</button>
+            <div style="font-size:0.7rem; color:var(--text-muted); line-height:1.5;">
+                Sets the SIL physics engine to output the specified steady-state V/I for the given duration. Uses <code>normal_grid</code> + <code>sag/swell</code> ratio calc.
+            </div>
+        </div>
+
+        <!-- ── Command Log ──────────────────────── -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <span class="card-title">Command Log</span>
+                <button class="btn btn-slate" id="btn-clear-log" style="padding:5px 12px; font-size:0.7rem;">Clear</button>
+            </div>
+            <div class="toast" id="toast">Ready — enter IP and connect.</div>
+            <div class="log-box" id="log-box">
+                <div class="log-entry"><span class="log-ts">[--:--:--]</span> Phantom Grid initialized</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Phantom Grid Controller — wired to ESP32 REST + WebSocket API
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ── DOM Refs ──────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+
+    const ipInput   = $('ip');
+    const keyInput  = $('apikey');
+    const connBadge = $('conn-badge');
+    const connText  = $('conn-text');
+    const silBadge  = $('sil-badge');
+    const toast     = $('toast');
+    const logBox    = $('log-box');
+
+    const dispV     = $('disp-v');
+    const dispI     = $('disp-i');
+    const dispState = $('disp-state');
+    const dispFault = $('disp-fault');
+    const meterFault= $('meter-fault');
+
+    // ── State ─────────────────────────────────────────────────────────────
+    let ws = null;
+    let reconnTimer = null;
+    let reconnDelay = 2000;
+    let intentionalClose = false;
+
+    // ── Logging ───────────────────────────────────────────────────────────
+    function log(msg, cls = '') {
+        const now = new Date().toLocaleTimeString('en-GB');
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `<span class="log-ts">[${now}]</span> <span class="${cls}">${msg}</span>`;
+        logBox.appendChild(div);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function showToast(msg, type = '') {
+        toast.textContent = msg;
+        toast.className = 'toast ' + type;
+    }
+
+    $('btn-clear-log').addEventListener('click', () => {
+        logBox.innerHTML = '';
+        log('Log cleared');
+    });
+
+    // ── Slider Wiring ─────────────────────────────────────────────────────
+    function wireSlider(rangeId, valId, decimals) {
+        const r = $(rangeId);
+        r.addEventListener('input', () => {
+            $(valId).textContent = parseFloat(r.value).toFixed(decimals);
+        });
+    }
+    wireSlider('range-sag-depth', 'val-sag-depth', 2);
+    wireSlider('range-sag-dur',   'val-sag-dur',   1);
+    wireSlider('range-swell-ht',  'val-swell-ht',  2);
+    wireSlider('range-swell-dur', 'val-swell-dur',  1);
+
+    // ── API Helpers ───────────────────────────────────────────────────────
+    function getBase() { return 'http://' + ipInput.value.trim(); }
+    function getHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'X-API-Key': keyInput.value.trim()
+        };
+    }
+
+    async function apiPost(endpoint, body) {
+        const ip = ipInput.value.trim();
+        const key = keyInput.value.trim();
+        if (!ip) { showToast('Enter ESP32 IP address', 'warn'); return null; }
+        if (!key && endpoint !== '/api/ping') { showToast('Enter API key', 'warn'); return null; }
+        try {
+            const res = await fetch(getBase() + endpoint, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(body)
+            });
+            const json = await res.json();
+            if (res.ok) {
+                const msg = json.status || json.ok || 'OK';
+                showToast(msg, 'ok');
+                log(`POST ${endpoint} → ${msg}`, 'log-ok');
+            } else {
+                const msg = json.error || `HTTP ${res.status}`;
+                showToast(msg, 'err');
+                log(`POST ${endpoint} → ${msg}`, 'log-err');
+            }
+            return json;
+        } catch (err) {
+            showToast('Request failed: ' + err.message, 'err');
+            log(`POST ${endpoint} FAILED: ${err.message}`, 'log-err');
+            return null;
+        }
+    }
+
+    async function apiGet(endpoint) {
+        try {
+            const res = await fetch(getBase() + endpoint, { headers: getHeaders() });
+            return await res.json();
+        } catch (err) {
+            log(`GET ${endpoint} FAILED: ${err.message}`, 'log-err');
+            return null;
+        }
+    }
+
+    // ── SIL Command Sender ────────────────────────────────────────────────
+    function silCmd(payload) { return apiPost('/api/inject', payload); }
+
+    // ── Button Wiring ─────────────────────────────────────────────────────
+
+    // Grid scenarios (buttons removed, now manually injected via cheat sheet)
+
+    // Voltage events
+    $('btn-sag').addEventListener('click', () => {
+        silCmd({
+            cmd: 'sag',
+            depth: parseFloat($('range-sag-depth').value),
+            duration: parseFloat($('range-sag-dur').value)
+        });
+    });
+    $('btn-swell').addEventListener('click', () => {
+        silCmd({
+            cmd: 'swell',
+            height: parseFloat($('range-swell-ht').value),
+            duration: parseFloat($('range-swell-dur').value)
+        });
+    });
+
+    // System controls
+    $('btn-reset-fsm').addEventListener('click', () => apiPost('/api/reset', {cmd: 'reset'}));
+    $('btn-reboot').addEventListener('click', () => {
+        if (confirm('Reboot the ESP32?')) apiPost('/api/reboot', {});
+    });
+    $('btn-relay-on').addEventListener('click',  () => apiPost('/api/relay', {state: true}));
+    $('btn-relay-off').addEventListener('click', () => apiPost('/api/relay', {state: false}));
+
+    // Fetch state (REST fallback)
+    $('btn-fetch-state').addEventListener('click', async () => {
+        const data = await apiGet('/api/state');
+        if (data) {
+            dispV.textContent = parseFloat(data.voltage).toFixed(1);
+            dispI.textContent = parseFloat(data.current).toFixed(2);
+            dispState.textContent = data.state || '—';
+            const fault = data.fault || 'NONE';
+            dispFault.textContent = fault === 'NONE' ? 'CLEAR' : fault;
+            meterFault.classList.toggle('active', fault !== 'NONE');
+            log(`State fetched: V=${data.voltage} I=${data.current} State=${data.state}`, 'log-ok');
+        }
+    });
+
+    // Custom V/I injection natively using the raw ESP32 API
+    $('btn-custom-inject').addEventListener('click', async () => {
+        const targetV = parseFloat($('custom-v').value);
+        const targetI = parseFloat($('custom-i').value);
+        const dur     = parseFloat($('custom-dur').value);
+
+        if (isNaN(targetV) || isNaN(targetI) || isNaN(dur)) {
+            showToast('Enter valid numbers', 'warn');
+            return;
+        }
+
+        log(`Injecting custom load: ${targetV}V, ${targetI}A for ${dur}s`, 'log-ok');
+        await silCmd({ voltage: targetV, current: targetI });
+        showToast(`Injecting ${targetV}V / ${targetI}A for ${dur}s`, 'ok');
+
+        setTimeout(() => {
+            log(`Reverting custom load back to baseline...`, 'log-ok');
+            silCmd({ voltage: 230.0, current: 5.0 });
+        }, dur * 1000);
+    });
+
+    // ── WebSocket ─────────────────────────────────────────────────────────
+    const FSM_STATES = ['BOOT','NORMAL','WARNING','FAULT','RECOVERY','LOCKOUT'];
+    const FAULT_NAMES = ['NONE','OV','UV','OC','THERMAL','SC','SENSOR','LOCKED_ROTOR','MECH_STALL'];
+
+    function connectWS() {
+        const ip = ipInput.value.trim();
+        if (!ip) return;
+        if (ws) { try { ws.close(); } catch(e){} }
+
+        showToast('Connecting...', 'warn');
+        ws = new WebSocket('ws://' + ip + '/ws/telemetry');
+
+        ws.onopen = () => {
+            connBadge.className = 'conn-badge online';
+            connText.textContent = 'Online';
+            $('btn-connect').textContent = 'Disconnect';
+            showToast('Connected to ' + ip, 'ok');
+            log('WebSocket connected to ' + ip, 'log-ok');
+            reconnDelay = 2000;
+        };
+
+        ws.onmessage = (evt) => {
+            try {
+                const d = JSON.parse(evt.data);
+                if (Array.isArray(d) && d.length >= 5) {
+                    dispV.textContent = parseFloat(d[1]).toFixed(1);
+                    dispI.textContent = parseFloat(d[2]).toFixed(2);
+                    dispState.textContent = FSM_STATES[d[3]] || 'UNK';
+                    const fault = FAULT_NAMES[d[4]] || ('CODE_' + d[4]);
+                    dispFault.textContent = d[4] === 0 ? 'CLEAR' : fault;
+                    meterFault.classList.toggle('active', d[4] !== 0);
+
+                    // Update SIL badge based on whether we're getting data
+                    silBadge.textContent = 'SIL Active';
+                    silBadge.style.background = 'rgba(52,211,153,0.1)';
+                    silBadge.style.color = 'var(--green)';
+                    silBadge.style.borderColor = 'rgba(52,211,153,0.15)';
+                } else if (d.sensors) {
+                    if (d.sensors.voltage) dispV.textContent = d.sensors.voltage.filtered_value;
+                    if (d.sensors.current) dispI.textContent = d.sensors.current.filtered_value;
+                    if (d.alerts) {
+                        dispState.textContent = d.alerts.fsm_state || '—';
+                        const f = d.alerts.active_fault || 'NONE';
+                        dispFault.textContent = f === 'NONE' ? 'CLEAR' : f;
+                        meterFault.classList.toggle('active', f !== 'NONE');
+                    }
+                }
+            } catch(e) { /* ignore parse errors on partial frames */ }
+        };
+
+        ws.onclose = () => {
+            connBadge.className = 'conn-badge';
+            connText.textContent = 'Offline';
+            $('btn-connect').textContent = 'Connect';
+            if (!intentionalClose) {
+                showToast('Disconnected — reconnecting in ' + (reconnDelay/1000) + 's...', 'warn');
+                log('WebSocket closed — auto-reconnect in ' + reconnDelay + 'ms');
+                reconnTimer = setTimeout(connectWS, reconnDelay);
+                reconnDelay = Math.min(reconnDelay * 1.5, 30000);
+            } else {
+                showToast('Disconnected', '');
+                log('WebSocket closed (manual)');
+            }
+        };
+
+        ws.onerror = () => {
+            showToast('Connection error', 'err');
+        };
+    }
+
+    $('btn-connect').addEventListener('click', () => {
+        if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+            intentionalClose = true;
+            clearTimeout(reconnTimer);
+            ws.close();
+        } else {
+            if (!ipInput.value.trim()) { showToast('Enter ESP32 IP', 'warn'); return; }
+            intentionalClose = false;
+            connectWS();
+        }
+    });
+    </script>
+</body>
+</html>

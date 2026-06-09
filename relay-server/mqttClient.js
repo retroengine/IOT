@@ -5,13 +5,16 @@
 //  Subscribes to the device telemetry topic and feeds received
 //  PUBLISH payloads to the registered onData callback.
 //
-//  Reconnect: exponential backoff from reconnectMs → reconnectMaxMs.
-//  TLS: Node.js built-in tls module, connects to HiveMQ Cloud whose
-//       certificate chain is trusted by Node's bundled CA store (ISRG
-//       Root X1 / DigiCert — same as what browsers trust).
-//       No custom CA cert file needed for HiveMQ Cloud.
+//  Reconnect: MANUAL exponential backoff from reconnectMs → reconnectMaxMs.
+//  The mqtt library's built-in reconnect (`reconnectPeriod`) is disabled
+//  (set to 0) so we control the delay ourselves — this properly implements
+//  the backoff cap defined in config.reconnectMaxMs.
 //
-//  Dependencies: mqtt (npm install mqtt)
+//  TLS: Node.js built-in tls module. HiveMQ Cloud certificate chain is
+//       trusted by Node's bundled CA store (ISRG Root X1 / DigiCert).
+//       No custom CA cert file needed.
+//
+//  Dependencies: mqtt (npm install mqtt), dotenv (npm install dotenv)
 //
 //  Public API:
 //    start()       — connect and subscribe
@@ -28,49 +31,68 @@ import { config } from './config.js';
 // ── State ─────────────────────────────────────────────────────────────────
 let _client         = null;
 let _alive          = false;
+let _stopped        = false;
 let _dataCb         = null;
 let _errorCb        = null;
+let _backoffMs      = config.mqtt.reconnectMs;
+let _reconnectTimer = null;
 let _stats          = { received: 0, errors: 0, reconnects: 0, connectedSince: 0 };
 
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 function _clientId() {
-  // Unique client ID prevents session collision when server restarts
-  return `sgs-relay-${Math.random().toString(36).slice(2, 8)}`;
+  // Unique client ID prevents session collision on server restart
+  return `sgs-relay-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────
+function _scheduleReconnect() {
+  if (_stopped) return;
 
-/** Connect to HiveMQ Cloud and subscribe to the telemetry topic. */
-export function start() {
-  if (_client) {
-    console.warn('[mqttClient] start() called while already running — ignoring');
-    return;
+  const delay = _backoffMs;
+  _backoffMs  = Math.min(_backoffMs * 2, config.mqtt.reconnectMaxMs);
+
+  console.info(`[mqttClient] reconnecting in ${delay}ms (next cap: ${_backoffMs}ms)`);
+  _reconnectTimer = setTimeout(() => {
+    _reconnectTimer = null;
+    if (!_stopped) _connect();
+  }, delay);
+  _stats.reconnects++;
+}
+
+function _clearReconnectTimer() {
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
   }
+}
+
+function _connect() {
+  if (_stopped || _client) return;
 
   const brokerUrl = `mqtts://${config.mqtt.host}:${config.mqtt.port}`;
 
-  console.info(`[mqttClient] connecting to ${brokerUrl} as '${config.mqtt.username}'`);
-  console.info(`[mqttClient] topic filter: ${config.mqtt.topic}`);
+  console.info(`[mqttClient] connecting → ${brokerUrl}  user: '${config.mqtt.username}'`);
+  console.info(`[mqttClient] topic: ${config.mqtt.topic}`);
 
   _client = mqtt.connect(brokerUrl, {
-    clientId:             _clientId(),
-    username:             config.mqtt.username,
-    password:             config.mqtt.password,
-    keepalive:            config.mqtt.keepalive,
-    clean:                true,
-    reconnectPeriod:      config.mqtt.reconnectMs,
-    connectTimeout:       15_000,     // 15s TLS handshake timeout (HiveMQ Cloud can be slow)
-    rejectUnauthorized:   true,       // ALWAYS verify TLS cert — never disable in production
+    clientId:           _clientId(),
+    username:           config.mqtt.username,
+    password:           config.mqtt.password,
+    keepalive:          config.mqtt.keepalive,
+    clean:              true,
+    reconnectPeriod:    0,         // ← DISABLED — we drive reconnect manually
+    connectTimeout:     20_000,    // 20s TLS handshake timeout (HiveMQ Cloud can be slow)
+    rejectUnauthorized: true,      // ALWAYS verify TLS cert
   });
 
   // ── Connection established ────────────────────────────────────────────
   _client.on('connect', (connack) => {
-    _alive = true;
+    _alive     = true;
+    _backoffMs = config.mqtt.reconnectMs;  // reset backoff on successful connect
     _stats.connectedSince = Date.now();
-    console.info(`[mqttClient] connected — session present: ${connack.sessionPresent}`);
+    console.info(`[mqttClient] ✓ connected — session present: ${connack.sessionPresent}`);
 
-    // Subscribe with QoS 0 — telemetry is time-series, duplication is harmless
+    // Subscribe with QoS 0 — telemetry is time-series; duplication is harmless
     _client.subscribe(config.mqtt.topic, { qos: 0 }, (err, granted) => {
       if (err) {
         console.error('[mqttClient] subscribe failed:', err.message);
@@ -90,7 +112,7 @@ export function start() {
     try {
       json = JSON.parse(payload.toString('utf8'));
     } catch (err) {
-      console.warn(`[mqttClient] malformed JSON on topic '${topic}':`, err.message);
+      console.warn(`[mqttClient] malformed JSON on '${topic}':`, err.message);
       _stats.errors++;
       return;
     }
@@ -102,58 +124,75 @@ export function start() {
     }
 
     _stats.received++;
+    if (_stats.received === 1) {
+      console.info('[mqttClient] ✓ first MQTT frame received — stream is live');
+    }
+
     if (_dataCb) _dataCb(json, 'mqtt');
   });
 
-  // ── Reconnect ─────────────────────────────────────────────────────────
-  _client.on('reconnect', () => {
-    _alive = false;
-    _stats.reconnects++;
-    console.info(`[mqttClient] reconnecting... (attempt #${_stats.reconnects})`);
-  });
-
-  // ── Errors ────────────────────────────────────────────────────────────
+  // ── Error ─────────────────────────────────────────────────────────────
   _client.on('error', (err) => {
     _alive = false;
     _stats.errors++;
-    console.error('[mqttClient] error:', err.message);
+    console.error('[mqttClient] connection error:', err.message);
     if (_errorCb) _errorCb(err);
-    // mqtt library will auto-reconnect — do not call _client.end() here
+    // Do NOT call _client.end() here — let the 'close' event handle cleanup
   });
 
-  // ── Offline / disconnect ──────────────────────────────────────────────
+  // ── Offline / Close → schedule manual reconnect ───────────────────────
   _client.on('offline', () => {
     _alive = false;
     console.warn('[mqttClient] offline — broker unreachable');
   });
 
-  _client.on('disconnect', (packet) => {
-    _alive = false;
-    console.warn('[mqttClient] broker sent DISCONNECT:', packet?.returnCode ?? '');
-  });
-
   _client.on('close', () => {
     _alive = false;
-    // mqtt library handles reconnect automatically via reconnectPeriod
+    if (_stopped) return; // deliberate stop — do not reconnect
+    // Tear down the current client instance before scheduling a new connection
+    _teardownClient();
+    _scheduleReconnect();
+  });
+
+  _client.on('disconnect', (packet) => {
+    _alive = false;
+    console.warn('[mqttClient] broker sent DISCONNECT code:', packet?.returnCode ?? '?');
   });
 }
 
-/** Disconnect cleanly. Stops reconnect loop. */
-export function stop() {
+function _teardownClient() {
   if (!_client) return;
+  const c = _client;
+  _client = null;    // clear reference FIRST to prevent re-entry
+  c.removeAllListeners();
+  try { c.end(true); } catch (_) {}  // force-close; ignore errors during teardown
+}
 
+// ── Public API ────────────────────────────────────────────────────────────
+
+/** Connect to HiveMQ Cloud and subscribe to the telemetry topic. */
+export function start() {
+  if (_client || _reconnectTimer) {
+    console.warn('[mqttClient] start() called while already running — ignoring');
+    return;
+  }
+  _stopped   = false;
+  _backoffMs = config.mqtt.reconnectMs;
+  _connect();
+}
+
+/** Disconnect cleanly. Stops reconnect loop and all event handlers. */
+export function stop() {
+  _stopped = true;
+  _clearReconnectTimer();
+  _teardownClient();
   _alive = false;
-  // force: true closes the socket immediately without DISCONNECT handshake
-  // Use false for clean disconnect (broker releases session cleanly)
-  _client.end(false, {}, () => {
-    console.info('[mqttClient] disconnected');
-  });
-  _client = null;
+  console.info('[mqttClient] stopped');
 }
 
 /**
  * Register callback for received telemetry frames.
- * Called with (jsonObject, sourceLabel) where sourceLabel = 'mqtt'.
+ * Called with (jsonObject, 'mqtt').
  * @param {function} cb
  */
 export function onData(cb) {

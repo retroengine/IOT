@@ -24,6 +24,7 @@
  */
 
 import { getWaveform } from './telemetryBuffer.js';
+import { getTargetIp } from '../utils/apiAuth.js';
 
 // ── Cache ─────────────────────────────────────────────────────────────────
 // Key: canonical query string. Value: { data, expiresAt }.
@@ -36,8 +37,9 @@ const _inFlight = new Map();  // cacheKey → Promise<data>
 
 // ── Host resolution ───────────────────────────────────────────────────────
 function _apiBase() {
-  const host = window.location.host || 'localhost';
-  return `http://${host}`;
+  const host = getTargetIp() || window.location.host || 'localhost';
+  const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  return `${isSecure ? 'https' : 'http'}://${host}`;
 }
 
 // ── Cache helpers ─────────────────────────────────────────────────────────

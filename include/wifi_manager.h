@@ -32,7 +32,13 @@
 //    setup() and must never be used again.
 // ============================================================
 
+class AsyncWebServer;  // forward declaration — avoids #include in header
+
 namespace WiFiManager {
+    // Provide a pointer to the shared AsyncWebServer so captive portal
+    // routes can be registered without a port-80 collision.
+    void setServer(AsyncWebServer* server);
+
     // Launch WiFi provisioning as a background task on Core 1.
     // Returns immediately — never blocks setup().
     // Protection tasks must already be running before this is called.

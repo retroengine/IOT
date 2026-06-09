@@ -1,8 +1,11 @@
 // ============================================================
 //  led_alert.cpp — Non-blocking LED blink + load indicators
+//  UPDATED: Added Load1 / Load2 green+yellow status LEDs
 // ============================================================
 #include "led_alert.h"
+#include "relay_control.h"
 #include "config.h"
+#include "serial_log.h"
 
 namespace {
     uint32_t next_ms = 0;
@@ -20,25 +23,30 @@ namespace {
             else         { set(false); next_ms = now + off_ms; }
         }
     }
+
+    void setLoadLeds(uint8_t pin_green, uint8_t pin_yellow, bool closed) {
+        digitalWrite(pin_green,  closed ? HIGH : LOW);
+        digitalWrite(pin_yellow, closed ? LOW  : HIGH);
+    }
 }
 
 namespace LedAlert {
 
     void init() {
-        // Alert LED: drive LOW (off) before OUTPUT to prevent boot glitch.
-        // Matches the relay safe-first init pattern.
         digitalWrite(PIN_ALERT_LED, LOW);
         pinMode(PIN_ALERT_LED, OUTPUT);
 
-        // Load indicator LEDs — start OFF (LOW = LED off = load disconnected at boot)
-        // LED logic tracks the logical relay state (r1_closed bool), not relay pin voltage.
-        // active-LOW relay: pin LOW = relay closed = load on → LED HIGH = on. Correct.
-        digitalWrite(PIN_LED_LOAD1, LOW);
-        digitalWrite(PIN_LED_LOAD2, LOW);
-        pinMode(PIN_LED_LOAD1, OUTPUT);
-        pinMode(PIN_LED_LOAD2, OUTPUT);
+        digitalWrite(PIN_LED_LOAD1_GREEN,  LOW);
+        digitalWrite(PIN_LED_LOAD1_YELLOW, HIGH);
+        digitalWrite(PIN_LED_LOAD2_GREEN,  LOW);
+        digitalWrite(PIN_LED_LOAD2_YELLOW, HIGH);
 
-        Serial.println("[LED] init — alert + load indicators ready");
+        pinMode(PIN_LED_LOAD1_GREEN,  OUTPUT);
+        pinMode(PIN_LED_LOAD1_YELLOW, OUTPUT);
+        pinMode(PIN_LED_LOAD2_GREEN,  OUTPUT);
+        pinMode(PIN_LED_LOAD2_YELLOW, OUTPUT);
+
+        LOG_LED("init -- alert + 4-LED load indicators ready");
     }
 
     void tick(FSMState state) {
@@ -49,20 +57,17 @@ namespace LedAlert {
                 set(false);
                 break;
             case FSM_WARNING:
-                blink(500, 500);   // 1 Hz
+                blink(500, 500);
                 break;
             case FSM_FAULT:
-                blink(125, 125);   // 4 Hz
+                blink(125, 125);
                 break;
             case FSM_LOCKOUT:
-                set(true);         // solid
+                set(true);
                 break;
         }
-    }
 
-    // Called from main protection task after relay update
-    void updateLoadLEDs(bool load1_closed, bool load2_closed) {
-        digitalWrite(PIN_LED_LOAD1, load1_closed ? HIGH : LOW);
-        digitalWrite(PIN_LED_LOAD2, load2_closed ? HIGH : LOW);
+        setLoadLeds(PIN_LED_LOAD1_GREEN, PIN_LED_LOAD1_YELLOW, RelayControl::isLoad1Closed());
+        setLoadLeds(PIN_LED_LOAD2_GREEN, PIN_LED_LOAD2_YELLOW, RelayControl::isLoad2Closed());
     }
 }

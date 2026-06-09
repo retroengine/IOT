@@ -3,6 +3,7 @@
 // ============================================================
 #include "buzzer.h"
 #include "config.h"
+#include "serial_log.h"
 
 namespace {
     FSMState last_state = FSM_BOOT;
@@ -11,7 +12,6 @@ namespace {
 
     void setTone(uint32_t freq, uint8_t duty) {
         ledcSetup(BUZZER_LEDC_CHANNEL, freq, BUZZER_LEDC_RES_BITS);
-        ledcAttachPin(PIN_BUZZER, BUZZER_LEDC_CHANNEL);
         ledcWrite(BUZZER_LEDC_CHANNEL, duty);
         tone_on = true;
     }
@@ -28,7 +28,7 @@ namespace Buzzer {
         ledcSetup(BUZZER_LEDC_CHANNEL, BUZZER_FREQ_WARN, BUZZER_LEDC_RES_BITS);
         ledcAttachPin(PIN_BUZZER, BUZZER_LEDC_CHANNEL);
         ledcWrite(BUZZER_LEDC_CHANNEL, 0);
-        Serial.println("[BUZZER] init");
+        LOG_BUZZER("init");
     }
 
     void tick(FSMState state) {

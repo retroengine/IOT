@@ -19,7 +19,7 @@ import { getBestFrame, getSourceStatus, onFrame } from './dataRouter.js';
 
 // ── Dashboard directory ───────────────────────────────────────────────────
 const __dirname     = path.dirname(fileURLToPath(import.meta.url));
-const DASHBOARD_DIR = path.resolve(__dirname, '..', 'dashboard_ip');
+const DASHBOARD_DIR = path.resolve(__dirname, '..', 'dashboard');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -61,8 +61,39 @@ function _broadcast(data, source) {
   }
 }
 
-// ── HTTP handler — static files + /status ─────────────────────────────────
+// ── HTTP handler — static files + /status + /api/inject proxy ─────────────
 function _httpHandler(req, res) {
+  // ── POST /api/inject — Proxy to ESP32 for SIL Grid Scenario commands ───
+  // Dashboard sends commands here; relay forwards them to the ESP32 LAN IP
+  // with the stored API key, avoiding CORS issues entirely.
+  if (req.method === 'POST' && req.url === '/api/inject') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const esp32Url = `http://${config.esp32.ip}:${config.esp32.port}/api/inject`;
+        const resp = await fetch(esp32Url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': config.esp32.apiKey,
+          },
+          body,
+          signal: AbortSignal.timeout(config.esp32.timeoutMs),
+        });
+        const text = await resp.text();
+        res.writeHead(resp.status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+        res.end(text);
+        console.info(`[wsRelay] /api/inject proxied → ${resp.status}: ${body.trim()}`);
+      } catch (err) {
+        console.error('[wsRelay] /api/inject proxy error:', err.message);
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `ESP32 unreachable: ${err.message}` }));
+      }
+    });
+    return;
+  }
+
   // ── GET /api/telemetry — HTTP fallback for telemetryPoller ─────────────
   // telemetryPoller.js falls back to HTTP polling on WS failure.
   // Return the best available frame so the dashboard stays alive during reconnect.

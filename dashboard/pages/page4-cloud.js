@@ -574,7 +574,17 @@ export class Page4Cloud {
       return;
     }
     if (!brokerUrl.startsWith('wss://')) {
-      this._setCredStatus('URL must start with wss://', 'error');
+      if (brokerUrl.includes(':8883')) {
+        this._setCredStatus(
+          'Port 8883 is raw MQTT/TLS — use port 8884 with wss:// for browser WebSocket', 'error'
+        );
+      } else {
+        this._setCredStatus('URL must start with wss:// (e.g. wss://your-broker:8884/mqtt)', 'error');
+      }
+      return;
+    }
+    if (!password) {
+      this._setCredStatus('Password is required (never stored — enter each session)', 'error');
       return;
     }
 

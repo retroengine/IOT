@@ -108,6 +108,7 @@
   background-size: 40px 20px;
 }
 
+/* ── Wait, the block continues existing content then adds buttons ── */
 /* ── Respect reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .pulse-warning,
@@ -121,4 +122,84 @@
   .signal-path-line {
     transition: none;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Premium Aesthetic Buttons (.sgs-btn)
+   Added to modernize controls and forms.
+   ════════════════════════════════════════════════════════════════ */
+
+.sgs-btn,
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-family: var(--font-primary);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 250ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.sgs-btn:hover,
+button:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 12px rgba(255, 255, 255, 0.05);
+}
+
+.sgs-btn:active,
+button:active {
+  transform: translateY(1px) scale(0.98);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Accent Variant (for Primary Actions like Connect / Execute) */
+.sgs-btn--accent {
+  background: linear-gradient(180deg, rgba(29, 158, 117, 0.15) 0%, rgba(29, 158, 117, 0.05) 100%);
+  border-color: rgba(29, 158, 117, 0.3);
+  color: #e8ebe5;
+}
+
+.sgs-btn--accent:hover {
+  background: linear-gradient(180deg, rgba(29, 158, 117, 0.25) 0%, rgba(29, 158, 117, 0.10) 100%);
+  border-color: rgba(29, 158, 117, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 16px rgba(29, 158, 117, 0.2);
+}
+
+/* Danger Variant (for Faults) */
+.sgs-btn--danger {
+  background: linear-gradient(180deg, rgba(226, 75, 74, 0.15) 0%, rgba(226, 75, 74, 0.05) 100%);
+  border-color: rgba(226, 75, 74, 0.3);
+}
+
+.sgs-btn--danger:hover {
+  background: linear-gradient(180deg, rgba(226, 75, 74, 0.25) 0%, rgba(226, 75, 74, 0.10) 100%);
+  border-color: rgba(226, 75, 74, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 16px rgba(226, 75, 74, 0.2);
+}
+
+/* Minimal / Ghost Variant */
+.sgs-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-faint);
+}
+
+.sgs-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  box-shadow: none;
 }

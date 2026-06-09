@@ -17,19 +17,32 @@
 // ============================================================
 #include "relay_control.h"
 #include "config.h"
+#include "serial_log.h"
 #include "fault_engine.h"
+#include <atomic>
 
 namespace {
     bool r1_closed = false;
     bool r2_closed = false;
 
     // ── API override (set by POST /api/relay from web handler) ────────────
-    // volatile: written from Core-1 async handler, read from Core-0 task.
-    // Single bool write is atomic on ESP32 (32-bit Xtensa).
-    // Safety contract: FSM FAULT/LOCKOUT/BOOT always clears the override,
-    // so protection trips cannot be masked by an operator relay command.
-    volatile bool api_override_active = false;
-    volatile bool api_override_state  = false;
+    // NEW-17 fix: two separate volatile bools are not atomically visible to
+    // another core.  Core 1 writes api_override_active=true THEN writes
+    // api_override_state — Core 0 can observe active=true with the old state
+    // value between the two stores, commanding the relay in the wrong direction.
+    //
+    // Fix: encode both fields in a single std::atomic<uint32_t>:
+    //   Bit 0 (0x1): override active flag
+    //   Bit 1 (0x2): desired state (1 = close, 0 = open)
+    //
+    // A single atomic store/load is always coherent on Xtensa dual-core.
+    // memory_order_release on write / memory_order_acquire on read ensures
+    // the payload (desired state) is visible together with the active flag.
+    std::atomic<uint32_t> api_override{0};
+    //   Encoding helpers:
+    //     inactive  : 0x0
+    //     active+open : 0x1  (bit0=active, bit1=0=open)
+    //     active+close: 0x3  (bit0=active, bit1=1=close)
 
     // Active-LOW helpers
     // LOW  = coil energized = relay contacts CLOSED = load connected
@@ -51,7 +64,7 @@ namespace RelayControl {
         pinMode(PIN_RELAY_LOAD2, OUTPUT);
         r1_closed = false;
         r2_closed = false;
-        Serial.println("[RELAY] init — both OPEN (HIGH/safe, active-LOW convention)");
+        LOG_RELAY("init — both OPEN (HIGH/safe, active-LOW convention)");
     }
 
     void update(FSMState state) {
@@ -79,17 +92,24 @@ namespace RelayControl {
                 want_r2 = false;
                 // SAFETY: clear any pending API override — a fault/lockout/boot
                 // must NEVER be overridden by a dashboard operator command.
-                api_override_active = false;
+                // NEW-17: single atomic store with release ordering so Core 1
+                // sees the cleared state immediately.
+                api_override.store(0u, std::memory_order_release);
                 break;
         }
 
         // Apply API override only when FSM permits the relay to be on/off
         // (i.e. we are in NORMAL or WARNING — the two states where
         //  the operator might legitimately need manual control).
-        if (api_override_active &&
-            (state == FSM_NORMAL || state == FSM_WARNING)) {
-            want_r1 = api_override_state;
-            want_r2 = api_override_state;
+        // NEW-17: single acquire load — both active flag and desired state
+        // are read atomically; no torn observation between the two writes
+        // that the old two-bool scheme allowed.
+        {
+            uint32_t ovr = api_override.load(std::memory_order_acquire);
+            if ((ovr & 0x1u) &&
+                (state == FSM_NORMAL || state == FSM_WARNING)) {
+                want_r1 = want_r2 = (bool)(ovr & 0x2u);
+            }
         }
 
         // Only change if state differs (avoid unnecessary relay chatter)
@@ -100,12 +120,12 @@ namespace RelayControl {
                 FaultEngine::notifyRelayClosed();
             }
             r1_closed = want_r1;
-            Serial.printf("[RELAY] Load1 → %s\n", want_r1 ? "CLOSED" : "OPEN");
+            LOG_RELAY("Load1 → %s", want_r1 ? "CLOSED" : "OPEN");
         }
         if (want_r2 != r2_closed) {
             want_r2 ? relayClose(PIN_RELAY_LOAD2) : relayOpen(PIN_RELAY_LOAD2);
             r2_closed = want_r2;
-            Serial.printf("[RELAY] Load2 → %s\n", want_r2 ? "CLOSED" : "OPEN");
+            LOG_RELAY("Load2 → %s", want_r2 ? "CLOSED" : "OPEN");
         }
     }
 
@@ -114,10 +134,18 @@ namespace RelayControl {
 
     // Called from POST /api/relay — sets a one-shot operator override.
     // The FSM protection task will clear this override on any FAULT/LOCKOUT/BOOT.
+    // NEW-17: encodes both the active flag (bit 0) and desired state (bit 1) in
+    // a single atomic store so Core 0 can never observe active=true with a
+    // stale desired-state value between the two old separate writes.
     void setAPIOverride(bool desired_state) {
-        api_override_active = true;
-        api_override_state  = desired_state;
-        Serial.printf("[RELAY] API override set: %s\n",
-                      desired_state ? "CLOSE" : "OPEN");
+        if (desired_state && FaultEngine::isInLockoutDOB()) {
+            LOG_RELAY("API override ignored: DOB active. Compressor equalize required.");
+            return;
+        }
+        // Bit 0 = active, Bit 1 = desired state (close=1, open=0)
+        uint32_t val = 0x1u | (desired_state ? 0x2u : 0x0u);
+        api_override.store(val, std::memory_order_release);
+        LOG_RELAY("API override set: %s",
+                  desired_state ? "CLOSE" : "OPEN");
     }
 }

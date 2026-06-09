@@ -61,8 +61,14 @@ namespace {
     // ── Thermal health state ──────────────────────────────────────────────
     uint32_t thermal_read_attempts = 0;
     uint32_t thermal_read_successes = 0;
-    uint16_t thermal_disconnect_count = 0;
     bool     thermal_was_valid = false;
+    // NOTE (Bug 8 — reverted): DS18B20::getDisconnectCount() is NOT publicly
+    // exposed in the current driver — the compiler confirms only isDisconnected()
+    // is visible. The bug report's claim was incorrect. Retaining local
+    // edge-detection as the only available mechanism.
+    // TODO: expose getDisconnectCount() in ds18b20.h, then replace this block.
+    static uint32_t s_disconnect_count = 0;
+    static bool     s_was_disconnected = false;
 
     // Thermal variance window (20 samples)
     static constexpr int TEMP_WINDOW = 20;
@@ -174,10 +180,6 @@ namespace {
             if (temp_hist_idx == TEMP_WINDOW - 1) temp_hist_full = true;
             temp_hist_idx = (temp_hist_idx + 1) % TEMP_WINDOW;
         } else {
-            if (thermal_was_valid) {
-                thermal_disconnect_count++;
-                Serial.printf("[DIAG] Thermal disconnect #%d\n", thermal_disconnect_count);
-            }
             thermal_was_valid = false;
         }
     }
@@ -191,7 +193,11 @@ namespace {
             sq  += temp_hist[k] * temp_hist[k];
         }
         float mean = sum / count;
-        float var  = (sq / count) - (mean * mean);
+        // Bug 7 fix: use sample variance (÷ N-1, Bessel's correction) to match
+        // the formula already used in adc_sampler.cpp::bufferVariance(). The old
+        // population formula (÷ N) underestimated by N/(N-1) ≈ 5.3% for N=20,
+        // causing temp_stable to trigger ~5% too early at the 4.0°C² boundary.
+        float var  = (sq - count * mean * mean) / (count - 1);
         return (var > 0.0f) ? var : 0.0f;
     }
 
@@ -244,7 +250,9 @@ namespace {
             if (v > v_max_w) v_max_w = v;
         }
         float mean = sum / count;
-        float var  = (sq_sum / count) - (mean * mean);
+        // Bug 7 fix: sample variance (÷ N-1). Population formula underestimated
+        // by 1.7% for N=60, affecting flicker_index and voltage_stability_score.
+        float var  = (count > 1) ? (sq_sum - count * mean * mean) / (count - 1) : 0.0f;
         if (var < 0.0f) var = 0.0f;
         float p2p  = v_max_w - v_min_w;
 
@@ -353,13 +361,13 @@ namespace {
                 ? (uint8_t)((thermal_read_successes * 100) / thermal_read_attempts)
                 : 0;
             snap.thermal.read_success_rate  = success_rate;
-            snap.thermal.disconnect_count   = thermal_disconnect_count;
+            snap.thermal.disconnect_count   = s_disconnect_count;  // local edge-detection (see note above)
             snap.thermal.reading_age_ms     = 0;
             snap.thermal.sensor_present     = valid;
             snap.thermal.temp_variance      = computeThermalVariance();
             snap.thermal.temp_stable        = (snap.thermal.temp_variance < 4.0f);
             snap.thermal.stability_score    = scoreThermal(
-                valid, success_rate, thermal_disconnect_count,
+                valid, success_rate, (uint16_t)snap.thermal.disconnect_count,
                 snap.thermal.temp_variance);
             snap.thermal.stability_label    = valid ?
                 scoreLabel(snap.thermal.stability_score) : "FAULT";
@@ -393,10 +401,8 @@ namespace {
         }
 
         // ── Power Quality ─────────────────────────────────────────────────
-        // Note: pushPowerQualityWindow() was already called inside
-        // computePowerQuality(). We call it here since the window advance
-        // must happen exactly once per update() call, not once per build.
-        // computePowerQuality reads pq_v_buf which was already advanced.
+        // pushPowerQualityWindow() is called internally by computePowerQuality()
+        // on the line below, advancing the window exactly once per update() call.
         snap.power_quality = computePowerQuality(voltage_v, current_a);
 
         // ── System Diagnostics ────────────────────────────────────────────
@@ -438,8 +444,11 @@ namespace SensorDiagnostics {
 #ifdef configASSERT
         if (s_last_update_tick != 0) {
             TickType_t delta = now - s_last_update_tick;
-            // Minimum expected interval: 800ms
-            configASSERT(delta >= pdMS_TO_TICKS(800));
+            // Minimum expected interval: COMMS_LOOP_MS / 2
+            // Catches true double-calls (much faster than the comms loop)
+            // without firing on legitimate single calls per cycle.
+            // (The original 800ms figure was the DS18B20 conversion time — unrelated.)
+            configASSERT(delta >= pdMS_TO_TICKS(COMMS_LOOP_MS / 2));
         }
 #endif
         s_last_update_tick = now;
@@ -448,6 +457,17 @@ namespace SensorDiagnostics {
         // These write to the module-level static arrays (pq_v_buf, temp_hist,
         // thermal counters). They must run before buildSnapshotInto() reads
         // the post-advance state into the snapshot.
+
+        // Disconnect event tracking via rising-edge detection on isDisconnected().
+        // DS18B20::getDisconnectCount() is not publicly exposed in the current
+        // driver (Bug 8 — reverted). When the driver exposes that counter,
+        // remove this block and read it directly in buildSnapshotInto().
+        {
+            bool now_disconnected = DS18B20::isDisconnected();
+            if (now_disconnected && !s_was_disconnected) s_disconnect_count++;
+            s_was_disconnected = now_disconnected;
+        }
+
         updateThermalState(temp_c);
         // Power quality window advance happens inside computePowerQuality()
         // via pushPowerQualityWindow() — already present in that function.

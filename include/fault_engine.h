@@ -8,7 +8,7 @@
 namespace FaultEngine {
     void      init();
     void      evaluate(float v, float raw_i, float t,
-                       int raw_v_int, int raw_i_int, uint32_t spoofed_now_ms = 0);
+                       int raw_v_int, int raw_i_int, uint32_t spoofed_now_ms = 0, bool force_resistive = false);
 
     // Forces the internal Asymmetric IIR filter state memory to exactly match the 
     // target value. Critical for preventing math-transient ghost currents during 

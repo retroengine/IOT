@@ -7,10 +7,19 @@
   <title>Smart Grid Sentinel</title>
 
   <!-- ── Google Fonts ── -->
-  <!-- DM Sans: primary UI font (DESIGN.md §3 — preferred) -->
-  <!-- JetBrains Mono: monospace font for payload inspector (Page 4) -->
+  <!-- DM Sans: primary UI font | JetBrains Mono: monospace for inspector | Syne: logo wordmark -->
+  <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+  />
+  <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin
+  />
   <link
     rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@300;400&family=Syne:wght@700;800&display=swap"
   />
 
   <!-- ── Design Tokens & Effects (Phase 1 — FROZEN) ── -->
@@ -394,17 +403,31 @@
               Analytics
             </a>
           </li>
+          <li>
+            <a class="nav__link"
+               href="#"
+               data-page="phantom"
+               role="tab"
+               aria-selected="false"
+               aria-controls="page-phantom">
+              Phantom Grid
+            </a>
+          </li>
         </ul>
       </div>
 
-      <!-- Right: FSM State Badge (persistent — DESIGN.md §5.2) -->
-      <div class="nav__right">
+      <!-- Right: FSM State Badge & Connect Button -->
+      <div class="nav__right" style="position: relative;">
         <!-- Mobile: "Menu" pill button (hidden on desktop) -->
         <button class="nav__mobile-menu-btn"
                 type="button"
                 aria-label="Open navigation menu"
                 aria-expanded="false">
           Menu
+        </button>
+
+        <button id="nav-connect-btn" class="sgs-btn sgs-btn--accent">
+          Connect Target
         </button>
 
         <!-- FSM State Badge — always visible, updates via JS in Phase 4 -->
@@ -416,6 +439,18 @@
               data-state="BOOT">
           BOOT
         </span>
+
+        <!-- Connect Modal Dropdown (Hidden initially) -->
+        <div id="connect-modal" style="display: none; position: absolute; top: 40px; right: 0; background: var(--bg-card-dark); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; width: 300px; box-shadow: var(--shadow-card); z-index: var(--z-modal);">
+          <h3 style="font-size: 14px; margin-bottom: 12px; color: var(--text-primary); font-weight: 600;">Connection Settings</h3>
+          <input id="connect-ip-input" type="text" placeholder="ESP32 IP or blank for local" style="width: 100%; background: #0d0f0d; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: #e8ebe5; font-size: 13px; padding: 8px 12px; margin-bottom: 8px; outline: none;" />
+          <input id="connect-key-input" type="password" placeholder="API Key" style="width: 100%; background: #0d0f0d; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: #e8ebe5; font-size: 13px; padding: 8px 12px; margin-bottom: 12px; outline: none;" />
+          <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button id="connect-cancel-btn" class="sgs-btn sgs-btn--ghost">Cancel</button>
+            <button id="connect-save-btn" class="sgs-btn sgs-btn--accent">Save & Connect</button>
+          </div>
+        </div>
+
       </div>
     </nav>
 
@@ -494,15 +529,11 @@
     </main>
 
     <!-- ── Page 2: Faults & Control ── -->
+    <!-- page2-faults.js mounts directly into this element — no inner wrapper needed -->
     <main id="page-faults"
           class="page"
           role="main"
           aria-label="Faults and control page">
-      <div class="page-content">
-        <div class="zone-placeholder" style="min-height:400px;">
-          Page 2 — Faults &amp; Control (Phase 6)
-        </div>
-      </div>
     </main>
 
     <!-- ── Page 3: Diagnostics ── -->
@@ -510,11 +541,6 @@
           class="page"
           role="main"
           aria-label="Diagnostics page">
-      <div class="page-content">
-        <div class="zone-placeholder" style="min-height:400px;">
-          Page 3 — Diagnostics (Phase 7)
-        </div>
-      </div>
     </main>
 
     <!-- ── Page 4: Cloud / MQTT ── -->
@@ -522,11 +548,6 @@
           class="page"
           role="main"
           aria-label="Cloud and MQTT page">
-      <div class="page-content">
-        <div class="zone-placeholder" style="min-height:400px;">
-          Page 4 — Cloud / MQTT (Phase 7)
-        </div>
-      </div>
     </main>
 
     <!-- ── Page 5: Analytics ── -->
@@ -534,11 +555,13 @@
           class="page"
           role="main"
           aria-label="Analytics page">
-      <div class="page-content">
-        <div class="zone-placeholder" style="min-height:400px;">
-          Page 5 — Analytics (Phase 5) — Connect a time-series backend to enable.
-        </div>
-      </div>
+    </main>
+
+    <!-- ── Page 6: Phantom Grid (SIL Engine Control) ── -->
+    <main id="page-phantom"
+          class="page"
+          role="main"
+          aria-label="Phantom Grid SIL control">
     </main>
 
   </div><!-- /.dashboard -->

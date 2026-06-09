@@ -32,6 +32,7 @@
 #include "ws_server.h"
 #include "telemetry_builder.h"
 #include "config.h"
+#include "serial_log.h"
 #include <Arduino.h>
 #include <atomic>
 #include <cstring>
@@ -45,10 +46,11 @@ namespace {
     // Seqlock pointer — set during init(), used in WS_EVT_CONNECT (Finding #2)
     std::atomic<uint32_t>* g_seqlock = nullptr;
 
-    // Per-client send buffer — reused across WS_EVT_CONNECT calls.
-    // Lives in the module namespace (not on the lwIP stack) to avoid
-    // stack overflow risk in the async callback context.
-    static char s_connect_buf[TelemetryBuilder::TELEMETRY_BUF_SIZE];
+    // NOTE: s_connect_buf was removed (NEW-11 fix).
+    // Two simultaneous WS_EVT_CONNECT callbacks share the same task context
+    // on the lwIP event loop; a single static buffer causes the second
+    // callback to overwrite the first client's payload before client->text()
+    // has queued it.  Each connect now allocates its own heap buffer.
 
     // ── WebSocket event handler ───────────────────────────────────────────
     void onWsEvent(AsyncWebSocket*       server,
@@ -61,7 +63,7 @@ namespace {
         switch (type) {
 
             case WS_EVT_CONNECT:
-                Serial.printf("[WS] client #%u connected from %s\n",
+                LOG_WS("client #%u connected from %s",
                               client->id(),
                               client->remoteIP().toString().c_str());
                 // Send one frame immediately — client should not wait.
@@ -76,18 +78,27 @@ namespace {
                 // TelemetryBuilder::getSnapshot() which uses a seqlock retry loop.
                 // The snapshot was committed by task_comms in the previous cycle.
                 // No blocking. No torn reads. No static buffer race.
-                if (TelemetryBuilder::getSnapshot(s_connect_buf,
-                                                   sizeof(s_connect_buf))) {
-                    client->text(s_connect_buf);
+                //
+                // NEW-11 fix: each connect allocates its own heap buffer so that
+                // two simultaneous connects do not overwrite each other's payload
+                // before client->text() has enqueued the frame.
+                {
+                    char* buf = (char*)malloc(TelemetryBuilder::TELEMETRY_BUF_SIZE);
+                    if (buf) {
+                        if (TelemetryBuilder::getSnapshot(buf, TelemetryBuilder::TELEMETRY_BUF_SIZE)) {
+                            client->text(buf);
+                        }
+                        free(buf);
+                    }
                 }
                 break;
 
             case WS_EVT_DISCONNECT:
-                Serial.printf("[WS] client #%u disconnected\n", client->id());
+                LOG_WS("client #%u disconnected", client->id());
                 break;
 
             case WS_EVT_ERROR:
-                Serial.printf("[WS] client #%u error %u: %s\n",
+                LOG_WS("client #%u error %u: %s",
                               client->id(),
                               *((uint16_t*)arg),
                               (char*)data);
@@ -100,8 +111,19 @@ namespace {
                 if (info->opcode == WS_TEXT && len >= 4) {
                     // {"type":"ping"} → send pong
                     // ESPAsyncWebServer handles binary PING frames automatically
-                    if (strncmp((char*)data, "{\"type\":\"ping\"}", len) == 0 ||
-                        strncmp((char*)data, "{\"type\": \"ping\"}", len) == 0) {
+                    //
+                    // NEW-12 fix: strncmp(s1, s2, len) stops at the null terminator
+                    // of the literal (pos 15/16) when len > strlen(literal), so any
+                    // message that merely *starts with* the ping prefix — e.g.
+                    // {"type":"ping","id":42} — would incorrectly trigger a pong.
+                    // An exact-length pre-check ensures only the precise ping frames
+                    // match, and future protocol extensions sharing the prefix are safe.
+                    static constexpr char PING1[] = "{\"type\":\"ping\"}";
+                    static constexpr char PING2[] = "{\"type\": \"ping\"}";
+                    if ((len == sizeof(PING1) - 1 &&
+                         strncmp((char*)data, PING1, len) == 0) ||
+                        (len == sizeof(PING2) - 1 &&
+                         strncmp((char*)data, PING2, len) == 0)) {
                         char pong[48];
                         snprintf(pong, sizeof(pong),
                                  "{\"type\":\"pong\",\"ts\":%lu}", millis());
@@ -135,8 +157,8 @@ namespace WSServer {
         g_ws->onEvent(onWsEvent);
         server->addHandler(g_ws);
 
-        Serial.printf("[WS] WebSocket server mounted at ws://%%s/ws/telemetry\n");
-        Serial.printf("[WS] Push interval: %dms\n", WS_PUSH_INTERVAL_MS);
+        LOG_WS("WebSocket server mounted at ws://[IP]/ws/telemetry");
+        LOG_WS("Push interval: %dms", WS_PUSH_INTERVAL_MS);
     }
 
     void tick(const SensorReading& r, const FSMContext& ctx) {

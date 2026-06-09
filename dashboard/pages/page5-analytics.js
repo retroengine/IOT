@@ -25,7 +25,13 @@
  *   destroy()            — cancel pending fetches, remove event listeners
  */
 
-import { fetchHistoryMulti } from '../telemetry/historyPoller.js';
+import { fetchHistoryMulti }                               from '../telemetry/historyPoller.js';
+import {
+  fetchTelemetryMulti,
+  fetchFaultEvents,
+  fetchEnergyDaily,
+  isAvailable as supabaseAvailable,
+} from '../telemetry/supabaseClient.js';
 import {
   setupCanvas,
   clearCanvas,
@@ -701,10 +707,8 @@ export class Page5Analytics {
   // ── Data loading ───────────────────────────────────────────────────────────
 
   async _loadData() {
-    // Lazy: skip while tab is hidden
     if (document.hidden) return;
 
-    // Compute time range
     let fromDate, toDate;
     if (this._customFrom && this._customTo) {
       fromDate = this._customFrom;
@@ -714,52 +718,74 @@ export class Page5Analytics {
       fromDate = new Date(toDate.getTime() - (this._activeRange?.ms ?? 3_600_000));
     }
 
-    // Cancel previous fetch group
     if (this._abortCtrl) this._abortCtrl.abort();
     this._abortCtrl = new AbortController();
 
-    // Show loading state on all time-series panels
     this._setStatus('Fetching…');
     for (const panel of this._panels) panel.setLoading(true);
 
     try {
-      // Fetch all primary telemetry fields concurrently
-      const historyData = await fetchHistoryMulti(
-        ['v', 'i', 't', 'p'],
-        fromDate,
-        toDate,
-        RESOLUTION
-      );
+      let historyData   = {};
+      let faultEvents   = [];
+      let usingSupabase = false;
+
+      // ── Try Supabase first (real persistent data) ───────────────────────
+      if (supabaseAvailable()) {
+        const [sbData, sbFaults] = await Promise.all([
+          fetchTelemetryMulti(['v', 'i', 't', 'p'], fromDate, toDate, 1000),
+          fetchFaultEvents(fromDate, toDate, 500),
+        ]);
+
+        const totalPoints = Object.values(sbData).reduce((s, a) => s + a.length, 0);
+        if (totalPoints > 0) {
+          historyData   = sbData;
+          faultEvents   = sbFaults;
+          usingSupabase = true;
+        }
+      }
+
+      // ── Fall back to in-memory historyPoller buffer ─────────────────────
+      if (!usingSupabase) {
+        historyData = await fetchHistoryMulti(
+          ['v', 'i', 't', 'p'],
+          fromDate, toDate,
+          RESOLUTION
+        );
+        faultEvents = [];
+      }
+
       this._historyData = historyData;
 
-      // Determine if we're using real backend data or buffer fallback
-      const usingBackend = Object.values(historyData).some(d => d.length > 60);
-      this._setStatus(
-        usingBackend
-          ? `${Object.values(historyData)[0]?.length ?? 0} data points`
-          : 'Buffer data — connect analytics backend for full history'
-      );
+      const totalPts = Object.values(historyData).reduce((s, a) => s + a.length, 0);
+      if (totalPts === 0) {
+        this._setStatus('No data — relay server collects data every 60s');
+      } else {
+        this._setStatus(
+          usingSupabase
+            ? `✅ Supabase • ${totalPts} points • ${fromDate.toLocaleDateString()} – ${toDate.toLocaleDateString()}`
+            : `⚠️ Buffer data • ${totalPts} pts • Supabase collecting every 60s`
+        );
+      }
 
-      // Feed panels
-      this._voltagePanel.setData(historyData.v);
-      this._currentPanel.setData(historyData.i);
-      this._tempPanel.setData(historyData.t);
-      this._powerPanel.setData(historyData.p);
+      this._voltagePanel.setData(historyData.v || []);
+      this._currentPanel.setData(historyData.i || []);
+      this._tempPanel.setData(historyData.t   || []);
+      this._powerPanel.setData(historyData.p  || []);
 
-      // Synthesise Power Factor distribution from power + current + voltage data
       const pfData = this._synthPFData(historyData);
       this._pfPanel.setData(pfData);
 
-      // Synthesise fault event timeline from state transitions in data
-      const faultEvents = this._synthFaultEvents(historyData, fromDate, toDate);
-      const ftOpts = {
+      // Real fault events from Supabase, or synthesised from buffer
+      const ftData = usingSupabase
+        ? faultEvents.map(e => ({ ts: e.ts, value: 1, label: `${e.from_state} → ${e.to_state}` }))
+        : this._synthFaultEvents(historyData, fromDate, toDate);
+
+      this._faultPanel._drawOpts = {
         ...this._faultPanel._drawOpts,
         fromTs: fromDate.getTime(),
         toTs:   toDate.getTime(),
       };
-      // Update faultPanel drawOpts with the range timestamps
-      this._faultPanel._drawOpts = ftOpts;
-      this._faultPanel.setData(faultEvents);
+      this._faultPanel.setData(ftData);
 
     } catch (err) {
       if (err.name !== 'AbortError') {
@@ -769,6 +795,7 @@ export class Page5Analytics {
       }
     }
   }
+
 
   _onVisibilityChange() {
     // Resume fetch when tab becomes visible, if data is stale
