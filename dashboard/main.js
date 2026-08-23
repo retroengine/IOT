@@ -39,7 +39,7 @@ import { getKey, setKey, getTargetIp, setTargetIp, isConfigured } from './utils/
 // Automatically true on localhost / file:// so the dashboard works immediately
 // with mock data without any manual toggle. Set FORCE_DEV_MODE = true to
 // override in non-standard dev setups.
-const FORCE_DEV_MODE = false;  // override if needed
+const FORCE_DEV_MODE = true;  // override if needed
 
 // DEV_MODE is now strictly controlled by FORCE_DEV_MODE instead of 
 // auto-detecting localhost so that Live Server extensions don't trigger mock data.
